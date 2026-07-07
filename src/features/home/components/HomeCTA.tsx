@@ -7,7 +7,7 @@ export function HomeCTA() {
         <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-100">
           Próxima fase
         </p>
-        <h2 className="font-display text-4xl leading-none sm:text-5xl">
+        <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] sm:text-5xl">
           La base ya está lista para conectar catálogo real, filtros y búsqueda.
         </h2>
         <p className="text-sm leading-7 text-brand-100 sm:text-base">

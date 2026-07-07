@@ -3,6 +3,11 @@ import type {
   PublicLocationCard,
   PublicLocationDetail,
 } from '@/types/location.ts'
+import {
+  buildPublicSlug,
+  mapPublicLocationCard,
+  normalizePublicValue,
+} from '@/utils/location-public.ts'
 
 type RelatedEntity = {
   id?: string | null
@@ -84,22 +89,6 @@ function sortImages(images: LocationImageRow[] | null | undefined) {
   )
 }
 
-function normalizePublicValue(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim()
-}
-
-function buildPublicSlug(locationCode?: string | null) {
-  if (!locationCode) {
-    return null
-  }
-
-  return normalizePublicValue(locationCode)
-}
-
 function buildLocationCodeFromSlug(publicSlug: string) {
   const normalizedPublicSlug = normalizePublicValue(publicSlug)
 
@@ -113,24 +102,18 @@ function buildLocationCodeFromSlug(publicSlug: string) {
 function mapSearchPublicLocationsRow(
   row: SearchPublicLocationsRow,
 ): PublicLocationCard {
-  const publicSlug = buildPublicSlug(row.location_code) ?? row.id
-  const publicLocationCode = row.location_code?.trim() || publicSlug
-
-  return {
+  return mapPublicLocationCard({
     id: row.id,
-    slug: publicSlug,
-    title: publicLocationCode,
-    locationCode: publicLocationCode,
-    categoryName: row.category_name ?? 'Sin categoria',
-    departmentName: row.department_name ?? 'Sin departamento',
-    zoneName: row.zone_name ?? 'Sin zona',
+    locationCode: row.location_code ?? row.id,
+    categoryName: row.category_name ?? null,
+    departmentName: row.department_name ?? null,
+    zoneName: row.zone_name ?? null,
     coverImageUrl: row.cover_image_url ?? null,
     coverImageAlt: row.cover_image_alt ?? 'Imagen de locacion',
     features: row.features ?? [],
-    matchedFeatureCount: row.matched_feature_count ?? undefined,
-    selectedFeatureCount: row.selected_feature_count ?? undefined,
-    featureMatchMode: null,
-  }
+    matchedFeatureCount: row.matched_feature_count ?? null,
+    selectedFeatureCount: row.selected_feature_count ?? null,
+  })
 }
 
 function normalizeFeatureSlugs(featureSlugs?: string[]) {

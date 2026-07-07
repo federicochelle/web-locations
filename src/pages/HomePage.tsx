@@ -81,48 +81,50 @@ export function HomePage() {
   }, [])
 
   return (
-    <div className="space-y-8 sm:space-y-10">
-      <HomeSearchSection
-        categories={categories}
-        features={features}
-        isLoading={isLoading}
-        error={error}
-      />
-
-      {isLoading ? (
-        <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
-          <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={index}
-                className="aspect-[5/6] animate-pulse rounded-[1.75rem] bg-sand-200 sm:aspect-[6/5] xl:aspect-[4/5]"
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {!isLoading && error ? (
-        <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
-          <h2 className="text-lg font-semibold">No se pudieron cargar las categorias</h2>
-          <p className="mt-2 text-sm">{error}</p>
-        </section>
-      ) : null}
-
-      {!isLoading && !error && categories.length === 0 ? (
-        <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-brand-950">No hay categorias</h2>
-          <p className="mt-2 text-sm text-sand-700">
-            Cuando existan categorias en Supabase, apareceran aqui.
-          </p>
-        </section>
-      ) : null}
-
-      {!isLoading && !error && categories.length > 0 ? (
-        <HomeCategoriesGrid
-          categories={buildHomeCategoryCards(categories)}
+    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
+      <div className="mx-auto max-w-[1720px] space-y-12 sm:space-y-14 lg:space-y-18">
+        <HomeSearchSection
+          categories={categories}
+          features={features}
+          isLoading={isLoading}
+          error={error}
         />
-      ) : null}
+
+        {isLoading ? (
+          <section>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="aspect-[5/6] animate-pulse rounded-[2rem] bg-white/8 sm:aspect-[6/5] xl:aspect-[4/5]"
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {!isLoading && error ? (
+          <section className="rounded-[2rem] border border-red-200/20 bg-red-50 px-6 py-8 text-red-900 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8">
+            <h2 className="text-lg font-semibold">No se pudieron cargar las categorias</h2>
+            <p className="mt-2 text-sm">{error}</p>
+          </section>
+        ) : null}
+
+        {!isLoading && !error && categories.length === 0 ? (
+          <section className="rounded-[2rem] border border-white/10 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8">
+            <h2 className="text-lg font-semibold text-brand-950">No hay categorias</h2>
+            <p className="mt-2 text-sm text-sand-700">
+              Cuando existan categorias en Supabase, apareceran aqui.
+            </p>
+          </section>
+        ) : null}
+
+        {!isLoading && !error && categories.length > 0 ? (
+          <HomeCategoriesGrid
+            categories={buildHomeCategoryCards(categories)}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

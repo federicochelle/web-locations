@@ -7,8 +7,10 @@ export function PublicLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-transparent text-brand-950">
       <Header />
-      <main className="page-shell flex-1 py-10 sm:py-12">
-        <Outlet />
+      <main className="relative flex-1 overflow-hidden bg-transparent">
+        <div className="page-shell relative">
+          <Outlet />
+        </div>
       </main>
       <Footer />
     </div>
