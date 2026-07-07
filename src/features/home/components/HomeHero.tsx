@@ -9,7 +9,7 @@ export function HomeHero() {
           <p className="text-xs font-medium uppercase tracking-[0.3em] text-brand-700">
             Base pública en construcción
           </p>
-          <h1 className="font-display text-5xl leading-none text-brand-950 sm:text-7xl">
+          <h1 className="font-display text-5xl font-semibold leading-none tracking-[-0.04em] text-brand-950 sm:text-7xl">
             Encontrá la locación ideal para tu próxima producción.
           </h1>
           <p className="max-w-2xl text-base leading-7 text-sand-700 sm:text-lg">

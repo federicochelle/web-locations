@@ -17,7 +17,7 @@ export function SectionHeading({
         </p>
       ) : null}
       <div className="space-y-2">
-        <h2 className="font-display text-4xl leading-none text-brand-950 sm:text-5xl">
+        <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-950 sm:text-5xl">
           {title}
         </h2>
         {description ? (

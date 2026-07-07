@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 
+import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
+import { useFavorites } from '@/hooks/useFavorites.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
@@ -15,6 +17,7 @@ export function LocationDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
 
   usePageTitle(location?.locationCode ?? 'Detalle de locacion')
 
@@ -105,9 +108,18 @@ export function LocationDetailPage() {
             >
               ← Volver a locaciones
             </Link>
-            <p className="px-1 font-display text-3xl leading-none text-brand-300 sm:text-4xl">
-              {formatLocationCode(location.locationCode)}
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <p className="px-1 font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
+                {formatLocationCode(location.locationCode)}
+              </p>
+              <FavoriteButton
+                active={favoriteIds.has(location.id)}
+                loading={pendingIds.includes(location.id)}
+                onClick={() => {
+                  void toggleFavorite({ id: location.id })
+                }}
+              />
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {location.images.length > 0 ? (
                 location.images.map((image, index) => (

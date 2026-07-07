@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
-import { LocationCard } from '@/features/locations/components/LocationCard.tsx'
+import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
+import { useFavorites } from '@/hooks/useFavorites.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
@@ -18,11 +19,20 @@ export function LocationsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const trimmedSearchQuery = searchQuery?.trim() ?? ''
-  const normalizedFeatureSlugs = (featuresQuery ?? '')
-    .split(',')
-    .map((featureSlug) => featureSlug.trim())
-    .filter((featureSlug) => featureSlug.length > 0)
+  const normalizedFeatureSlugs = useMemo(
+    () =>
+      (featuresQuery ?? '')
+        .split(',')
+        .map((featureSlug) => featureSlug.trim())
+        .filter((featureSlug) => featureSlug.length > 0),
+    [featuresQuery],
+  )
   const hasActiveSearch = trimmedSearchQuery.length > 0
+  const {
+    favoriteIds,
+    pendingIds,
+    toggleFavorite,
+  } = useFavorites()
 
   const activeHeadingParts = [
     activeCategoryName ? `Categoria: ${activeCategoryName}` : null,
@@ -76,45 +86,10 @@ export function LocationsPage() {
     return () => {
       isMounted = false
     }
-  }, [categorySlug, trimmedSearchQuery, featuresQuery])
+  }, [categorySlug, normalizedFeatureSlugs, trimmedSearchQuery])
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-[0.24em] text-sand-500">
-              Exploracion publica
-            </p>
-            <h1 className="text-2xl font-semibold text-brand-950">
-              {activeHeadingParts.length > 0
-                ? activeHeadingParts.join(' · ')
-                : 'Todas las locaciones'}
-            </h1>
-            {(categorySlug || hasActiveSearch) && !isLoading && !error ? (
-              <p className="text-sm text-sand-700">
-                {!categoryExists && categorySlug
-                  ? `La categoria "${categorySlug}" no existe o no esta disponible.`
-                  : 'Estas viendo resultados filtrados.'}
-              </p>
-            ) : (
-              <p className="text-sm text-sand-700">
-                Explora las locaciones publicadas disponibles.
-              </p>
-            )}
-          </div>
-
-          {(categorySlug || hasActiveSearch) ? (
-            <Link
-              to="/locations"
-              className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-sm text-brand-950 transition hover:bg-sand-50"
-            >
-              Ver todas
-            </Link>
-          ) : null}
-        </div>
-      </section>
-
+    <div className="space-y-6 pt-6 sm:pt-8 lg:pt-10">
       {isLoading ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -157,13 +132,12 @@ export function LocationsPage() {
       ) : null}
 
       {!isLoading && !error && locations.length > 0 ? (
-        <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
-          <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {locations.map((location) => (
-              <LocationCard key={location.id} location={location} />
-            ))}
-          </div>
-        </section>
+        <LocationsGrid
+          locations={locations}
+          favoriteIds={favoriteIds}
+          pendingFavoriteIds={pendingIds}
+          onToggleFavorite={toggleFavorite}
+        />
       ) : null}
     </div>
   )

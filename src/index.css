@@ -1,10 +1,11 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Saira:wght@500;600;700;800&display=swap");
 @import "tailwindcss";
 
 @theme inline {
   --color-brand-50: #f4efe8;
-  --color-brand-100: #e8ddd1;
-  --color-brand-300: #bea88f;
-  --color-brand-500: #7c5b42;
+  --color-brand-100: #f2e7d8;
+  --color-brand-300: #d7c0a2;
+  --color-brand-500: #9b7858;
   --color-brand-700: #5d4330;
   --color-brand-950: #201712;
   --color-sand-50: #fcfaf7;
@@ -12,8 +13,8 @@
   --color-sand-200: #ece4d8;
   --color-sand-400: #c6b59c;
   --color-sand-700: #665847;
-  --font-sans: "Instrument Sans", "Segoe UI", sans-serif;
-  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --font-display: "Saira", "Inter", "Segoe UI", sans-serif;
 }
 
 @layer base {
