@@ -37,6 +37,18 @@ export function Header() {
         </NavLink>
 
         <div className="flex items-center gap-3">
+          <NavLink
+            to="/postular-locacion"
+            className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 sm:hidden"
+          >
+            Postular
+          </NavLink>
+          <NavLink
+            to="/postular-locacion"
+            className="hidden min-h-10 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 sm:inline-flex"
+          >
+            Postular mi locacion
+          </NavLink>
           {isAuthenticated ? (
             <>
               <NavLink

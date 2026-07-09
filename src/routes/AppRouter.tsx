@@ -8,10 +8,14 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage.tsx'
 import { HomePage } from '@/pages/HomePage.tsx'
 import { LoginPage } from '@/pages/LoginPage.tsx'
 import { LocationDetailPage } from '@/pages/LocationDetailPage.tsx'
+import { LocationSubmissionPage } from '@/pages/LocationSubmissionPage.tsx'
 import { LocationsPage } from '@/pages/LocationsPage.tsx'
+import { NewRequestProjectPage } from '@/pages/NewRequestProjectPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage.tsx'
 import { ProfilePage } from '@/pages/ProfilePage.tsx'
+import { RequestDetailPage } from '@/pages/RequestDetailPage.tsx'
 import { RegisterPage } from '@/pages/RegisterPage.tsx'
+import { RequestsPage } from '@/pages/RequestsPage.tsx'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage.tsx'
 import { ProtectedRoute } from '@/routes/ProtectedRoute.tsx'
 import { PublicOnlyRoute } from '@/routes/PublicOnlyRoute.tsx'
@@ -55,7 +59,11 @@ const router = createBrowserRouter([
         element: <LocationDetailPage />,
       },
       {
-        element: <ProtectedRoute allowedRoles={['visitor']} />,
+        path: 'postular-locacion',
+        element: <LocationSubmissionPage />,
+      },
+      {
+        element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
         children: [
           {
             path: 'dashboard',
@@ -68,6 +76,18 @@ const router = createBrowserRouter([
           {
             path: 'favorites',
             element: <FavoritesPage />,
+          },
+          {
+            path: 'requests',
+            element: <RequestsPage />,
+          },
+          {
+            path: 'requests/new',
+            element: <NewRequestProjectPage />,
+          },
+          {
+            path: 'requests/:id',
+            element: <RequestDetailPage />,
           },
         ],
       },
