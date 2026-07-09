@@ -90,3 +90,24 @@ export type PublicLocationDetail = {
   locationCode: string
   images: PublicLocationDetailImage[]
 }
+
+export type LocationRequestStatus =
+  | 'pending'
+  | 'in_review'
+  | 'contacted'
+  | 'closed'
+
+export type MyLocationRequest = {
+  id: string
+  createdAt: string
+  status: LocationRequestStatus
+  message: string
+  location: {
+    id: string
+    slug: string
+    title: string
+    locationCode: string
+    categoryName: string
+    coverImageUrl: string | null
+  }
+}

@@ -40,7 +40,7 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <Link
                 to="/locations"
                 className="rounded-[1.5rem] border border-black/5 bg-sand-50 px-5 py-5 text-sm text-brand-950 transition hover:bg-sand-100"
@@ -58,6 +58,12 @@ export function DashboardPage() {
                 className="rounded-[1.5rem] border border-black/5 bg-sand-50 px-5 py-5 text-sm text-brand-950 transition hover:bg-sand-100"
               >
                 Favoritos
+              </Link>
+              <Link
+                to="/requests"
+                className="rounded-[1.5rem] border border-black/5 bg-sand-50 px-5 py-5 text-sm text-brand-950 transition hover:bg-sand-100"
+              >
+                Mis solicitudes
               </Link>
             </div>
 

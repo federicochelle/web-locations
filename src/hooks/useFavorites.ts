@@ -8,12 +8,11 @@ import {
   removeFavorite,
 } from '@/services/favorites.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
-import { getDefaultRouteByRole } from '@/utils/auth-routing.ts'
 
 export function useFavorites() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, loading: authLoading, role, user } = useAuth()
+  const { isAuthenticated, loading: authLoading, user } = useAuth()
 
   const [favorites, setFavorites] = useState<PublicLocationCard[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -26,7 +25,7 @@ export function useFavorites() {
   )
 
   const refreshFavorites = useCallback(async () => {
-    if (!user || role !== 'visitor') {
+    if (!user) {
       setFavorites([])
       setError(null)
       setIsLoading(false)
@@ -48,7 +47,7 @@ export function useFavorites() {
     } finally {
       setIsLoading(false)
     }
-  }, [role, user])
+  }, [user])
 
   useEffect(() => {
     if (authLoading) {
@@ -70,11 +69,6 @@ export function useFavorites() {
             from: location,
           },
         })
-        return
-      }
-
-      if (role && role !== 'visitor') {
-        navigate(getDefaultRouteByRole(role), { replace: true })
         return
       }
 
@@ -129,7 +123,6 @@ export function useFavorites() {
       navigate,
       pendingIds,
       refreshFavorites,
-      role,
       user,
     ],
   )
