@@ -13,22 +13,10 @@ type ProfileFormValues = {
   phone: string
 }
 
-function formatSubscriptionDate(value: string | null) {
-  if (!value) {
-    return 'Sin fecha definida'
-  }
-
-  return new Date(value).toLocaleDateString('es-UY', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 export function ProfilePage() {
   usePageTitle('Mi perfil')
 
-  const { plan, profile, refreshProfile, subscription, user } = useAuth()
+  const { plan, profile, refreshProfile, user } = useAuth()
   const [values, setValues] = useState<ProfileFormValues>({
     fullName: '',
     companyName: '',
@@ -85,139 +73,125 @@ export function ProfilePage() {
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
       <div className="mx-auto max-w-[1720px]">
-        <section className="mx-auto max-w-3xl rounded-[2rem] border border-white/10 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8">
-          <div className="space-y-6">
+        <section className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-700">
-                Perfil
+              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+                Mi cuenta
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
+                Actualiza tus datos personales y de contacto.
               </p>
-              <div className="space-y-2">
-                <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-950">
-                  Mi perfil
-                </h1>
-                <p className="text-sm leading-6 text-sand-700 sm:text-base">
-                  Aqui puedes revisar y actualizar tu informacion basica de contacto.
-                </p>
-              </div>
             </div>
 
-            <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="inline-flex min-h-12 items-center rounded-full bg-brand-300 px-5 text-sm font-semibold text-brand-950 sm:min-h-14 sm:px-6 sm:text-base">
+              {plan?.name ?? 'Sin plan activo'}
+            </div>
+          </div>
+
+          <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
+            <form className="space-y-6" onSubmit={handleSubmit}>
               {successMessage ? (
-                <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+                <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
                   {successMessage}
                 </div>
               ) : null}
 
               {submitError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
                   {submitError}
                 </div>
               ) : null}
 
-              <label className="block space-y-2">
-                <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-                  Nombre completo
-                </span>
-                <input
-                  type="text"
-                  value={values.fullName}
-                  onChange={(event) => {
-                    setValues((current) => ({
-                      ...current,
-                      fullName: event.target.value,
-                    }))
-                    setSubmitError(null)
-                  }}
-                  className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
-                  placeholder="Tu nombre completo"
-                  autoComplete="name"
-                  disabled={isSubmitting}
-                />
-              </label>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <label className="block space-y-2.5">
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+                    Nombre
+                  </span>
+                  <input
+                    type="text"
+                    value={values.fullName}
+                    onChange={(event) => {
+                      setValues((current) => ({
+                        ...current,
+                        fullName: event.target.value,
+                      }))
+                      setSubmitError(null)
+                    }}
+                    className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
+                    placeholder="Tu nombre completo"
+                    autoComplete="name"
+                    disabled={isSubmitting}
+                  />
+                </label>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-                  Empresa
-                </span>
-                <input
-                  type="text"
-                  value={values.companyName}
-                  onChange={(event) => {
-                    setValues((current) => ({
-                      ...current,
-                      companyName: event.target.value,
-                    }))
-                    setSubmitError(null)
-                  }}
-                  className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
-                  placeholder="Nombre de tu empresa"
-                  autoComplete="organization"
-                  disabled={isSubmitting}
-                />
-              </label>
+                <label className="block space-y-2.5">
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+                    Empresa
+                  </span>
+                  <input
+                    type="text"
+                    value={values.companyName}
+                    onChange={(event) => {
+                      setValues((current) => ({
+                        ...current,
+                        companyName: event.target.value,
+                      }))
+                      setSubmitError(null)
+                    }}
+                    className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
+                    placeholder="Nombre de tu empresa"
+                    autoComplete="organization"
+                    disabled={isSubmitting}
+                  />
+                </label>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-                  Telefono
-                </span>
-                <input
-                  type="tel"
-                  value={values.phone}
-                  onChange={(event) => {
-                    setValues((current) => ({
-                      ...current,
-                      phone: event.target.value,
-                    }))
-                    setSubmitError(null)
-                  }}
-                  className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
-                  placeholder="Tu telefono"
-                  autoComplete="tel"
-                  disabled={isSubmitting}
-                />
-              </label>
+                <label className="block space-y-2.5">
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+                    Email
+                  </span>
+                  <input
+                    type="email"
+                    value={user?.email ?? ''}
+                    className="min-h-13 w-full rounded-2xl border border-white/8 bg-white/4 px-4 text-sm text-brand-100/64 outline-none"
+                    disabled
+                    readOnly
+                  />
+                </label>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-                  Email
-                </span>
-                <input
-                  type="email"
-                  value={user?.email ?? ''}
-                  className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-100 px-4 text-sm text-sand-700 outline-none"
-                  disabled
-                  readOnly
-                />
-              </label>
-
-              <div className="rounded-[1.5rem] border border-black/5 bg-sand-50 px-4 py-4">
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-                    Plan actual
-                  </p>
-                  <p className="text-sm text-brand-950">
-                    {plan?.name ?? 'Sin plan activo'}
-                  </p>
-                  <p className="text-sm text-sand-700">
-                    Estado: {subscription?.status ?? 'sin suscripcion'}
-                  </p>
-                  {subscription?.expiresAt ? (
-                    <p className="text-sm text-sand-700">
-                      Vence: {formatSubscriptionDate(subscription.expiresAt)}
-                    </p>
-                  ) : null}
-                </div>
+                <label className="block space-y-2.5">
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+                    Telefono
+                  </span>
+                  <input
+                    type="tel"
+                    value={values.phone}
+                    onChange={(event) => {
+                      setValues((current) => ({
+                        ...current,
+                        phone: event.target.value,
+                      }))
+                      setSubmitError(null)
+                    }}
+                    className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
+                    placeholder="Tu telefono"
+                    autoComplete="tel"
+                    disabled={isSubmitting}
+                  />
+                </label>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="min-h-12 w-full rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isSubmitting ? 'Guardando cambios...' : 'Guardar cambios'}
-              </button>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="min-h-12 w-full rounded-full bg-brand-300 px-6 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:min-w-[220px]"
+                >
+                  {isSubmitting ? 'Guardando cambios...' : 'Guardar cambios'}
+                </button>
+              </div>
             </form>
-          </div>
+          </section>
         </section>
       </div>
     </div>

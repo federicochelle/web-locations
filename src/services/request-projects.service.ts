@@ -8,7 +8,11 @@ import type {
 import { mapPublicLocationCard } from '@/utils/location-public.ts'
 
 type RequestProjectLocationRow = {
+  id?: string | null
   location_id?: string | null
+  sort_order?: number | null
+  created_at?: string | null
+  locations?: RequestProjectLocationLocationRow | RequestProjectLocationLocationRow[] | null
 }
 
 type RequestProjectRow = {
@@ -77,9 +81,44 @@ const REQUEST_PROJECT_SELECT = `
   created_at,
   updated_at,
   request_project_locations (
-    location_id
+    id,
+    location_id,
+    sort_order,
+    created_at,
+    locations (
+      id,
+      location_code,
+      published,
+      categories (
+        name
+      ),
+      departments (
+        name
+      ),
+      zones (
+        name
+      ),
+      location_images (
+        url,
+        sort_order,
+        is_cover
+      )
+    )
   )
 `
+
+function sortProjectLocationRows(rows: RequestProjectLocationRow[] | null | undefined) {
+  return [...(rows ?? [])].sort((left, right) => {
+    const leftSortOrder = left.sort_order ?? Number.MAX_SAFE_INTEGER
+    const rightSortOrder = right.sort_order ?? Number.MAX_SAFE_INTEGER
+
+    if (leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder
+    }
+
+    return (left.created_at ?? '').localeCompare(right.created_at ?? '')
+  })
+}
 
 function mapRequestProjectErrorMessage(message: string) {
   const normalizedMessage = message.toLowerCase()
@@ -135,6 +174,24 @@ function sortImages(images: RequestProjectLocationImageRow[] | null | undefined)
 }
 
 function mapRequestProject(row: RequestProjectRow): RequestProject {
+  const firstLocationRow = sortProjectLocationRows(row.request_project_locations)[0] ?? null
+  const firstLocation = getSingleRelation(firstLocationRow?.locations)
+  const firstLocationCoverImage = sortImages(firstLocation?.location_images).find((image) =>
+    Boolean(image.url),
+  )
+  const firstLocationCard = firstLocation
+    ? mapPublicLocationCard({
+        id: firstLocation.id,
+        locationCode: firstLocation.location_code ?? firstLocation.id,
+        categoryName: getRelatedName(firstLocation.categories),
+        departmentName: getRelatedName(firstLocation.departments),
+        zoneName: getRelatedName(firstLocation.zones),
+        coverImageUrl: firstLocationCoverImage?.url ?? null,
+        coverImageAlt: 'Imagen de locacion',
+        features: [],
+      })
+    : null
+
   return {
     id: row.id,
     title: row.title?.trim() || 'Solicitud sin titulo',
@@ -143,6 +200,12 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
     createdAt: row.created_at ?? new Date(0).toISOString(),
     updatedAt: row.updated_at ?? row.created_at ?? new Date(0).toISOString(),
     locationCount: row.request_project_locations?.length ?? 0,
+    firstLocation: firstLocationCard
+      ? {
+          title: firstLocationCard.title,
+          coverImageUrl: firstLocationCard.coverImageUrl,
+        }
+      : null,
   }
 }
 

@@ -89,7 +89,7 @@ export function LocationsPage() {
   }, [categorySlug, normalizedFeatureSlugs, trimmedSearchQuery])
 
   return (
-    <div className="space-y-6 pt-6 sm:pt-8 lg:pt-10">
+    <div className="space-y-6 pb-16 pt-6 sm:pb-20 sm:pt-8 lg:pb-24 lg:pt-10">
       {isLoading ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">

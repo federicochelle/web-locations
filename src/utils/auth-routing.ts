@@ -6,7 +6,7 @@ export function getDefaultRouteByRole(role: UserRole | null) {
   }
 
   if (role === 'visitor') {
-    return '/dashboard'
+    return '/'
   }
 
   return '/'

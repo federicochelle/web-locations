@@ -60,6 +60,48 @@
   .page-shell {
     @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
   }
+
+  .hero-mosaic-track {
+    animation-duration: var(--hero-duration, 40s);
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+  }
+
+  .hero-mosaic-track-left {
+    animation-name: hero-mosaic-left;
+  }
+
+  .hero-mosaic-track-right {
+    animation-name: hero-mosaic-right;
+  }
+}
+
+@keyframes hero-mosaic-left {
+  from {
+    transform: translate3d(var(--hero-offset, 0%), 0, 0);
+  }
+
+  to {
+    transform: translate3d(calc(var(--hero-offset, 0%) - 50%), 0, 0);
+  }
+}
+
+@keyframes hero-mosaic-right {
+  from {
+    transform: translate3d(var(--hero-offset, 0%), 0, 0);
+  }
+
+  to {
+    transform: translate3d(calc(var(--hero-offset, 0%) + 50%), 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-mosaic-track {
+    animation: none;
+    transform: translate3d(var(--hero-offset, 0%), 0, 0);
+  }
 }
 
 #root {

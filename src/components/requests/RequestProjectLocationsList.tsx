@@ -20,7 +20,7 @@ export function RequestProjectLocationsList({
 }: RequestProjectLocationsListProps) {
   if (isLoading) {
     return (
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {Array.from({ length: 2 }).map((_, index) => (
           <div
             key={index}
@@ -33,11 +33,11 @@ export function RequestProjectLocationsList({
 
   if (locations.length === 0) {
     return (
-      <section className="rounded-[1.75rem] border border-black/5 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-brand-950">
+      <section className="rounded-[1.75rem] border border-white/10 bg-[#1B1B1D] p-6">
+        <h2 className="text-lg font-semibold text-brand-100">
           Todavia no agregaste locaciones.
         </h2>
-        <p className="mt-2 text-sm text-sand-700">
+        <p className="mt-2 text-sm text-brand-100/68">
           Cuando sumes locaciones al proyecto, apareceran aqui para revisarlas antes de enviar la solicitud.
         </p>
         <Link
@@ -51,7 +51,7 @@ export function RequestProjectLocationsList({
   }
 
   return (
-    <section className="grid gap-4 lg:grid-cols-2">
+    <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {locations.map((item) => (
         <RequestProjectLocationCard
           key={item.id}
