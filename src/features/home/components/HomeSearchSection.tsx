@@ -16,6 +16,11 @@ type DetectedFeatureMatch = {
   matchedCandidates: string[]
 }
 
+type DetectedCategoryMatch = {
+  slug: string
+  matchedCandidate: string
+}
+
 const SEARCH_STOPWORDS = new Set([
   'con',
   'de',
@@ -37,6 +42,8 @@ function normalizeSearchValue(value: string) {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
 }
 
@@ -90,15 +97,71 @@ function detectFeatureMatches(
     .filter((featureMatch): featureMatch is DetectedFeatureMatch => Boolean(featureMatch))
 }
 
+function getSingularCandidate(candidate: string) {
+  if (candidate.endsWith('es') && candidate.length > 4) {
+    return candidate.slice(0, -2)
+  }
+
+  if (candidate.endsWith('s') && candidate.length > 3) {
+    return candidate.slice(0, -1)
+  }
+
+  return ''
+}
+
+function getNormalizedCategoryCandidates(category: Category) {
+  const baseCandidates = [
+    normalizeSearchValue(category.name),
+    normalizeSearchValue(category.slug),
+    normalizeSearchValue(category.slug.replaceAll('-', ' ')),
+  ].filter((candidate) => candidate.length > 0)
+
+  return [...new Set([
+    ...baseCandidates,
+    ...baseCandidates.map((candidate) => getSingularCandidate(candidate)),
+  ].filter((candidate) => candidate.length > 0))]
+}
+
+function detectCategoryMatch(
+  searchText: string,
+  categories: Category[],
+): DetectedCategoryMatch | null {
+  const normalizedText = normalizeSearchValue(searchText)
+
+  if (!normalizedText) {
+    return null
+  }
+
+  const matches = categories
+    .flatMap((category) =>
+      getNormalizedCategoryCandidates(category)
+        .filter((candidate) => hasFeatureMatch(normalizedText, candidate))
+        .map((candidate) => ({
+          slug: category.slug,
+          matchedCandidate: candidate,
+          matchIndex: normalizedText.indexOf(candidate),
+        })),
+    )
+    .sort((left, right) => {
+      if (left.matchIndex !== right.matchIndex) {
+        return left.matchIndex - right.matchIndex
+      }
+
+      return right.matchedCandidate.length - left.matchedCandidate.length
+    })
+
+  return matches[0] ?? null
+}
+
 function buildCleanSearchQuery(
   searchText: string,
-  featureMatches: DetectedFeatureMatch[],
+  removableCandidates: string[],
 ) {
   let normalizedText = normalizeSearchValue(searchText)
 
-  const matchedCandidates = [...new Set(
-    featureMatches.flatMap((featureMatch) => featureMatch.matchedCandidates),
-  )].sort((left, right) => right.length - left.length)
+  const matchedCandidates = [...new Set(removableCandidates)]
+    .filter((candidate) => candidate.length > 0)
+    .sort((left, right) => right.length - left.length)
 
   for (const candidate of matchedCandidates) {
     const pattern = new RegExp(
@@ -145,27 +208,26 @@ export function HomeSearchSection({
 
     const trimmedSearchText = searchText.trim()
     const nextSearchParams = new URLSearchParams()
-
-    if (selectedCategorySlug) {
-      nextSearchParams.set('category', selectedCategorySlug)
-    }
+    const detectedCategoryMatch = selectedCategorySlug
+      ? null
+      : detectCategoryMatch(trimmedSearchText, categories)
+    const nextCategorySlug = selectedCategorySlug || detectedCategoryMatch?.slug || ''
 
     const detectedFeatureMatches = detectFeatureMatches(trimmedSearchText, features)
     const detectedFeatureSlugs = detectedFeatureMatches.map(
       (featureMatch) => featureMatch.slug,
     )
+    const cleanSearchQuery = buildCleanSearchQuery(trimmedSearchText, [
+      detectedCategoryMatch?.matchedCandidate ?? '',
+      ...detectedFeatureMatches.flatMap((featureMatch) => featureMatch.matchedCandidates),
+    ])
 
-    if (detectedFeatureSlugs.length > 0) {
-      const cleanSearchQuery = buildCleanSearchQuery(
-        trimmedSearchText,
-        detectedFeatureMatches,
-      )
+    if (nextCategorySlug) {
+      nextSearchParams.set('category', nextCategorySlug)
+    }
 
-      if (cleanSearchQuery) {
-        nextSearchParams.set('q', cleanSearchQuery)
-      }
-    } else if (trimmedSearchText) {
-      nextSearchParams.set('q', trimmedSearchText)
+    if (cleanSearchQuery) {
+      nextSearchParams.set('q', cleanSearchQuery)
     }
 
     if (detectedFeatureSlugs.length > 0) {
