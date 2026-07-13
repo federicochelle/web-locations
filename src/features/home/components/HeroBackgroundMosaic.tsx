@@ -16,9 +16,7 @@ type MosaicRow = {
   id: string
   direction: 'left' | 'right'
   duration: string
-  offset: string
   tiles: MosaicTile[]
-  hiddenBelowDesktop?: boolean
 }
 
 const baseTiles: MosaicTile[] = [
@@ -58,58 +56,79 @@ const rows: MosaicRow[] = [
   {
     id: 'row-1',
     direction: 'left',
-    duration: '35s',
-    offset: '-12%',
-    tiles: [baseTiles[0], baseTiles[2], baseTiles[4], baseTiles[1], baseTiles[5], baseTiles[3]],
+    duration: '52s',
+    tiles: [
+      baseTiles[0],
+      baseTiles[2],
+      baseTiles[4],
+      baseTiles[1],
+      baseTiles[5],
+      baseTiles[3],
+      baseTiles[2],
+      baseTiles[0],
+    ],
   },
   {
     id: 'row-2',
     direction: 'right',
-    duration: '42s',
-    offset: '-28%',
-    tiles: [baseTiles[3], baseTiles[1], baseTiles[5], baseTiles[0], baseTiles[2], baseTiles[4]],
+    duration: '62s',
+    tiles: [
+      baseTiles[3],
+      baseTiles[1],
+      baseTiles[5],
+      baseTiles[0],
+      baseTiles[2],
+      baseTiles[4],
+      baseTiles[5],
+      baseTiles[1],
+    ],
   },
   {
     id: 'row-3',
     direction: 'left',
-    duration: '38s',
-    offset: '-18%',
-    tiles: [baseTiles[4], baseTiles[2], baseTiles[0], baseTiles[5], baseTiles[3], baseTiles[1]],
-  },
-  {
-    id: 'row-4',
-    direction: 'right',
-    duration: '46s',
-    offset: '-34%',
-    tiles: [baseTiles[5], baseTiles[3], baseTiles[1], baseTiles[4], baseTiles[0], baseTiles[2]],
-    hiddenBelowDesktop: true,
+    duration: '56s',
+    tiles: [
+      baseTiles[4],
+      baseTiles[2],
+      baseTiles[0],
+      baseTiles[5],
+      baseTiles[3],
+      baseTiles[1],
+      baseTiles[4],
+      baseTiles[2],
+    ],
   },
 ]
 
 function MosaicTrack({ row }: { row: MosaicRow }) {
-  const duplicatedTiles = [...row.tiles, ...row.tiles]
-
   return (
-    <div className={`relative overflow-hidden ${row.hiddenBelowDesktop ? 'hidden lg:block' : ''}`}>
+    <div className="relative h-full w-full overflow-hidden">
       <div
-        className={`hero-mosaic-track hero-mosaic-track-${row.direction} flex w-max gap-px will-change-transform motion-reduce:transform-none motion-reduce:animate-none`}
+        className={`hero-mosaic-track hero-mosaic-track-${row.direction} flex h-full w-max will-change-transform motion-reduce:animate-none`}
         style={
           {
             '--hero-duration': row.duration,
-            '--hero-offset': row.offset,
           } as CSSProperties
         }
       >
-        {duplicatedTiles.map((tile, index) => (
+        {[0, 1].map((sequenceIndex) => (
           <div
-            key={`${row.id}-${tile.src}-${index}`}
-            className={`relative h-[160px] overflow-hidden sm:h-[172px] lg:h-[150px] xl:h-[164px] ${tile.widthClassName}`}
+            key={`${row.id}-sequence-${sequenceIndex}`}
+            className="hero-mosaic-sequence flex h-full shrink-0 gap-px"
+            aria-hidden={sequenceIndex === 1}
           >
-            <img
-              src={tile.src}
-              alt={tile.alt}
-              className="h-full w-full object-cover"
-            />
+            {row.tiles.map((tile, index) => (
+              <div
+                key={`${row.id}-${sequenceIndex}-${tile.src}-${index}`}
+                className={`relative h-full shrink-0 overflow-hidden ${tile.widthClassName}`}
+              >
+                <img
+                  src={tile.src}
+                  alt={tile.alt}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -120,7 +139,7 @@ function MosaicTrack({ row }: { row: MosaicRow }) {
 export function HeroBackgroundMosaic() {
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="grid h-full grid-rows-3 gap-px lg:grid-rows-4">
+      <div className="grid h-full grid-rows-3 gap-px">
         {rows.map((row) => (
           <MosaicTrack key={row.id} row={row} />
         ))}

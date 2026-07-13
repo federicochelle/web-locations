@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 import {
   AUTH_MIN_PASSWORD_LENGTH,
@@ -31,7 +31,7 @@ function validateForm(values: RegisterFormValues) {
   if (!values.email.trim()) {
     errors.email = 'Ingresa tu email.'
   } else if (!isValidEmail(values.email)) {
-    errors.email = 'Ingresa un email valido.'
+    errors.email = 'Ingresa un email válido.'
   }
 
   const passwordError = getMinPasswordError(
@@ -56,6 +56,7 @@ function validateForm(values: RegisterFormValues) {
 }
 
 export function RegisterForm() {
+  const location = useLocation()
   const [values, setValues] = useState<RegisterFormValues>({
     fullName: '',
     email: '',
@@ -106,7 +107,7 @@ export function RegisterForm() {
       })
 
       setSuccessMessage(
-        'Tu cuenta fue creada. Revisa tu email para confirmar el registro antes de iniciar sesion.',
+        'Tu cuenta fue creada. Revisá tu email para confirmar el registro antes de iniciar sesión.',
       )
       setValues({
         fullName: '',
@@ -124,102 +125,103 @@ export function RegisterForm() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       {successMessage ? (
-        <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+        <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
           {successMessage}
         </div>
       ) : null}
 
       {submitError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+        <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
           {submitError}
         </div>
       ) : null}
 
       <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
           Nombre completo
         </span>
         <input
           type="text"
           value={values.fullName}
           onChange={(event) => handleChange('fullName', event.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
+          className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
           placeholder="Tu nombre completo"
           autoComplete="name"
           disabled={isSubmitting}
         />
         {errors.fullName ? (
-          <p className="text-sm text-red-900">{errors.fullName}</p>
+          <p className="text-sm text-red-200">{errors.fullName}</p>
         ) : null}
       </label>
 
       <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
           Email
         </span>
         <input
           type="email"
           value={values.email}
           onChange={(event) => handleChange('email', event.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
+          className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
           placeholder="tu@email.com"
           autoComplete="email"
           disabled={isSubmitting}
         />
-        {errors.email ? <p className="text-sm text-red-900">{errors.email}</p> : null}
+        {errors.email ? <p className="text-sm text-red-200">{errors.email}</p> : null}
       </label>
 
       <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-          Contrasena
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+          Contraseña
         </span>
         <input
           type="password"
           value={values.password}
           onChange={(event) => handleChange('password', event.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
-          placeholder={`Minimo ${AUTH_MIN_PASSWORD_LENGTH} caracteres`}
+          className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
+          placeholder={`Mínimo ${AUTH_MIN_PASSWORD_LENGTH} caracteres`}
           autoComplete="new-password"
           disabled={isSubmitting}
         />
         {errors.password ? (
-          <p className="text-sm text-red-900">{errors.password}</p>
+          <p className="text-sm text-red-200">{errors.password}</p>
         ) : null}
       </label>
 
       <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-          Confirmar contrasena
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+          Confirmar contraseña
         </span>
         <input
           type="password"
           value={values.confirmPassword}
           onChange={(event) => handleChange('confirmPassword', event.target.value)}
-          className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
-          placeholder="Repite tu contrasena"
+          className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
+          placeholder="Repetí tu contraseña"
           autoComplete="new-password"
           disabled={isSubmitting}
         />
         {errors.confirmPassword ? (
-          <p className="text-sm text-red-900">{errors.confirmPassword}</p>
+          <p className="text-sm text-red-200">{errors.confirmPassword}</p>
         ) : null}
       </label>
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="min-h-12 w-full rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
+        className="min-h-13 w-full rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isSubmitting ? 'Creando cuenta...' : 'Crear cuenta'}
       </button>
 
-      <p className="text-sm text-sand-700">
-        Ya tienes cuenta?{' '}
+      <p className="text-sm text-brand-100/58">
+        ¿Ya tenés cuenta?{' '}
         <Link
           to="/login"
-          className="font-medium text-brand-700 transition hover:text-brand-500"
+          state={location.state}
+          className="font-medium text-brand-300 transition hover:text-brand-100"
         >
-          Inicia sesion
+          Iniciá sesión
         </Link>
       </p>
     </form>
