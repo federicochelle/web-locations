@@ -5,12 +5,8 @@ export type CreateLocationSubmissionInput = {
   ownerEmail: string
   ownerPhone: string
   title: string
-  department: string
-  zone: string
   address: string
-  locationType: string
   description: string
-  message: string
 }
 
 export type CreateLocationSubmissionResult = {
@@ -52,12 +48,12 @@ export async function createLocationSubmission(
     p_owner_email: input.ownerEmail.trim(),
     p_owner_phone: input.ownerPhone.trim(),
     p_title: input.title.trim(),
-    p_department: input.department.trim() || null,
-    p_zone: input.zone.trim() || null,
+    p_department: null,
+    p_zone: null,
     p_address: input.address.trim() || null,
-    p_location_type: input.locationType.trim() || null,
+    p_location_type: null,
     p_description: input.description.trim() || null,
-    p_message: input.message.trim() || null,
+    p_message: null,
   })
 
   if (error) {

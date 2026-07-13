@@ -3,17 +3,17 @@ import type { RequestProjectStatus } from '@/types/request-project.ts'
 function getStatusStyles(status: RequestProjectStatus) {
   switch (status) {
     case 'draft':
-      return 'border-sand-200 bg-sand-50 text-sand-700'
+      return 'border-white/8 bg-white/6 text-brand-100/78'
     case 'submitted':
-      return 'border-sky-200 bg-sky-50 text-sky-800'
+      return 'border-white/8 bg-white/6 text-brand-100/78'
     case 'in_review':
-      return 'border-yellow-200 bg-yellow-50 text-yellow-800'
+      return 'border-white/8 bg-white/6 text-brand-100/78'
     case 'contacted':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      return 'border-white/8 bg-white/6 text-brand-100/78'
     case 'closed':
-      return 'border-slate-200 bg-slate-100 text-slate-700'
+      return 'border-white/8 bg-white/6 text-brand-100/78'
     default:
-      return 'border-sand-200 bg-sand-50 text-sand-700'
+      return 'border-white/8 bg-white/6 text-brand-100/78'
   }
 }
 
@@ -41,7 +41,7 @@ type RequestProjectStatusBadgeProps = {
 export function RequestProjectStatusBadge({ status }: RequestProjectStatusBadgeProps) {
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusStyles(status)}`}
+      className={`inline-flex rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${getStatusStyles(status)}`}
     >
       {getStatusLabel(status)}
     </span>

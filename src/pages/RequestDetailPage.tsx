@@ -143,7 +143,7 @@ export function RequestDetailPage() {
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
       <div className="mx-auto max-w-[1720px]">
-        <section className="mx-auto max-w-3xl rounded-[2rem] border border-white/10 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8">
+        <section className="mx-auto max-w-5xl">
           {isLoading ? (
             <div className="space-y-4">
               <div className="h-8 animate-pulse rounded bg-sand-200" />
@@ -159,24 +159,45 @@ export function RequestDetailPage() {
           ) : null}
 
           {!isLoading && !error && project ? (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-700">
-                    Solicitudes
-                  </p>
-                  <div className="space-y-2">
-                    <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-950">
-                      {project.title}
-                    </h1>
-                    <p className="text-sm leading-6 text-sand-700 sm:text-base">
-                      Creada el {formatProjectDate(project.createdAt)}. Actualizada el{' '}
-                      {formatProjectDate(project.updatedAt)}.
-                    </p>
+            <div className="space-y-7">
+              <div className="flex flex-wrap items-start justify-between gap-5">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isDraft ? (
+                      <input
+                        type="text"
+                        value={values.title}
+                        onChange={(event) => {
+                          setValues((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                          setValidationError(null)
+                        }}
+                        className="min-w-[14rem] flex-1 bg-transparent font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 outline-none placeholder:text-brand-100/38 sm:text-5xl"
+                        placeholder="Titulo de la solicitud"
+                        disabled={isSaving || isSubmitting}
+                      />
+                    ) : (
+                      <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+                        {project.title}
+                      </h1>
+                    )}
+
+                    <RequestProjectStatusBadge status={project.status} />
                   </div>
+
+                  <p className="text-sm leading-6 text-brand-100/62 sm:text-base">
+                    Creada el {formatProjectDate(project.createdAt)}
+                  </p>
                 </div>
 
-                <RequestProjectStatusBadge status={project.status} />
+                <Link
+                  to="/requests"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6"
+                >
+                  Volver
+                </Link>
               </div>
 
               {successMessage ? (
@@ -191,58 +212,37 @@ export function RequestDetailPage() {
                 </div>
               ) : null}
 
-              <form className="space-y-5" onSubmit={handleSave}>
-                <label className="block space-y-2">
-                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
-                    Titulo
-                  </span>
-                  <input
-                    type="text"
-                    value={values.title}
-                    onChange={(event) => {
-                      setValues((current) => ({
-                        ...current,
-                        title: event.target.value,
-                      }))
-                      setValidationError(null)
-                    }}
-                    className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300 disabled:bg-sand-100 disabled:text-sand-700"
-                    placeholder="Titulo de la solicitud"
-                    disabled={!isDraft || isSaving || isSubmitting}
-                    readOnly={!isDraft}
-                  />
-                </label>
-
-                <label className="block space-y-2">
-                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
+              <form className="space-y-6" onSubmit={handleSave}>
+                <section className="space-y-1.5">
+                  <h2 className="text-base font-semibold text-brand-100 sm:text-lg">
                     Mensaje
-                  </span>
-                  <textarea
-                    value={values.message}
-                    onChange={(event) => {
-                      setValues((current) => ({
-                        ...current,
-                        message: event.target.value,
-                      }))
-                    }}
-                    rows={7}
-                    className="w-full rounded-[1.5rem] border border-sand-200 bg-sand-50 px-4 py-3 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300 disabled:bg-sand-100 disabled:text-sand-700"
-                    placeholder="Describe tu proyecto, referencias y necesidades generales."
-                    disabled={!isDraft || isSaving || isSubmitting}
-                    readOnly={!isDraft}
-                  />
-                </label>
+                  </h2>
+                  {isDraft ? (
+                    <textarea
+                      value={values.message}
+                      onChange={(event) => {
+                        setValues((current) => ({
+                          ...current,
+                          message: event.target.value,
+                        }))
+                      }}
+                      rows={4}
+                      className="w-full resize-none bg-transparent p-0 text-sm leading-7 text-brand-100/72 outline-none placeholder:text-brand-100/38 sm:text-base"
+                      placeholder="Describe tu proyecto, referencias y necesidades generales."
+                      disabled={isSaving || isSubmitting}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-line text-sm leading-7 text-brand-100/72 sm:text-base">
+                      {project.message?.trim() || 'Sin mensaje.'}
+                    </p>
+                  )}
+                </section>
 
-                <section className="space-y-4">
+                <section className="space-y-3">
                   <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-sand-700">
-                        Locaciones
-                      </p>
-                      <p className="text-sm text-sand-700">
-                        Este proyecto tiene {project.locationCount} locacion{project.locationCount === 1 ? '' : 'es'} asociada{project.locationCount === 1 ? '' : 's'}.
-                      </p>
-                    </div>
+                    <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
+                      Locaciones seleccionadas
+                    </h2>
 
                     {isDraft ? (
                       <button
@@ -276,19 +276,12 @@ export function RequestDetailPage() {
                 </section>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <Link
-                    to="/requests"
-                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-black/10 px-5 text-sm font-medium text-brand-950 transition hover:bg-sand-50"
-                  >
-                    Volver
-                  </Link>
-
                   {isDraft ? (
                     <>
                       <button
                         type="submit"
                         disabled={isSaving || isSubmitting}
-                        className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-black/10 px-5 text-sm font-medium text-brand-950 transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-70"
+                        className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {isSaving ? 'Guardando...' : 'Guardar cambios'}
                       </button>

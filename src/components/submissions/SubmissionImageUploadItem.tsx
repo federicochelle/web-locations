@@ -1,102 +1,68 @@
 import type { SubmissionImageItem } from '@/hooks/useSubmissionImages.ts'
 
-function formatFileSize(size: number) {
-  if (size < 1024 * 1024) {
-    return `${Math.round(size / 1024)} KB`
-  }
-
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function getStatusLabel(item: SubmissionImageItem) {
-  switch (item.status) {
-    case 'pending':
-      return 'Lista para subir'
-    case 'uploading':
-      return 'Subiendo...'
-    case 'uploaded':
-      return 'Subida'
-    case 'error':
-      return item.error ? 'Con error' : 'No subida'
-    default:
-      return ''
-  }
-}
-
-function getStatusStyles(item: SubmissionImageItem) {
-  switch (item.status) {
-    case 'uploaded':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800'
-    case 'uploading':
-      return 'border-sky-200 bg-sky-50 text-sky-800'
-    case 'error':
-      return 'border-red-200 bg-red-50 text-red-900'
-    default:
-      return 'border-sand-200 bg-sand-50 text-sand-700'
-  }
-}
-
 type SubmissionImageUploadItemProps = {
   item: SubmissionImageItem
   disabled?: boolean
   onRemove: (itemId: string) => void
+  onRetry?: (item: SubmissionImageItem) => void
 }
 
 export function SubmissionImageUploadItem({
   item,
   disabled = false,
   onRemove,
+  onRetry,
 }: SubmissionImageUploadItemProps) {
+  const isError = item.status === 'error'
+  const isUploading = item.status === 'uploading'
+
   return (
-    <article className="overflow-hidden rounded-[1.5rem] border border-black/5 bg-white">
-      <div className="grid gap-4 p-4 sm:grid-cols-[128px_minmax(0,1fr)] sm:p-5">
-        <div className="overflow-hidden rounded-[1.25rem] bg-sand-100">
-          <img
-            src={item.previewUrl}
-            alt={item.file.name}
-            className="aspect-square h-full w-full object-cover"
+    <article className="group relative aspect-video overflow-hidden rounded-[0.75rem] border border-white/10 bg-white/6">
+      <img
+        src={item.previewUrl}
+        alt={item.file.name}
+        className="h-full w-full object-cover"
+      />
+
+      <div
+        className={`absolute inset-0 transition ${
+          isError
+            ? 'bg-red-900/26'
+            : 'bg-black/0 md:group-hover:bg-black/35'
+        }`}
+      />
+
+      <button
+        type="button"
+        onClick={() => onRemove(item.id)}
+        disabled={disabled}
+        className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/55 text-lg text-white transition hover:bg-black/72 disabled:cursor-not-allowed disabled:opacity-60 md:opacity-0 md:group-hover:opacity-100"
+        aria-label={`Quitar ${item.file.name}`}
+      >
+        ×
+      </button>
+
+      {isError && onRetry ? (
+        <div className="absolute inset-0 z-10 flex items-center justify-center px-4">
+          <button
+            type="button"
+            onClick={() => onRetry(item)}
+            disabled={disabled}
+            className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/12 bg-black/60 px-4 text-sm font-medium text-white transition hover:bg-black/76 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : null}
+
+      {isUploading ? (
+        <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-white/10">
+          <div
+            className="h-full bg-brand-500 transition-all"
+            style={{ width: `${item.progress}%` }}
           />
         </div>
-
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-brand-950">{item.file.name}</p>
-              <p className="text-xs uppercase tracking-[0.16em] text-sand-700">
-                {formatFileSize(item.file.size)}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusStyles(item)}`}
-              >
-                {getStatusLabel(item)}
-              </span>
-              <button
-                type="button"
-                onClick={() => onRemove(item.id)}
-                disabled={disabled}
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-black/10 px-4 text-sm text-brand-950 transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Quitar
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="h-2 overflow-hidden rounded-full bg-sand-100">
-              <div
-                className="h-full rounded-full bg-brand-500 transition-all"
-                style={{ width: `${item.progress}%` }}
-              />
-            </div>
-            <p className="text-xs text-sand-700">{item.progress}% completado</p>
-          </div>
-
-          {item.error ? <p className="text-sm text-red-900">{item.error}</p> : null}
-        </div>
-      </div>
+      ) : null}
     </article>
   )
 }

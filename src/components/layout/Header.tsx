@@ -1,25 +1,11 @@
-import { useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '@/hooks/useAuth.ts'
-import { getDefaultRouteByRole } from '@/utils/auth-routing.ts'
+import { UserMenu } from '@/components/layout/UserMenu.tsx'
 
 export function Header() {
-  const navigate = useNavigate()
-  const { isAuthenticated, profile, role, signOut, user } = useAuth()
-  const [isSigningOut, setIsSigningOut] = useState(false)
+  const { isAuthenticated, loading, profile, signOut, user } = useAuth()
   const displayName = profile?.fullName?.trim() || user?.email || null
-  const panelPath = getDefaultRouteByRole(role)
-
-  async function handleSignOut() {
-    try {
-      setIsSigningOut(true)
-      await signOut()
-      navigate('/login', { replace: true })
-    } finally {
-      setIsSigningOut(false)
-    }
-  }
 
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-[#14110f]/88 backdrop-blur">
@@ -49,24 +35,8 @@ export function Header() {
           >
             Postular mi locacion
           </NavLink>
-          {isAuthenticated ? (
-            <>
-              <NavLink
-                to={panelPath}
-                className="hidden min-h-10 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 sm:inline-flex"
-              >
-                Mi panel
-              </NavLink>
-              <p className="hidden text-sm text-brand-100/78 sm:block">{displayName}</p>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isSigningOut ? 'Cerrando...' : 'Cerrar sesion'}
-              </button>
-            </>
+          {loading ? null : isAuthenticated && displayName ? (
+            <UserMenu displayName={displayName} onSignOut={signOut} />
           ) : (
             <>
               <NavLink

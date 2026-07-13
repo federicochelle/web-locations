@@ -13,6 +13,10 @@ export type RequestProject = {
   createdAt: string
   updatedAt: string
   locationCount: number
+  firstLocation: {
+    title: string
+    coverImageUrl: string | null
+  } | null
 }
 
 export type RequestProjectLocation = {

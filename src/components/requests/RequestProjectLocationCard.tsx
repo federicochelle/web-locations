@@ -19,13 +19,29 @@ export function RequestProjectLocationCard({
   isRemoving = false,
   onRemove,
 }: RequestProjectLocationCardProps) {
+  const locationTitle = formatLocationCode(item.location.locationCode)
+  const departmentName =
+    item.location.departmentName && !item.location.departmentName.startsWith('Sin ')
+      ? item.location.departmentName
+      : null
+  const zoneName =
+    item.location.zoneName && !item.location.zoneName.startsWith('Sin ')
+      ? item.location.zoneName
+      : null
+  const locationSubtitle =
+    departmentName && zoneName
+      ? `${departmentName} · ${zoneName}`
+      : null
+
   return (
-    <article className="overflow-hidden rounded-[1.75rem] border border-black/5 bg-white shadow-sm">
-      <div className="grid md:grid-cols-[220px_minmax(0,1fr)]">
-        <Link
-          to={`/locations/${item.location.slug}`}
-          className="block h-full min-h-[220px] bg-sand-100"
-        >
+    <article className="relative overflow-hidden rounded-[0.75rem] border border-white/10 bg-[#1B1B1D]">
+      <Link
+        to={`/locations/${item.location.slug}`}
+        aria-label={`Ver locacion ${locationTitle}`}
+        className="absolute inset-0 z-10"
+      />
+      <div className="grid md:grid-cols-[minmax(0,1fr)]">
+        <div className="block h-full min-h-[220px] bg-sand-100">
           {item.location.coverImageUrl ? (
             <div
               className="h-full min-h-[220px] bg-cover bg-center"
@@ -36,25 +52,17 @@ export function RequestProjectLocationCard({
           ) : (
             <div className="h-full min-h-[220px] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))]" />
           )}
-        </Link>
+        </div>
 
-        <div className="space-y-4 p-6">
+        <div className="relative z-20 space-y-4 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-sand-700">
-                {item.location.categoryName}
+            <div className="space-y-1">
+              <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 transition">
+                {locationTitle}
               </p>
-              <div className="space-y-1">
-                <Link
-                  to={`/locations/${item.location.slug}`}
-                  className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-950 transition hover:text-brand-700"
-                >
-                  {formatLocationCode(item.location.locationCode)}
-                </Link>
-                <p className="text-sm text-sand-700">
-                  {item.location.departmentName} · {item.location.zoneName}
-                </p>
-              </div>
+              {locationSubtitle ? (
+                <p className="text-sm text-brand-100/68">{locationSubtitle}</p>
+              ) : null}
             </div>
 
             {canRemove && onRemove ? (
@@ -62,18 +70,17 @@ export function RequestProjectLocationCard({
                 type="button"
                 onClick={() => onRemove(item.location.id)}
                 disabled={isRemoving}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-black/10 px-4 text-sm font-medium text-brand-950 transition hover:bg-sand-50 disabled:cursor-not-allowed disabled:opacity-70"
+                className="relative z-20 inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isRemoving ? 'Quitando...' : 'Quitar'}
               </button>
             ) : null}
           </div>
 
-          <div className="rounded-[1.5rem] border border-black/5 bg-sand-50 px-4 py-4">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-sand-700">
-              Codigo
-            </p>
-            <p className="mt-2 text-sm leading-6 text-brand-950">{item.location.locationCode}</p>
+          <div>
+            <span className="inline-flex items-center text-sm font-medium text-brand-300 transition">
+              Ver locacion →
+            </span>
           </div>
         </div>
       </div>
