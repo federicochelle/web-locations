@@ -75,7 +75,7 @@ export function Footer() {
                 to="/postular-locacion"
                 className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-brand-300/40 px-6 text-sm font-medium text-brand-300 transition hover:bg-brand-300/10 hover:text-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] sm:w-auto"
               >
-                Postular mi locacion →
+                Publicá tu locación →
               </Link>
             </div>
           </div>

@@ -9,7 +9,7 @@ import {
 import { isValidEmail } from '@/utils/auth-validation.ts'
 
 export function ForgotPasswordPage() {
-  usePageTitle('Recuperar contrasena')
+  usePageTitle('Recuperar contraseña')
 
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -26,7 +26,7 @@ export function ForgotPasswordPage() {
     }
 
     if (!isValidEmail(email)) {
-      setEmailError('Ingresa un email valido.')
+      setEmailError('Ingresa un email válido.')
       return
     }
 
@@ -40,7 +40,7 @@ export function ForgotPasswordPage() {
       })
 
       setSuccessMessage(
-        'Te enviamos un enlace para restablecer tu contrasena. Revisa tu email.',
+        'Te enviamos un enlace para restablecer tu contraseña. Revisá tu email.',
       )
     } catch (error) {
       setSubmitError(getAuthErrorMessage(error))
@@ -51,37 +51,29 @@ export function ForgotPasswordPage() {
 
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
-      <div className="mx-auto flex max-w-[1720px] justify-center">
-        <section className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-14rem)] max-w-[1720px] items-center justify-center">
+        <section className="w-full max-w-[460px] rounded-[0.875rem] border border-white/8 bg-[#1B1B1D] px-6 py-8 text-brand-100 shadow-[0_20px_60px_rgba(0,0,0,0.22)] sm:px-8">
           <div className="mb-8 space-y-3">
-            <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-700">
-              Recuperacion
-            </p>
-            <div className="space-y-2">
-              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-950">
-                Olvide mi contrasena
-              </h1>
-              <p className="text-sm leading-6 text-sand-700 sm:text-base">
-                Ingresa tu email y te enviaremos un enlace para crear una nueva contrasena.
-              </p>
-            </div>
+            <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100">
+              Olvidé mi contraseña
+            </h1>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             {successMessage ? (
-              <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+              <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
                 {successMessage}
               </div>
             ) : null}
 
             {submitError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+              <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
                 {submitError}
               </div>
             ) : null}
 
             <label className="block space-y-2">
-              <span className="text-xs font-medium uppercase tracking-[0.2em] text-sand-700">
+              <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
                 Email
               </span>
               <input
@@ -92,32 +84,26 @@ export function ForgotPasswordPage() {
                   setEmailError(null)
                   setSubmitError(null)
                 }}
-                className="min-h-12 w-full rounded-2xl border border-sand-200 bg-sand-50 px-4 text-sm text-brand-950 outline-none transition placeholder:text-sand-400 focus:border-brand-300"
+                className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
                 placeholder="tu@email.com"
                 autoComplete="email"
                 disabled={isSubmitting}
               />
-              {emailError ? <p className="text-sm text-red-900">{emailError}</p> : null}
+              {emailError ? <p className="text-sm text-red-200">{emailError}</p> : null}
             </label>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="min-h-12 w-full rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="min-h-13 w-full rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSubmitting ? 'Enviando enlace...' : 'Enviar enlace'}
             </button>
 
-            <div className="flex flex-wrap gap-3 text-sm text-sand-700">
-              <Link
-                to="/login"
-                className="font-medium text-brand-700 transition hover:text-brand-500"
-              >
-                Volver a login
-              </Link>
+            <div className="flex flex-wrap gap-3 text-sm text-brand-100/58">
               <Link
                 to="/register"
-                className="font-medium text-brand-700 transition hover:text-brand-500"
+                className="font-medium text-brand-300 transition hover:text-brand-100"
               >
                 Crear cuenta
               </Link>

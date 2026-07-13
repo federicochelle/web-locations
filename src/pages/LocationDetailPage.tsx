@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
+import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
 import { RequestProjectPickerModal } from '@/components/requests/RequestProjectPickerModal.tsx'
 import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
@@ -21,6 +22,7 @@ function formatLocationCode(locationCode: string) {
 }
 
 export function LocationDetailPage() {
+  const locationState = useLocation()
   const navigate = useNavigate()
   const { slug: publicSlug } = useParams()
   const [location, setLocation] = useState<PublicLocationDetail | null>(null)
@@ -31,7 +33,9 @@ export function LocationDetailPage() {
   const [requestActionError, setRequestActionError] = useState<string | null>(null)
   const [isRequestActionLoading, setIsRequestActionLoading] = useState(false)
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false)
+  const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
   const [draftProjects, setDraftProjects] = useState<RequestProject[]>([])
+  const requestButtonRef = useRef<HTMLButtonElement | null>(null)
   const { isAuthenticated, loading: authLoading } = useAuth()
   const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
 
@@ -95,7 +99,7 @@ export function LocationDetailPage() {
     }
 
     if (!isAuthenticated) {
-      navigate('/login')
+      setIsAuthRequiredModalOpen(true)
       return
     }
 
@@ -186,7 +190,7 @@ export function LocationDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-16 pt-8 sm:space-y-8 sm:pb-20 sm:pt-10 lg:space-y-10 lg:pb-24 lg:pt-12">
       {isLoading ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -210,18 +214,13 @@ export function LocationDetailPage() {
       {!isLoading && !error && location ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto space-y-4 max-w-[1720px]">
-            <Link
-              to="/locations"
-              className="inline-flex items-center justify-center rounded-full border border-black/10 px-4 py-2 text-sm text-brand-950 transition hover:bg-sand-50"
-            >
-              ← Volver a locaciones
-            </Link>
             <div className="flex items-center justify-between gap-4">
               <p className="px-1 font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
                 {formatLocationCode(location.locationCode)}
               </p>
               <div className="flex items-center gap-3">
                 <button
+                  ref={requestButtonRef}
                   type="button"
                   onClick={handleRequestIntent}
                   disabled={authLoading || isRequestActionLoading}
@@ -280,6 +279,21 @@ export function LocationDetailPage() {
           setIsProjectPickerOpen(false)
         }}
         onSelect={handleSelectDraftProject}
+      />
+      <AuthRequiredModal
+        isOpen={isAuthRequiredModalOpen}
+        onClose={() => {
+          setIsAuthRequiredModalOpen(false)
+          requestButtonRef.current?.focus()
+        }}
+        loginState={{
+          from: locationState,
+          authIntent: 'request-info',
+        }}
+        registerState={{
+          from: locationState,
+          authIntent: 'request-info',
+        }}
       />
     </div>
   )

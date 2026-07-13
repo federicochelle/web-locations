@@ -75,32 +75,36 @@
   .hero-mosaic-track-right {
     animation-name: hero-mosaic-right;
   }
+
+  .hero-mosaic-sequence {
+    min-width: max-content;
+  }
 }
 
 @keyframes hero-mosaic-left {
   from {
-    transform: translate3d(var(--hero-offset, 0%), 0, 0);
+    transform: translate3d(0, 0, 0);
   }
 
   to {
-    transform: translate3d(calc(var(--hero-offset, 0%) - 50%), 0, 0);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
 @keyframes hero-mosaic-right {
   from {
-    transform: translate3d(var(--hero-offset, 0%), 0, 0);
+    transform: translate3d(-50%, 0, 0);
   }
 
   to {
-    transform: translate3d(calc(var(--hero-offset, 0%) + 50%), 0, 0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-mosaic-track {
     animation: none;
-    transform: translate3d(var(--hero-offset, 0%), 0, 0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
