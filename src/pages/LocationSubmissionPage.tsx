@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
+import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadingModal.tsx'
 import { SubmissionImagesField } from '@/components/submissions/SubmissionImagesField.tsx'
+import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { useSubmissionImages } from '@/hooks/useSubmissionImages.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import {
@@ -20,6 +23,12 @@ type LocationSubmissionValues = {
 type LocationSubmissionErrors = Partial<
   Record<'ownerName' | 'ownerEmail' | 'ownerPhone' | 'location' | 'description', string>
 >
+
+type SubmissionResult =
+  | { type: 'success' }
+  | { type: 'partial-success' }
+  | { type: 'error'; message: string }
+  | null
 
 const INITIAL_VALUES: LocationSubmissionValues = {
   ownerName: '',
@@ -80,11 +89,13 @@ function validateForm(values: LocationSubmissionValues) {
 export function LocationSubmissionPage() {
   usePageTitle('Postular mi locacion')
 
+  const navigate = useNavigate()
+  const firstFieldRef = useRef<HTMLInputElement | null>(null)
   const [values, setValues] = useState<LocationSubmissionValues>(INITIAL_VALUES)
   const [errors, setErrors] = useState<LocationSubmissionErrors>({})
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionPhase, setSubmissionPhase] = useState<'saving' | 'uploading'>('saving')
+  const [submissionResult, setSubmissionResult] = useState<SubmissionResult>(null)
   const {
     items: submissionImages,
     isUploading,
@@ -94,6 +105,16 @@ export function LocationSubmissionPage() {
     resetItems,
     uploadImages,
   } = useSubmissionImages()
+
+  useEffect(() => {
+    if (!submissionResult) {
+      return
+    }
+
+    if (submissionResult.type === 'success' || submissionResult.type === 'partial-success') {
+      setErrors({})
+    }
+  }, [submissionResult])
 
   function handleChange<Field extends keyof LocationSubmissionValues>(
     field: Field,
@@ -109,11 +130,17 @@ export function LocationSubmissionPage() {
       [field]: undefined,
     }))
 
-    setSubmitError(null)
+    if (submissionResult?.type === 'error') {
+      setSubmissionResult(null)
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (isSubmitting || isUploading) {
+      return
+    }
 
     const nextErrors = validateForm(values)
 
@@ -124,8 +151,12 @@ export function LocationSubmissionPage() {
 
     try {
       setIsSubmitting(true)
-      setSubmitError(null)
-      setSuccessMessage(null)
+      setSubmissionPhase('saving')
+      setSubmissionResult(null)
+
+      const hadImageErrorsBeforeSubmit = submissionImages.some(
+        (item) => item.status === 'error',
+      )
 
       const submission = await createLocationSubmission({
         ownerName: values.ownerName,
@@ -136,42 +167,59 @@ export function LocationSubmissionPage() {
         description: values.description,
       })
 
-      let uploadMessage = ''
+      let hasPartialImageFailure = hadImageErrorsBeforeSubmit
 
       if (submissionImages.length > 0) {
+        setSubmissionPhase('uploading')
         const uploadSummary = await uploadImages({
           submissionId: submission.submissionId,
           submissionToken: submission.submissionToken,
         })
 
-        if (uploadSummary.uploadedCount > 0 && uploadSummary.failedCount === 0) {
-          uploadMessage = ` Tambien recibimos ${uploadSummary.uploadedCount} imagen${uploadSummary.uploadedCount === 1 ? '' : 'es'} de evaluacion.`
-        }
-
-        if (uploadSummary.uploadedCount > 0 && uploadSummary.failedCount > 0) {
-          uploadMessage = ` Subimos ${uploadSummary.uploadedCount} imagen${uploadSummary.uploadedCount === 1 ? '' : 'es'}, pero ${uploadSummary.failedCount} no pudieron completarse.`
-        }
-
-        if (uploadSummary.uploadedCount === 0 && uploadSummary.failedCount > 0) {
-          uploadMessage =
-            ' La postulacion se guardo, pero las imagenes no pudieron completarse.'
+        if (uploadSummary.failedCount > 0) {
+          hasPartialImageFailure = true
         }
       }
 
-      setSuccessMessage(
-        `Recibimos tu postulacion. El equipo revisara la informacion y podra contactarte.${uploadMessage}`,
-      )
       setValues(INITIAL_VALUES)
+      setErrors({})
       resetItems()
+      setSubmissionResult(
+        hasPartialImageFailure
+          ? { type: 'partial-success' }
+          : { type: 'success' },
+      )
     } catch (error) {
-      setSubmitError(getLocationSubmissionErrorMessage(error))
+      setSubmissionResult({
+        type: 'error',
+        message: getLocationSubmissionErrorMessage(error),
+      })
     } finally {
       setIsSubmitting(false)
+      setSubmissionPhase('saving')
+    }
+  }
+
+  function handleSubmitAnotherLocation() {
+    setSubmissionResult(null)
+
+    window.requestAnimationFrame(() => {
+      firstFieldRef.current?.focus()
+    })
+  }
+
+  function handleCloseResultModal() {
+    setSubmissionResult(null)
+
+    if (submissionResult?.type === 'error') {
+      window.requestAnimationFrame(() => {
+        firstFieldRef.current?.focus()
+      })
     }
   }
 
   return (
-    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
+    <div className="relative left-1/2 w-screen min-h-[calc(100vh-4.5rem)] -translate-x-1/2 bg-black px-4 py-10 sm:min-h-[calc(100vh-5rem)] sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
       <div className="mx-auto max-w-[1720px]">
         <section className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
           <div>
@@ -181,18 +229,6 @@ export function LocationSubmissionPage() {
           </div>
 
           <form className="space-y-8 sm:space-y-10" onSubmit={handleSubmit}>
-            {successMessage ? (
-              <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
-                {successMessage}
-              </div>
-            ) : null}
-
-            {submitError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-                {submitError}
-              </div>
-            ) : null}
-
             <section className="space-y-6 rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 sm:p-6">
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block space-y-2">
@@ -200,6 +236,7 @@ export function LocationSubmissionPage() {
                     Nombre
                   </span>
                   <input
+                    ref={firstFieldRef}
                     type="text"
                     value={values.ownerName}
                     onChange={(event) => handleChange('ownerName', event.target.value)}
@@ -303,6 +340,45 @@ export function LocationSubmissionPage() {
           </form>
         </section>
       </div>
+
+      <SubmissionLoadingModal isOpen={isSubmitting} phase={submissionPhase} />
+
+      <SubmissionResultModal
+        isOpen={submissionResult !== null}
+        variant={submissionResult?.type === 'error' ? 'error' : submissionResult?.type === 'partial-success' ? 'partial-success' : 'success'}
+        title={
+          submissionResult?.type === 'error'
+            ? 'No pudimos enviar la postulacion'
+            : submissionResult?.type === 'partial-success'
+            ? 'La postulacion fue enviada'
+            : '¡Recibimos tu postulacion!'
+        }
+        description={
+          submissionResult?.type === 'error'
+            ? submissionResult.message
+            : submissionResult?.type === 'partial-success'
+            ? 'Guardamos tus datos, pero algunas imagenes no pudieron completarse.'
+            : 'Nuestro equipo revisara la informacion y se pondra en contacto contigo.'
+        }
+        primaryActionLabel={
+          submissionResult?.type === 'error' ? 'Volver al formulario' : 'Volver al inicio'
+        }
+        secondaryActionLabel={
+          submissionResult?.type === 'error' ? undefined : 'Postular otra locacion'
+        }
+        onPrimaryAction={() => {
+          if (submissionResult?.type === 'error') {
+            handleCloseResultModal()
+            return
+          }
+
+          navigate('/')
+        }}
+        onSecondaryAction={
+          submissionResult?.type === 'error' ? undefined : handleSubmitAnotherLocation
+        }
+        onClose={handleCloseResultModal}
+      />
     </div>
   )
 }
