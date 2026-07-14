@@ -1,5 +1,4 @@
-import { Link } from 'react-router-dom'
-
+import { FavoritesEmptyState } from '@/components/favorites/FavoritesEmptyState.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
@@ -50,26 +49,7 @@ export function FavoritesPage() {
       ) : null}
 
       {!isLoading && !error && favorites.length === 0 ? (
-        <section className="rounded-[2rem] border border-white/10 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8 sm:py-10">
-          <div className="max-w-2xl space-y-4">
-            <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-950 sm:text-4xl">
-              Aun no guardaste ninguna locacion
-            </h2>
-            <p className="text-sm leading-6 text-sand-700 sm:text-base">
-              Explora el catalogo y marca con el corazon las locaciones que quieras
-              revisar mas adelante.
-            </p>
-          </div>
-
-          <div className="mt-6">
-            <Link
-              to="/locations"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700"
-            >
-              Explorar locaciones
-            </Link>
-          </div>
-        </section>
+        <FavoritesEmptyState />
       ) : null}
 
       {!isLoading && !error && favorites.length > 0 ? (

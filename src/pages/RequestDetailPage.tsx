@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useParams } from 'react-router-dom'
 
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
@@ -51,7 +51,7 @@ export function RequestDetailPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
 
-  usePageTitle(project?.title ?? 'Detalle de solicitud')
+  usePageTitle(project?.title ?? 'Detalle de proyecto')
 
   useEffect(() => {
     if (!project) {
@@ -92,7 +92,7 @@ export function RequestDetailPage() {
     }
 
     if (!values.title.trim()) {
-      setValidationError('Ingresa un titulo para la solicitud.')
+      setValidationError('Ingresa un titulo para el proyecto.')
       return
     }
 
@@ -112,7 +112,7 @@ export function RequestDetailPage() {
     }
 
     if (!values.title.trim()) {
-      setValidationError('Ingresa un titulo antes de enviar la solicitud.')
+      setValidationError('Ingresa un titulo antes de enviar el proyecto.')
       return
     }
 
@@ -130,7 +130,7 @@ export function RequestDetailPage() {
     const submittedProject = await sendProject()
 
     if (submittedProject) {
-      setSuccessMessage('Tu solicitud fue enviada correctamente.')
+      setSuccessMessage('Tu proyecto fue enviado correctamente.')
     }
   }
 
@@ -160,144 +160,144 @@ export function RequestDetailPage() {
 
           {!isLoading && !error && project ? (
             <div className="space-y-7">
-              <div className="flex flex-wrap items-start justify-between gap-5">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {isDraft ? (
-                      <input
-                        type="text"
-                        value={values.title}
-                        onChange={(event) => {
-                          setValues((current) => ({
-                            ...current,
-                            title: event.target.value,
-                          }))
-                          setValidationError(null)
-                        }}
-                        className="min-w-[14rem] flex-1 bg-transparent font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 outline-none placeholder:text-brand-100/38 sm:text-5xl"
-                        placeholder="Titulo de la solicitud"
-                        disabled={isSaving || isSubmitting}
-                      />
-                    ) : (
-                      <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-                        {project.title}
-                      </h1>
-                    )}
+              <form className="space-y-7" onSubmit={handleSave}>
+                <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isDraft ? (
+                          <input
+                            type="text"
+                            value={values.title}
+                            onChange={(event) => {
+                              setValues((current) => ({
+                                ...current,
+                                title: event.target.value,
+                              }))
+                              setValidationError(null)
+                            }}
+                            className="min-w-[14rem] flex-1 bg-transparent font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 outline-none placeholder:text-brand-100/38 sm:text-5xl"
+                            placeholder="Titulo del proyecto"
+                            disabled={isSaving || isSubmitting}
+                          />
+                        ) : (
+                          <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+                            {project.title}
+                          </h1>
+                        )}
 
-                    <RequestProjectStatusBadge status={project.status} />
-                  </div>
+                        <RequestProjectStatusBadge status={project.status} />
+                      </div>
 
-                  <p className="text-sm leading-6 text-brand-100/62 sm:text-base">
-                    Creada el {formatProjectDate(project.createdAt)}
-                  </p>
-                </div>
+                      <p className="text-sm leading-6 text-brand-100/62 sm:text-base">
+                        Creado el {formatProjectDate(project.createdAt)}
+                      </p>
+                    </div>
 
-                <Link
-                  to="/requests"
-                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6"
-                >
-                  Volver
-                </Link>
-              </div>
+                    {successMessage ? (
+                      <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                        {successMessage}
+                      </div>
+                    ) : null}
 
-              {successMessage ? (
-                <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
-                  {successMessage}
-                </div>
-              ) : null}
+                    {validationError ? (
+                      <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                        {validationError}
+                      </div>
+                    ) : null}
 
-              {validationError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-                  {validationError}
-                </div>
-              ) : null}
-
-              <form className="space-y-6" onSubmit={handleSave}>
-                <section className="space-y-1.5">
-                  <h2 className="text-base font-semibold text-brand-100 sm:text-lg">
-                    Mensaje
-                  </h2>
-                  {isDraft ? (
-                    <textarea
-                      value={values.message}
-                      onChange={(event) => {
-                        setValues((current) => ({
-                          ...current,
-                          message: event.target.value,
-                        }))
-                      }}
-                      rows={4}
-                      className="w-full resize-none bg-transparent p-0 text-sm leading-7 text-brand-100/72 outline-none placeholder:text-brand-100/38 sm:text-base"
-                      placeholder="Describe tu proyecto, referencias y necesidades generales."
-                      disabled={isSaving || isSubmitting}
-                    />
-                  ) : (
-                    <p className="whitespace-pre-line text-sm leading-7 text-brand-100/72 sm:text-base">
-                      {project.message?.trim() || 'Sin mensaje.'}
-                    </p>
-                  )}
-                </section>
-
-                <section className="space-y-3">
-                  <div className="flex flex-wrap items-end justify-between gap-4">
-                    <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
-                      Locaciones seleccionadas
-                    </h2>
+                    <section className="space-y-2">
+                      <h2 className="text-base font-semibold text-brand-100 sm:text-lg">
+                        Mensaje
+                      </h2>
+                      {isDraft ? (
+                        <textarea
+                          value={values.message}
+                          onChange={(event) => {
+                            setValues((current) => ({
+                              ...current,
+                              message: event.target.value,
+                            }))
+                          }}
+                          rows={5}
+                          className="w-full rounded-[1.5rem] border border-white/10 bg-white/6 px-4 py-3 text-sm leading-7 text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 sm:text-base"
+                          placeholder="Describe tu proyecto, referencias y necesidades generales."
+                          disabled={isSaving || isSubmitting}
+                        />
+                      ) : (
+                        <p className="whitespace-pre-line text-sm leading-7 text-brand-100/72 sm:text-base">
+                          {project.message?.trim() || 'Sin mensaje.'}
+                        </p>
+                      )}
+                    </section>
 
                     {isDraft ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleOpenFavoritesModal()
-                        }}
-                        disabled={isMutatingLocations || isLoadingAvailableFavorites}
-                        className="inline-flex min-h-11 items-center justify-center rounded-full bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {isLoadingAvailableFavorites
-                          ? 'Cargando favoritos...'
-                          : 'Agregar desde favoritos'}
-                      </button>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                        <button
+                          type="submit"
+                          disabled={isSaving || isSubmitting}
+                          className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {isSaving ? 'Guardando...' : 'Guardar cambios'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleSubmitProject()
+                          }}
+                          disabled={isSaving || isSubmitting}
+                          className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {isSubmitting ? 'Enviando proyecto...' : 'Enviar proyecto'}
+                        </button>
+                      </div>
                     ) : null}
                   </div>
-
-                  <RequestProjectLocationsList
-                    locations={locations}
-                    isLoading={isLoadingLocations}
-                    canRemove={isDraft}
-                    removingLocationIds={removingLocationIds}
-                    onRemove={(locationId) => {
-                      if (isMutatingLocations) {
-                        return
-                      }
-
-                      void removeLocation(locationId)
-                    }}
-                  />
                 </section>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  {isDraft ? (
-                    <>
-                      <button
-                        type="submit"
-                        disabled={isSaving || isSubmitting}
-                        className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {isSaving ? 'Guardando...' : 'Guardar cambios'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleSubmitProject()
-                        }}
-                        disabled={isSaving || isSubmitting}
-                        className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {isSubmitting ? 'Enviando solicitud...' : 'Enviar solicitud'}
-                      </button>
-                    </>
-                  ) : null}
-                </div>
+                <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
+                  <div className="space-y-5">
+                    <div className="flex flex-wrap items-end justify-between gap-4">
+                      <div className="space-y-2">
+                        <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
+                          Locaciones seleccionadas
+                        </h2>
+                        <p className="text-sm leading-6 text-brand-100/62 sm:text-base">
+                          Agrega y revisa las locaciones que formarán parte de este proyecto.
+                        </p>
+                      </div>
+
+                      {isDraft ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleOpenFavoritesModal()
+                          }}
+                          disabled={isMutatingLocations || isLoadingAvailableFavorites}
+                          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {isLoadingAvailableFavorites
+                            ? 'Cargando favoritos...'
+                            : 'Agregar desde favoritos'}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <RequestProjectLocationsList
+                      locations={locations}
+                      isLoading={isLoadingLocations}
+                      canRemove={isDraft}
+                      removingLocationIds={removingLocationIds}
+                      onRemove={(locationId) => {
+                        if (isMutatingLocations) {
+                          return
+                        }
+
+                        void removeLocation(locationId)
+                      }}
+                    />
+                  </div>
+                </section>
               </form>
             </div>
           ) : null}

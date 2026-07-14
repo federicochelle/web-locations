@@ -23,32 +23,32 @@ const baseTiles: MosaicTile[] = [
   {
     src: image0,
     alt: 'Locacion cinematografica exterior',
-    widthClassName: 'w-[42vw] sm:w-[28vw] lg:w-[19vw] xl:w-[17vw]',
+    widthClassName: 'w-[58vw] sm:w-[42vw] lg:w-[31vw] xl:w-[27vw]',
   },
   {
     src: image1,
     alt: 'Interior de locacion para produccion',
-    widthClassName: 'w-[34vw] sm:w-[24vw] lg:w-[16vw] xl:w-[14vw]',
+    widthClassName: 'w-[52vw] sm:w-[38vw] lg:w-[28vw] xl:w-[24vw]',
   },
   {
     src: image2,
     alt: 'Locacion urbana en Uruguay',
-    widthClassName: 'w-[46vw] sm:w-[30vw] lg:w-[21vw] xl:w-[18vw]',
+    widthClassName: 'w-[62vw] sm:w-[46vw] lg:w-[34vw] xl:w-[30vw]',
   },
   {
     src: image3,
     alt: 'Locacion editorial con luz natural',
-    widthClassName: 'w-[36vw] sm:w-[26vw] lg:w-[17vw] xl:w-[15vw]',
+    widthClassName: 'w-[54vw] sm:w-[40vw] lg:w-[29vw] xl:w-[25vw]',
   },
   {
     src: image4,
     alt: 'Espacio arquitectonico para rodaje',
-    widthClassName: 'w-[48vw] sm:w-[32vw] lg:w-[22vw] xl:w-[19vw]',
+    widthClassName: 'w-[64vw] sm:w-[48vw] lg:w-[36vw] xl:w-[31vw]',
   },
   {
     src: image5,
     alt: 'Locacion premium para fotografia',
-    widthClassName: 'w-[38vw] sm:w-[27vw] lg:w-[18vw] xl:w-[16vw]',
+    widthClassName: 'w-[56vw] sm:w-[41vw] lg:w-[30vw] xl:w-[26vw]',
   },
 ]
 
@@ -57,46 +57,19 @@ const rows: MosaicRow[] = [
     id: 'row-1',
     direction: 'left',
     duration: '52s',
-    tiles: [
-      baseTiles[0],
-      baseTiles[2],
-      baseTiles[4],
-      baseTiles[1],
-      baseTiles[5],
-      baseTiles[3],
-      baseTiles[2],
-      baseTiles[0],
-    ],
+    tiles: [baseTiles[0], baseTiles[2], baseTiles[4], baseTiles[1]],
   },
   {
     id: 'row-2',
     direction: 'right',
     duration: '62s',
-    tiles: [
-      baseTiles[3],
-      baseTiles[1],
-      baseTiles[5],
-      baseTiles[0],
-      baseTiles[2],
-      baseTiles[4],
-      baseTiles[5],
-      baseTiles[1],
-    ],
+    tiles: [baseTiles[3], baseTiles[1], baseTiles[5], baseTiles[0]],
   },
   {
     id: 'row-3',
     direction: 'left',
     duration: '56s',
-    tiles: [
-      baseTiles[4],
-      baseTiles[2],
-      baseTiles[0],
-      baseTiles[5],
-      baseTiles[3],
-      baseTiles[1],
-      baseTiles[4],
-      baseTiles[2],
-    ],
+    tiles: [baseTiles[4], baseTiles[2], baseTiles[0], baseTiles[5]],
   },
 ]
 

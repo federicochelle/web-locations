@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { RequestsEmptyState } from '@/components/requests/RequestsEmptyState.tsx'
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
@@ -38,33 +39,7 @@ export function RequestsPage() {
       ) : null}
 
       {!isLoading && !error && projects.length === 0 ? (
-        <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
-          <h1 className="text-lg font-semibold text-brand-950">Mis proyectos</h1>
-          <p className="mt-2 text-sm text-sand-700">
-            Aun no creaste proyectos de solicitud.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link
-              to="/requests/new"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-700"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-4 w-4 fill-current"
-              >
-                <path d="M9 4a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4Z" />
-              </svg>
-              Nuevo proyecto
-            </Link>
-            <Link
-              to="/locations"
-              className="inline-flex items-center justify-center rounded-full border border-black/10 px-5 py-3 text-sm font-medium text-brand-950 transition hover:bg-sand-50"
-            >
-              Explorar locaciones
-            </Link>
-          </div>
-        </section>
+        <RequestsEmptyState />
       ) : null}
 
       {!isLoading && !error && projects.length > 0 ? (

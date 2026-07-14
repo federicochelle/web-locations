@@ -31,7 +31,9 @@ export function LocationDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [requestNotice, setRequestNotice] = useState<string | null>(null)
   const [requestActionError, setRequestActionError] = useState<string | null>(null)
-  const [isRequestActionLoading, setIsRequestActionLoading] = useState(false)
+  const [isLoadingDraftProjects, setIsLoadingDraftProjects] = useState(false)
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [isAddingLocationToProject, setIsAddingLocationToProject] = useState(false)
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false)
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
   const [draftProjects, setDraftProjects] = useState<RequestProject[]>([])
@@ -93,8 +95,22 @@ export function LocationDetailPage() {
     }
   }, [publicSlug])
 
+  useEffect(() => {
+    if (!isProjectPickerOpen) {
+      return
+    }
+
+    setRequestNotice(null)
+  }, [isProjectPickerOpen])
+
   function handleRequestIntent() {
-    if (!location || authLoading || isRequestActionLoading) {
+    if (
+      !location ||
+      authLoading ||
+      isLoadingDraftProjects ||
+      isCreatingProject ||
+      isAddingLocationToProject
+    ) {
       return
     }
 
@@ -103,85 +119,86 @@ export function LocationDetailPage() {
       return
     }
 
-    void handleRequestProjectFlow()
+    void handleOpenProjectPicker()
   }
 
-  async function handleRequestProjectFlow() {
+  async function handleOpenProjectPicker() {
     if (!location) {
       return
     }
 
     try {
-      setIsRequestActionLoading(true)
+      setIsLoadingDraftProjects(true)
       setRequestActionError(null)
       setRequestNotice(null)
 
       const drafts = await getMyDraftRequestProjects()
-
-      if (drafts.length === 0) {
-        const project = await createRequestProject({
-          title: 'Nueva solicitud',
-          message: null,
-        })
-
-        await addLocationToRequestProject(project.id, location.id)
-
-        navigate(`/requests/${project.id}`, {
-          state: {
-            notice: 'Creamos una nueva solicitud con esta locacion.',
-          },
-        })
-        return
-      }
-
-      if (drafts.length === 1) {
-        const result = await addLocationToRequestProject(drafts[0].id, location.id)
-
-        navigate(`/requests/${drafts[0].id}`, {
-          state: {
-            notice:
-              result === 'exists'
-                ? 'Esta locacion ya forma parte de la solicitud.'
-                : 'La locacion fue agregada correctamente a tu solicitud.',
-          },
-        })
-        return
-      }
-
       setDraftProjects(drafts)
       setIsProjectPickerOpen(true)
     } catch (requestProjectError) {
       setRequestActionError(getRequestProjectErrorMessage(requestProjectError))
+      setDraftProjects([])
+      setIsProjectPickerOpen(true)
     } finally {
-      setIsRequestActionLoading(false)
+      setIsLoadingDraftProjects(false)
     }
   }
 
-  async function handleSelectDraftProject(projectId: string) {
+  async function handleAddToProject(projectId: string) {
     if (!location) {
       return
     }
 
     try {
-      setIsRequestActionLoading(true)
+      setIsAddingLocationToProject(true)
       setRequestActionError(null)
       setRequestNotice(null)
 
       const result = await addLocationToRequestProject(projectId, location.id)
 
-      setIsProjectPickerOpen(false)
-      navigate(`/requests/${projectId}`, {
-        state: {
-          notice:
-            result === 'exists'
-              ? 'Esta locacion ya forma parte de la solicitud.'
-              : 'La locacion fue agregada correctamente a tu solicitud.',
-        },
-      })
+      setRequestNotice(
+        result === 'exists'
+          ? 'Esta locacion ya está en el proyecto.'
+          : 'Locacion agregada al proyecto.',
+      )
+
+      const drafts = await getMyDraftRequestProjects()
+      setDraftProjects(drafts)
     } catch (requestProjectError) {
       setRequestActionError(getRequestProjectErrorMessage(requestProjectError))
     } finally {
-      setIsRequestActionLoading(false)
+      setIsAddingLocationToProject(false)
+    }
+  }
+
+  async function handleCreateProject(projectTitle: string) {
+    if (!location) {
+      return
+    }
+
+    try {
+      setIsCreatingProject(true)
+      setRequestActionError(null)
+      setRequestNotice(null)
+
+      const project = await createRequestProject({
+        title: projectTitle,
+        message: null,
+      })
+
+      const result = await addLocationToRequestProject(project.id, location.id)
+      const drafts = await getMyDraftRequestProjects()
+
+      setDraftProjects(drafts)
+      setRequestNotice(
+        result === 'exists'
+          ? 'Esta locacion ya está en el proyecto.'
+          : 'Locacion agregada al proyecto.',
+      )
+    } catch (requestProjectError) {
+      setRequestActionError(getRequestProjectErrorMessage(requestProjectError))
+    } finally {
+      setIsCreatingProject(false)
     }
   }
 
@@ -223,10 +240,15 @@ export function LocationDetailPage() {
                   ref={requestButtonRef}
                   type="button"
                   onClick={handleRequestIntent}
-                  disabled={authLoading || isRequestActionLoading}
+                  disabled={
+                    authLoading ||
+                    isLoadingDraftProjects ||
+                    isCreatingProject ||
+                    isAddingLocationToProject
+                  }
                   className="inline-flex min-h-11 items-center justify-center rounded-full bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isRequestActionLoading ? 'Preparando solicitud...' : 'Solicitar informacion'}
+                  {isLoadingDraftProjects ? 'Cargando proyectos...' : 'Agregar a proyecto'}
                 </button>
                 <FavoriteButton
                   active={favoriteIds.has(location.id)}
@@ -237,16 +259,6 @@ export function LocationDetailPage() {
                 />
               </div>
             </div>
-            {requestNotice ? (
-              <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
-                {requestNotice}
-              </div>
-            ) : null}
-            {requestActionError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-                {requestActionError}
-              </div>
-            ) : null}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {location.images.length > 0 ? (
                 location.images.map((image, index) => (
@@ -269,16 +281,29 @@ export function LocationDetailPage() {
       ) : null}
       <RequestProjectPickerModal
         isOpen={isProjectPickerOpen}
-        isSubmitting={isRequestActionLoading}
+        isLoadingProjects={isLoadingDraftProjects}
+        isCreatingProject={isCreatingProject}
+        isAddingLocation={isAddingLocationToProject}
         projects={draftProjects}
+        error={requestActionError}
+        successMessage={requestNotice}
         onClose={() => {
-          if (isRequestActionLoading) {
+          if (
+            isLoadingDraftProjects ||
+            isCreatingProject ||
+            isAddingLocationToProject
+          ) {
             return
           }
 
           setIsProjectPickerOpen(false)
+          requestButtonRef.current?.focus()
         }}
-        onSelect={handleSelectDraftProject}
+        onAddToProject={handleAddToProject}
+        onCreateProject={handleCreateProject}
+        onViewProject={(projectId) => {
+          navigate(`/requests/${projectId}`)
+        }}
       />
       <AuthRequiredModal
         isOpen={isAuthRequiredModalOpen}
