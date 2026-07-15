@@ -14,7 +14,7 @@ export function CategoryVisualCard({ category }: CategoryVisualCardProps) {
 
   return (
     <Link
-      to={category.slug ? `/locations?category=${category.slug}` : '/locations'}
+      to={category.slug ? `/categorias/${category.slug}` : '/locations'}
       aria-label={`Explorar categoria ${category.name}`}
       style={backgroundStyle}
       className="group relative flex aspect-[16/13] overflow-hidden rounded-[0.65rem] bg-brand-950 p-5 shadow-[0_20px_44px_rgba(0,0,0,0.14)] transition duration-500 hover:-translate-y-1.5 hover:shadow-[0_34px_64px_rgba(0,0,0,0.22)] lg:aspect-[16/12]"

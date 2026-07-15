@@ -38,7 +38,7 @@ export function RequestsEmptyState() {
             </Link>
 
             <Link
-              to="/locations"
+              to="/#explorar"
               className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/18 bg-transparent px-5 text-sm font-medium text-brand-100 transition hover:border-white/26 hover:bg-white/6 sm:flex-1 lg:flex-none"
             >
               Explorar locaciones

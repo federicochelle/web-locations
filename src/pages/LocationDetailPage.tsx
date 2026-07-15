@@ -16,6 +16,7 @@ import {
 } from '@/services/request-projects.service.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
 import type { RequestProject } from '@/types/request-project.ts'
+import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
 
 function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
@@ -24,7 +25,11 @@ function formatLocationCode(locationCode: string) {
 export function LocationDetailPage() {
   const locationState = useLocation()
   const navigate = useNavigate()
-  const { slug: publicSlug } = useParams()
+  const {
+    slug: legacySlug,
+    categorySlug: routeCategorySlug,
+    locationCode: routeLocationCode,
+  } = useParams()
   const [location, setLocation] = useState<PublicLocationDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +52,9 @@ export function LocationDetailPage() {
     let isMounted = true
 
     async function loadLocation() {
-      if (!publicSlug) {
+      const locationIdentifier = routeLocationCode ?? legacySlug ?? null
+
+      if (!locationIdentifier) {
         setNotFound(true)
         setIsLoading(false)
         return
@@ -58,7 +65,7 @@ export function LocationDetailPage() {
         setError(null)
         setNotFound(false)
 
-        const nextLocation = await getLocationByLocationCode(publicSlug)
+        const nextLocation = await getLocationByLocationCode(locationIdentifier)
 
         if (!isMounted) {
           return
@@ -67,6 +74,31 @@ export function LocationDetailPage() {
         if (!nextLocation) {
           setNotFound(true)
           setLocation(null)
+          return
+        }
+
+        const canonicalPath = buildPublicLocationPath({
+          categorySlug: nextLocation.categorySlug,
+          locationCode: nextLocation.locationCode,
+          fallbackSlug: nextLocation.slug,
+        })
+        const hasLegacyRoute = Boolean(legacySlug)
+        const hasInvalidCategorySlug = Boolean(
+          routeCategorySlug && routeCategorySlug !== nextLocation.categorySlug,
+        )
+        const hasNonCanonicalLocationCode = Boolean(
+          routeLocationCode &&
+          normalizePublicValue(routeLocationCode) !==
+            normalizePublicValue(nextLocation.locationCode),
+        )
+
+        if (
+          hasLegacyRoute ||
+          hasInvalidCategorySlug ||
+          hasNonCanonicalLocationCode ||
+          locationState.pathname !== canonicalPath
+        ) {
+          navigate(canonicalPath, { replace: true })
           return
         }
 
@@ -93,7 +125,7 @@ export function LocationDetailPage() {
     return () => {
       isMounted = false
     }
-  }, [publicSlug])
+  }, [legacySlug, locationState.pathname, navigate, routeCategorySlug, routeLocationCode])
 
   useEffect(() => {
     if (!isProjectPickerOpen) {

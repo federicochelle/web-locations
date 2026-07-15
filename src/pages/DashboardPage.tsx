@@ -42,7 +42,7 @@ export function DashboardPage() {
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <Link
-                to="/locations"
+                to="/#explorar"
                 className="rounded-[1.5rem] border border-black/5 bg-sand-50 px-5 py-5 text-sm text-brand-950 transition hover:bg-sand-100"
               >
                 Explorar locaciones

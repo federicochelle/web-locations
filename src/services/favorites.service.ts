@@ -15,9 +15,11 @@ type FavoriteLocationRow = {
   categories?:
     | {
         name?: string | null
+        slug?: string | null
       }
     | {
         name?: string | null
+        slug?: string | null
       }[]
     | null
   departments?:
@@ -98,10 +100,14 @@ function mapFavoriteRow(row: FavoriteRow): PublicLocationCard | null {
   const coverImage = sortImages(location.location_images).find((image) =>
     Boolean(image.url),
   )
+  const category = Array.isArray(location.categories)
+    ? (location.categories[0] ?? null)
+    : (location.categories ?? null)
 
   return mapPublicLocationCard({
     id: location.id,
     locationCode: location.location_code ?? location.id,
+    categorySlug: category?.slug ?? null,
     categoryName: getRelatedName(location.categories),
     departmentName: getRelatedName(location.departments),
     zoneName: getRelatedName(location.zones),
@@ -164,7 +170,8 @@ export async function getFavorites(userId: string): Promise<PublicLocationCard[]
           location_code,
           published,
           categories (
-            name
+            name,
+            slug
           ),
           departments (
             name

@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 
-import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
-import { useFavorites } from '@/hooks/useFavorites.ts'
+import { CategoryLocationsGrid } from '@/features/locations/components/CategoryLocationsGrid.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
-export function LocationsPage() {
+export function CategoryLocationsPage() {
+  const { slug } = useParams()
   const [searchParams] = useSearchParams()
-  const categorySlug = searchParams.get('category')
   const searchQuery = searchParams.get('q')
   const featuresQuery = searchParams.get('features')
 
@@ -28,30 +27,35 @@ export function LocationsPage() {
     [featuresQuery],
   )
   const hasActiveSearch = trimmedSearchQuery.length > 0
-  const {
-    favoriteIds,
-    pendingIds,
-    toggleFavorite,
-  } = useFavorites()
 
   const activeHeadingParts = [
     activeCategoryName ? `Categoria: ${activeCategoryName}` : null,
     hasActiveSearch ? `Busqueda: "${trimmedSearchQuery}"` : null,
   ].filter((part): part is string => Boolean(part))
 
-  usePageTitle(activeHeadingParts.length > 0 ? activeHeadingParts.join(' · ') : 'Locaciones')
+  usePageTitle(activeHeadingParts.length > 0 ? activeHeadingParts.join(' · ') : 'Categoria')
 
   useEffect(() => {
     let isMounted = true
 
     async function loadLocations() {
+      if (!slug) {
+        if (isMounted) {
+          setLocations([])
+          setActiveCategoryName(null)
+          setCategoryExists(false)
+          setIsLoading(false)
+        }
+        return
+      }
+
       try {
         setIsLoading(true)
         setError(null)
         setCategoryExists(true)
 
         const result = await getLocations({
-          categorySlug,
+          categorySlug: slug,
           search: trimmedSearchQuery,
           featureSlugs: normalizedFeatureSlugs,
         })
@@ -68,11 +72,12 @@ export function LocationsPage() {
           return
         }
 
+        setLocations([])
         setActiveCategoryName(null)
         setError(
           loadError instanceof Error
             ? loadError.message
-            : 'No se pudieron cargar las locaciones.',
+            : 'No se pudieron cargar las locaciones de la categoria.',
         )
       } finally {
         if (isMounted) {
@@ -86,17 +91,31 @@ export function LocationsPage() {
     return () => {
       isMounted = false
     }
-  }, [categorySlug, normalizedFeatureSlugs, trimmedSearchQuery])
+  }, [normalizedFeatureSlugs, slug, trimmedSearchQuery])
 
   return (
-    <div className="space-y-6 pb-16 pt-6 sm:pb-20 sm:pt-8 lg:pb-24 lg:pt-10">
+    <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-12 lg:pb-24 lg:pt-12">
+      <section className="max-w-4xl space-y-3">
+        <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-700">
+          Categoria
+        </p>
+        <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+          {activeCategoryName ?? 'Locaciones'}
+        </h1>
+        <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
+          {hasActiveSearch
+            ? `Explora las locaciones publicadas de esta categoria para la busqueda "${trimmedSearchQuery}".`
+            : 'Explora las locaciones publicadas de esta categoria.'}
+        </p>
+      </section>
+
       {isLoading ? (
-        <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
-          <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="w-full">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <div
                 key={index}
-                className="aspect-[16/13] animate-pulse rounded-[1.75rem] bg-sand-200 lg:aspect-[16/12]"
+                className="aspect-[16/13] animate-pulse rounded-[0.9rem] bg-sand-200/80 lg:aspect-[16/12]"
               />
             ))}
           </div>
@@ -110,34 +129,28 @@ export function LocationsPage() {
         </section>
       ) : null}
 
-      {!isLoading && !error && locations.length === 0 ? (
+      {!isLoading && !error && !categoryExists ? (
         <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-brand-950">
-            {categorySlug && !categoryExists
-              ? 'Categoria no encontrada'
-              : 'No encontramos resultados'}
-          </h2>
+          <h2 className="text-lg font-semibold text-brand-950">Categoria no encontrada</h2>
           <p className="mt-2 text-sm text-sand-700">
-            {categorySlug && !categoryExists
-              ? `No pudimos encontrar la categoria "${categorySlug}".`
-              : categorySlug && hasActiveSearch
-              ? `No encontramos locaciones publicadas para la categoria seleccionada y la busqueda "${trimmedSearchQuery}".`
-              : categorySlug
-              ? 'No encontramos locaciones publicadas para esta categoria.'
-              : hasActiveSearch
-              ? `No encontramos locaciones publicadas para la busqueda "${trimmedSearchQuery}".`
-              : 'Cuando existan registros publicados en Supabase, apareceran aqui.'}
+            No pudimos encontrar la categoria "{slug}".
           </p>
         </section>
       ) : null}
 
-      {!isLoading && !error && locations.length > 0 ? (
-        <LocationsGrid
-          locations={locations}
-          favoriteIds={favoriteIds}
-          pendingFavoriteIds={pendingIds}
-          onToggleFavorite={toggleFavorite}
-        />
+      {!isLoading && !error && categoryExists && locations.length === 0 ? (
+        <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
+          <h2 className="text-lg font-semibold text-brand-950">No encontramos resultados</h2>
+          <p className="mt-2 text-sm text-sand-700">
+            {hasActiveSearch
+              ? `No encontramos locaciones publicadas para esta categoria y la busqueda "${trimmedSearchQuery}".`
+              : 'No encontramos locaciones publicadas para esta categoria.'}
+          </p>
+        </section>
+      ) : null}
+
+      {!isLoading && !error && categoryExists && locations.length > 0 ? (
+        <CategoryLocationsGrid locations={locations} />
       ) : null}
     </div>
   )

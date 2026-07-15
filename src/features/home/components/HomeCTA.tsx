@@ -14,7 +14,7 @@ export function HomeCTA() {
           Esta sección queda preparada como cierre editorial, bloque comercial o punto de contacto.
         </p>
         <Link
-          to="/locations"
+          to="/#explorar"
           className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-medium text-brand-950 transition hover:bg-brand-100"
         >
           Explorar locaciones

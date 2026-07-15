@@ -15,8 +15,8 @@ export function LocationsGrid({
   onToggleFavorite,
 }: LocationsGridProps) {
   return (
-    <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
-      <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="w-full">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {locations.map((location) => (
           <LocationCard
             key={location.id}

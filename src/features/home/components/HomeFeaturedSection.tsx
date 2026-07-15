@@ -20,10 +20,10 @@ export function HomeFeaturedSection({
           description="Módulo inicial para futuras destacadas dinámicas desde Supabase o CMS."
         />
         <Link
-          to="/locations"
+          to="/#explorar"
           className="inline-flex items-center justify-center rounded-full border border-black/10 px-5 py-3 text-sm font-medium text-brand-950 transition hover:bg-white"
         >
-          Ver catálogo completo
+          Ver locaciones
         </Link>
       </div>
 

@@ -43,7 +43,7 @@ type LocationRow = {
   location_code?: string | null
   category_id?: string | null
   published?: boolean | null
-  categories?: RelatedEntity | null
+  categories?: RelatedEntity | RelatedEntity[] | null
   departments?: RelatedEntity | null
   zones?: RelatedEntity | null
   location_images?: LocationImageRow[] | null
@@ -54,6 +54,7 @@ type SearchPublicLocationsRow = {
   id: string
   slug?: string | null
   location_code?: string | null
+  category_slug?: string | null
   category_name?: string | null
   department_name?: string | null
   zone_name?: string | null
@@ -105,6 +106,7 @@ function mapSearchPublicLocationsRow(
   return mapPublicLocationCard({
     id: row.id,
     locationCode: row.location_code ?? row.id,
+    categorySlug: row.category_slug ?? null,
     categoryName: row.category_name ?? null,
     departmentName: row.department_name ?? null,
     zoneName: row.zone_name ?? null,
@@ -122,6 +124,66 @@ function normalizeFeatureSlugs(featureSlugs?: string[]) {
       .map((featureSlug) => featureSlug.trim())
       .filter((featureSlug) => featureSlug.length > 0),
   )]
+}
+
+function getSingleRelation<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
+async function enrichLocationsWithCategorySlugs(
+  rows: SearchPublicLocationsRow[],
+  fallbackCategorySlug: string | null,
+) {
+  if (fallbackCategorySlug) {
+    return rows.map((row) => ({
+      ...row,
+      category_slug: row.category_slug ?? fallbackCategorySlug,
+    }))
+  }
+
+  const categoryNames = [...new Set(
+    rows
+      .map((row) => row.category_name?.trim() ?? '')
+      .filter((categoryName) => categoryName.length > 0 && categoryName !== 'Sin categoria'),
+  )]
+
+  if (categoryNames.length === 0) {
+    return rows
+  }
+
+  const { data, error } = await supabase
+    .from('categories')
+    .select('name, slug')
+    .in('name', categoryNames)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const categorySlugByName = new Map<string, string>()
+
+  for (const category of (data ?? []) as { name?: string | null; slug?: string | null }[]) {
+    const categoryName = category.name?.trim()
+    const categorySlug = category.slug?.trim()
+
+    if (!categoryName || !categorySlug) {
+      continue
+    }
+
+    categorySlugByName.set(categoryName, categorySlug)
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    category_slug:
+      row.category_slug ??
+      categorySlugByName.get(row.category_name?.trim() ?? '') ??
+      null,
+  }))
 }
 
 async function getLocationsFromRpc({
@@ -152,7 +214,12 @@ async function getLocationsFromRpc({
     throw new Error(error.message)
   }
 
-  return ((data ?? []) as SearchPublicLocationsRow[]).map((row) =>
+  const rowsWithCategorySlugs = await enrichLocationsWithCategorySlugs(
+    (data ?? []) as SearchPublicLocationsRow[],
+    categorySlug,
+  )
+
+  return rowsWithCategorySlugs.map((row) =>
     mapSearchPublicLocationsRow(row),
   )
 }
@@ -223,6 +290,9 @@ export async function getLocationByLocationCode(publicSlug: string) {
         title,
         location_code,
         published,
+        categories (
+          slug
+        ),
         location_images (
           url,
           sort_order
@@ -247,6 +317,9 @@ export async function getLocationByLocationCode(publicSlug: string) {
           title,
           location_code,
           published,
+          categories (
+            slug
+          ),
           location_images (
             url,
             sort_order
@@ -272,14 +345,20 @@ export async function getLocationByLocationCode(publicSlug: string) {
         url: image.url as string,
         sortOrder: image.sort_order ?? null,
       }))
+    const fallbackCategory = getSingleRelation(fallbackRow.categories)
     const fallbackSlug = buildPublicSlug(fallbackRow.location_code) ?? publicSlug
     const fallbackLocationCode = fallbackRow.location_code?.trim() || fallbackSlug
+
+    if (!fallbackCategory?.slug?.trim()) {
+      throw new Error('La locacion no tiene una categoria publica asociada.')
+    }
 
     return {
       id: fallbackRow.id,
       slug: fallbackSlug,
       title: fallbackLocationCode,
       locationCode: fallbackLocationCode,
+      categorySlug: fallbackCategory.slug.trim(),
       images: fallbackImages,
     } satisfies PublicLocationDetail
   }
@@ -291,14 +370,20 @@ export async function getLocationByLocationCode(publicSlug: string) {
       url: image.url as string,
       sortOrder: image.sort_order ?? null,
     }))
+  const category = getSingleRelation(row.categories)
   const normalizedSlug = buildPublicSlug(row.location_code) ?? publicSlug
   const publicLocationCode = row.location_code?.trim() || normalizedSlug
+
+  if (!category?.slug?.trim()) {
+    throw new Error('La locacion no tiene una categoria publica asociada.')
+  }
 
   return {
     id: row.id,
     slug: normalizedSlug,
     title: publicLocationCode,
     locationCode: publicLocationCode,
+    categorySlug: category.slug.trim(),
     images,
   } satisfies PublicLocationDetail
 }

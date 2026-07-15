@@ -120,9 +120,11 @@ export function HomePage() {
         ) : null}
 
         {!isLoading && !error && categories.length > 0 ? (
-          <HomeCategoriesGrid
-            categories={buildHomeCategoryCards(categories)}
-          />
+          <section id="explorar">
+            <HomeCategoriesGrid
+              categories={buildHomeCategoryCards(categories)}
+            />
+          </section>
         ) : null}
       </div>
     </div>
