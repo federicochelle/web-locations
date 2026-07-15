@@ -29,6 +29,7 @@ export type RequestProjectLocation = {
     slug: string
     title: string
     locationCode: string
+    categorySlug: string | null
     categoryName: string
     departmentName: string
     zoneName: string

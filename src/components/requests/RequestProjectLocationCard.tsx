@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import type { RequestProjectLocation } from '@/types/request-project.ts'
+import { buildPublicLocationPath } from '@/utils/location-public.ts'
 
 type RequestProjectLocationCardProps = {
   item: RequestProjectLocation
@@ -36,7 +37,11 @@ export function RequestProjectLocationCard({
   return (
     <article className="relative overflow-hidden rounded-[0.75rem] border border-white/10 bg-[#1B1B1D]">
       <Link
-        to={`/locations/${item.location.slug}`}
+        to={buildPublicLocationPath({
+          categorySlug: item.location.categorySlug,
+          locationCode: item.location.locationCode,
+          fallbackSlug: item.location.slug,
+        })}
         aria-label={`Ver locacion ${locationTitle}`}
         className="absolute inset-0 z-10"
       />

@@ -67,6 +67,7 @@ export type PublicLocationCard = {
   slug: string
   title: string
   locationCode: string
+  categorySlug: string | null
   categoryName: string
   departmentName: string
   zoneName: string
@@ -88,6 +89,7 @@ export type PublicLocationDetail = {
   slug: string
   title: string
   locationCode: string
+  categorySlug: string
   images: PublicLocationDetailImage[]
 }
 

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
 import type { PublicLocationCard } from '@/types/location.ts'
+import { buildPublicLocationPath } from '@/utils/location-public.ts'
 
 type LocationCardProps = {
   location: PublicLocationCard
@@ -35,7 +36,11 @@ export function LocationCard({
       ) : null}
 
       <Link
-        to={`/locations/${location.slug}`}
+        to={buildPublicLocationPath({
+          categorySlug: location.categorySlug,
+          locationCode: location.locationCode,
+          fallbackSlug: location.slug,
+        })}
         aria-label={location.locationCode}
         className="block"
       >

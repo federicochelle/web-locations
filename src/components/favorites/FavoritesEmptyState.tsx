@@ -20,7 +20,7 @@ export function FavoritesEmptyState() {
 
           <div className="flex w-full flex-col items-stretch justify-center gap-3 pt-4 sm:flex-row lg:justify-start">
             <Link
-              to="/locations"
+              to="/#explorar"
               className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 sm:flex-1 lg:flex-none"
             >
               Explorar locaciones

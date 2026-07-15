@@ -3,6 +3,7 @@ import type { PublicLocationCard } from '@/types/location.ts'
 type PublicLocationCardSource = {
   id: string
   locationCode?: string | null
+  categorySlug?: string | null
   categoryName?: string | null
   departmentName?: string | null
   zoneName?: string | null
@@ -29,6 +30,25 @@ export function buildPublicSlug(locationCode?: string | null) {
   return normalizePublicValue(locationCode)
 }
 
+export function buildPublicLocationPath({
+  categorySlug,
+  locationCode,
+  fallbackSlug,
+}: {
+  categorySlug?: string | null
+  locationCode?: string | null
+  fallbackSlug?: string | null
+}) {
+  const normalizedCategorySlug = categorySlug?.trim() ?? ''
+  const normalizedLocationCode = locationCode?.trim() ?? ''
+
+  if (normalizedCategorySlug && normalizedLocationCode) {
+    return `/categorias/${normalizedCategorySlug}/${normalizedLocationCode}`
+  }
+
+  return `/locations/${fallbackSlug ?? buildPublicSlug(locationCode) ?? ''}`
+}
+
 export function mapPublicLocationCard(
   row: PublicLocationCardSource,
 ): PublicLocationCard {
@@ -40,6 +60,7 @@ export function mapPublicLocationCard(
     slug: publicSlug,
     title: publicLocationCode,
     locationCode: publicLocationCode,
+    categorySlug: row.categorySlug?.trim() || null,
     categoryName: row.categoryName ?? 'Sin categoria',
     departmentName: row.departmentName ?? 'Sin departamento',
     zoneName: row.zoneName ?? 'Sin zona',

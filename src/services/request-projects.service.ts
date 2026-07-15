@@ -28,9 +28,11 @@ type RequestProjectRow = {
 type RelatedNameRow =
   | {
       name?: string | null
+      slug?: string | null
     }
   | {
       name?: string | null
+      slug?: string | null
     }[]
   | null
 
@@ -90,7 +92,8 @@ const REQUEST_PROJECT_SELECT = `
       location_code,
       published,
       categories (
-        name
+        name,
+        slug
       ),
       departments (
         name
@@ -183,6 +186,7 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
     ? mapPublicLocationCard({
         id: firstLocation.id,
         locationCode: firstLocation.location_code ?? firstLocation.id,
+        categorySlug: getSingleRelation(firstLocation.categories)?.slug ?? null,
         categoryName: getRelatedName(firstLocation.categories),
         departmentName: getRelatedName(firstLocation.departments),
         zoneName: getRelatedName(firstLocation.zones),
@@ -225,6 +229,7 @@ function mapRequestProjectLocation(
   const locationCard = mapPublicLocationCard({
     id: location.id,
     locationCode: location.location_code ?? location.id,
+    categorySlug: getSingleRelation(location.categories)?.slug ?? null,
     categoryName: getRelatedName(location.categories),
     departmentName: getRelatedName(location.departments),
     zoneName: getRelatedName(location.zones),
@@ -243,6 +248,7 @@ function mapRequestProjectLocation(
       slug: locationCard.slug,
       title: locationCard.title,
       locationCode: locationCard.locationCode,
+      categorySlug: locationCard.categorySlug,
       categoryName: locationCard.categoryName,
       departmentName: locationCard.departmentName,
       zoneName: locationCard.zoneName,
@@ -401,7 +407,8 @@ export async function getRequestProjectLocations(projectId: string) {
           location_code,
           published,
           categories (
-            name
+            name,
+            slug
           ),
           departments (
             name

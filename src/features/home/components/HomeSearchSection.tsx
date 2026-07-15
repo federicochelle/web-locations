@@ -236,7 +236,11 @@ export function HomeSearchSection({
 
     const nextQueryString = nextSearchParams.toString()
 
-    navigate(nextQueryString ? `/locations?${nextQueryString}` : '/locations')
+    if (!nextQueryString) {
+      return
+    }
+
+    navigate(`/busqueda?${nextQueryString}`)
   }
 
   return (

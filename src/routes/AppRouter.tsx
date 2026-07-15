@@ -5,11 +5,11 @@ import { AdminHomePage } from '@/pages/AdminHomePage.tsx'
 import { DashboardPage } from '@/pages/DashboardPage.tsx'
 import { FavoritesPage } from '@/pages/FavoritesPage.tsx'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage.tsx'
+import { CategoryLocationsPage } from '@/pages/CategoryLocationsPage.tsx'
 import { HomePage } from '@/pages/HomePage.tsx'
 import { LoginPage } from '@/pages/LoginPage.tsx'
 import { LocationDetailPage } from '@/pages/LocationDetailPage.tsx'
 import { LocationSubmissionPage } from '@/pages/LocationSubmissionPage.tsx'
-import { LocationsPage } from '@/pages/LocationsPage.tsx'
 import { NewRequestProjectPage } from '@/pages/NewRequestProjectPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage.tsx'
 import { ProfilePage } from '@/pages/ProfilePage.tsx'
@@ -17,6 +17,7 @@ import { RequestDetailPage } from '@/pages/RequestDetailPage.tsx'
 import { RegisterPage } from '@/pages/RegisterPage.tsx'
 import { RequestsPage } from '@/pages/RequestsPage.tsx'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage.tsx'
+import { SearchLocationsPage } from '@/pages/SearchLocationsPage.tsx'
 import { ProtectedRoute } from '@/routes/ProtectedRoute.tsx'
 import { PublicOnlyRoute } from '@/routes/PublicOnlyRoute.tsx'
 
@@ -51,8 +52,16 @@ const router = createBrowserRouter([
         element: <ResetPasswordPage />,
       },
       {
-        path: 'locations',
-        element: <LocationsPage />,
+        path: 'busqueda',
+        element: <SearchLocationsPage />,
+      },
+      {
+        path: 'categorias/:slug',
+        element: <CategoryLocationsPage />,
+      },
+      {
+        path: 'categorias/:categorySlug/:locationCode',
+        element: <LocationDetailPage />,
       },
       {
         path: 'locations/:slug',

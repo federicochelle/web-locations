@@ -41,7 +41,7 @@ export function RequestProjectLocationsList({
           Cuando sumes locaciones al proyecto, apareceran aqui para revisarlas antes de enviar la solicitud.
         </p>
         <Link
-          to="/locations"
+          to="/#explorar"
           className="mt-5 inline-flex items-center justify-center rounded-full bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-700"
         >
           Explorar locaciones
