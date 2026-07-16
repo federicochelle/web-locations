@@ -18,48 +18,53 @@ function formatPreviewDate(value: string) {
   }).format(date)
 }
 
+function getPreviewValue(value: string) {
+  return value.trim().length > 0 ? value : '—'
+}
+
 export function SelectionPdfPreview({
   payload,
 }: SelectionPdfPreviewProps) {
   return (
     <div className="space-y-6">
-      <section className="rounded-[1.5rem] border border-white/10 bg-white/4 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">
-          Preview
-        </p>
+      <section>
         <h3 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-brand-100">
           Seleccion de locaciones
         </h3>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[1rem] bg-white/6 p-4">
+          <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Producto</p>
-            <p className="mt-2 text-sm text-brand-100">{payload.project.product}</p>
-          </div>
-          <div className="rounded-[1rem] bg-white/6 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Productora</p>
             <p className="mt-2 text-sm text-brand-100">
-              {payload.project.productionCompany}
+              {getPreviewValue(payload.project.product)}
             </p>
           </div>
-          <div className="rounded-[1rem] bg-white/6 p-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Productora</p>
+            <p className="mt-2 text-sm text-brand-100">
+              {getPreviewValue(payload.project.productionCompany)}
+            </p>
+          </div>
+          <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
               Jefe de locaciones
             </p>
             <p className="mt-2 text-sm text-brand-100">
-              {payload.project.locationManager}
+              {getPreviewValue(payload.project.locationManager)}
             </p>
           </div>
-          <div className="rounded-[1rem] bg-white/6 p-4">
+          <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Email</p>
-            <p className="mt-2 text-sm text-brand-100">{payload.project.email}</p>
+            <p className="mt-2 text-sm text-brand-100">
+              {getPreviewValue(payload.project.email)}
+            </p>
           </div>
-          <div className="rounded-[1rem] bg-white/6 p-4">
+          <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Fecha</p>
             <p className="mt-2 text-sm text-brand-100">
               {formatPreviewDate(payload.generatedAt)}
             </p>
           </div>
-          <div className="rounded-[1rem] bg-white/6 p-4">
+          <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Resumen</p>
             <p className="mt-2 text-sm text-brand-100">
               {payload.totalLocations} {payload.totalLocations === 1 ? 'locacion' : 'locaciones'} y{' '}
@@ -76,10 +81,7 @@ export function SelectionPdfPreview({
             location.locationTitle !== location.locationCode
 
           return (
-            <section
-              key={location.locationId}
-              className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4"
-            >
+            <section key={location.locationId} className="border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h4 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
@@ -97,10 +99,7 @@ export function SelectionPdfPreview({
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {location.images.map((image) => (
-                  <div
-                    key={image.key}
-                    className="overflow-hidden rounded-[1rem] border border-white/10 bg-white/6"
-                  >
+                  <div key={image.key} className="overflow-hidden border border-white/10">
                     <img
                       src={image.imageUrl}
                       alt={`Imagen seleccionada de ${location.locationCode}`}

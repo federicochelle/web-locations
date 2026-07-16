@@ -68,8 +68,10 @@ export function SelectionDrawer() {
     removeImage,
   } = useImageSelection()
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
-  const wasOpenRef = useRef(isDrawerOpen)
+  const drawerPanelRef = useRef<HTMLDivElement | null>(null)
   const [activeView, setActiveView] = useState<'selection' | 'pdf-flow'>('selection')
+  const [isRendered, setIsRendered] = useState(isDrawerOpen)
+  const [isVisible, setIsVisible] = useState(isDrawerOpen)
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),
@@ -77,7 +79,7 @@ export function SelectionDrawer() {
   )
 
   useEffect(() => {
-    if (!isDrawerOpen) {
+    if (!isRendered) {
       return
     }
 
@@ -90,16 +92,33 @@ export function SelectionDrawer() {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', handleKeyDown)
-    closeButtonRef.current?.focus()
 
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [closeDrawer, isDrawerOpen])
+  }, [closeDrawer, isRendered])
 
   useEffect(() => {
-    if (wasOpenRef.current && !isDrawerOpen) {
+    let frameId = 0
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (isDrawerOpen) {
+      setIsRendered(true)
+      frameId = window.requestAnimationFrame(() => {
+        setIsVisible(true)
+      })
+      return () => {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+
+    setIsVisible(false)
+
+    if (prefersReducedMotion) {
+      setIsRendered(false)
       setActiveView('selection')
       const trigger = document.getElementById(SELECTION_DRAWER_TRIGGER_ID)
       if (trigger instanceof HTMLButtonElement) {
@@ -107,10 +126,33 @@ export function SelectionDrawer() {
       }
     }
 
-    wasOpenRef.current = isDrawerOpen
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
   }, [isDrawerOpen])
 
-  if (!isDrawerOpen) {
+  useEffect(() => {
+    if (!isRendered || !isVisible) {
+      return
+    }
+
+    closeButtonRef.current?.focus()
+  }, [isRendered, isVisible])
+
+  function handleExitComplete() {
+    if (isDrawerOpen) {
+      return
+    }
+
+    setIsRendered(false)
+    setActiveView('selection')
+    const trigger = document.getElementById(SELECTION_DRAWER_TRIGGER_ID)
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.focus()
+    }
+  }
+
+  if (!isRendered) {
     return null
   }
 
@@ -119,17 +161,29 @@ export function SelectionDrawer() {
       <button
         type="button"
         aria-label="Cerrar seleccion de imagenes"
-        className="absolute inset-0 bg-[#14110f]/72 backdrop-blur-[2px]"
+        className={`absolute inset-0 bg-[#14110f]/72 backdrop-blur-[2px] transition-opacity duration-300 ease-out motion-reduce:duration-0 ${
+          isVisible ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={closeDrawer}
       />
-      <aside
-        id="selection-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="selection-drawer-title"
-        className="absolute right-0 top-0 flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] text-brand-100 shadow-[-16px_0_48px_rgba(0,0,0,0.32)] sm:w-[min(92vw,460px)]"
-      >
-        {activeView === 'selection' ? (
+      {activeView === 'selection' ? (
+        <aside
+          id="selection-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="selection-drawer-title"
+          ref={drawerPanelRef}
+          onTransitionEnd={(event) => {
+            if (event.target !== drawerPanelRef.current) {
+              return
+            }
+
+            handleExitComplete()
+          }}
+          className={`absolute right-0 top-0 flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] text-brand-100 shadow-[-16px_0_48px_rgba(0,0,0,0.32)] transition-transform duration-300 ease-out motion-reduce:duration-0 sm:w-[min(92vw,460px)] ${
+            isVisible ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
           <>
             <header className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
               <div>
@@ -213,12 +267,33 @@ export function SelectionDrawer() {
               </div>
             </footer>
           </>
-        ) : (
+        </aside>
+      ) : (
+        <div
+          id="selection-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="selection-drawer-title"
+          ref={drawerPanelRef}
+          onTransitionEnd={(event) => {
+            if (event.target !== drawerPanelRef.current) {
+              return
+            }
+
+            handleExitComplete()
+          }}
+          className={`absolute inset-0 transition-opacity duration-300 ease-out motion-reduce:duration-0 ${
+            isVisible ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
           <Suspense
             fallback={
-              <div className="flex h-full items-center justify-center px-4 py-10">
-                <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-                  Cargando...
+              <div className="flex h-full flex-col lg:flex-row">
+                <div className="hidden min-w-0 flex-1 lg:block" />
+                <div className="flex h-full w-full items-center justify-center border-l border-white/10 bg-[#14110f] px-4 py-10 lg:w-[min(100%,460px)]">
+                  <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
+                    Cargando...
+                  </div>
                 </div>
               </div>
             }
@@ -230,8 +305,8 @@ export function SelectionDrawer() {
               onClose={closeDrawer}
             />
           </Suspense>
-        )}
-      </aside>
+        </div>
+      )}
     </div>
   )
 }

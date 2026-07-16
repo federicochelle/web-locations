@@ -156,6 +156,11 @@ export function SelectionPdfFlow({
     }
   }, [images])
 
+  const livePreviewPayload = useMemo(
+    () => buildSelectionPdfPayload(values, images),
+    [images, values],
+  )
+
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
     value: string,
@@ -164,6 +169,7 @@ export function SelectionPdfFlow({
       ...currentValues,
       [field]: value,
     }))
+    setPayload(null)
 
     setErrors((currentErrors) => {
       if (!currentErrors[field]) {
@@ -195,7 +201,6 @@ export function SelectionPdfFlow({
     setFailedImages([])
     setProgress(null)
     setPayload(nextPayload)
-    setStep('preview')
   }
 
   async function handleDownloadPdf() {
@@ -235,227 +240,229 @@ export function SelectionPdfFlow({
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">
-            Preparacion PDF
-          </p>
-          <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-            {step === 'form'
-              ? 'Datos del proyecto'
-              : step === 'preview'
-                ? 'Preview del PDF'
-                : step === 'generating'
+    <div className="flex h-full flex-col lg:flex-row">
+      {step === 'form' ? (
+        <>
+          <section className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full max-w-5xl">
+              <div className="border border-white/10 bg-[#0f0b09] shadow-[0_28px_80px_rgba(0,0,0,0.22)]">
+                <div className="border-b border-white/10 px-4 py-3 sm:px-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">
+                    Vista previa PDF
+                  </p>
+                </div>
+                <div className="px-4 py-4 sm:px-5 sm:py-5">
+                  <SelectionPdfPreview payload={livePreviewPayload} />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside className="flex w-full shrink-0 flex-col border-t border-white/10 bg-[#14110f] lg:h-full lg:w-[min(100%,460px)] lg:border-l lg:border-t-0 lg:shadow-[-16px_0_48px_rgba(0,0,0,0.32)]">
+            <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">
+                  Preparacion PDF
+                </p>
+                <h2
+                  id="selection-drawer-title"
+                  className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100"
+                >
+                  Datos del proyecto
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                aria-label="Cerrar flujo de preparacion"
+                autoFocus
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+              <div className="space-y-6">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/12 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                >
+                  Volver a la seleccion
+                </button>
+
+                <SelectionPdfForm
+                  values={values}
+                  errors={errors}
+                  onChange={handleFieldChange}
+                  onSubmit={handleSubmit}
+                />
+
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleDownloadPdf()
+                    }}
+                    disabled={!payload}
+                    className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                  >
+                    Descargar PDF
+                  </button>
+                  <p className="text-sm text-brand-300">
+                    {payload
+                      ? 'Datos validados. Ya puedes generar y descargar el PDF.'
+                      : 'La vista previa se actualiza en tiempo real. Valida los datos para habilitar la descarga.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </>
+      ) : (
+        <aside className="ml-auto flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] shadow-[-16px_0_48px_rgba(0,0,0,0.32)] sm:w-[min(92vw,460px)]">
+          <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300">
+                Preparacion PDF
+              </p>
+              <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                {step === 'generating'
                   ? 'Generando PDF'
                   : step === 'success'
                     ? 'PDF generado'
                     : 'No pudimos generar el PDF'}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={step === 'generating'}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-          aria-label="Cerrar flujo de preparacion"
-        >
-          ×
-        </button>
-      </header>
-
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-        {step === 'form' ? (
-          <div className="space-y-6">
+              </h2>
+            </div>
             <button
               type="button"
-              onClick={onBack}
-              className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/12 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              onClick={onClose}
+              disabled={step === 'generating'}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              aria-label="Cerrar flujo de preparacion"
+              autoFocus
             >
-              Volver a la seleccion
+              ×
             </button>
+          </header>
 
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
-              <p className="text-sm text-brand-300">
-                Completa estos datos para dejar listo el payload del PDF.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3 text-sm text-brand-100">
-                <span className="rounded-full bg-white/6 px-3 py-1.5">
-                  {totals.totalLocations} {totals.totalLocations === 1 ? 'locacion' : 'locaciones'}
-                </span>
-                <span className="rounded-full bg-white/6 px-3 py-1.5">
-                  {totals.totalImages} {totals.totalImages === 1 ? 'imagen' : 'imagenes'}
-                </span>
-              </div>
-            </div>
-
-            <SelectionPdfForm
-              values={values}
-              errors={errors}
-              onChange={handleFieldChange}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        ) : step === 'preview' && payload ? (
-          <div className="space-y-6">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('form')
-                }}
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-white/12 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Volver al formulario
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleDownloadPdf()
-                }}
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Descargar PDF
-              </button>
-            </div>
-
-            <SelectionPdfPreview payload={payload} />
-          </div>
-        ) : step === 'generating' ? (
-          <div className="space-y-6">
-            <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
-              <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                Generando PDF...
-              </h3>
-              <p aria-live="polite" className="mt-3 text-sm leading-6 text-brand-300">
-                {progress
-                  ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
-                  : 'Preparando el documento.'}
-              </p>
-            </div>
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
-                <div
-                  className="h-full rounded-full bg-brand-300 transition-[width]"
-                  style={{
-                    width: progress
-                      ? `${Math.max(8, Math.round((progress.current / progress.total) * 100))}%`
-                      : '8%',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        ) : step === 'success' ? (
-          <div className="space-y-6">
-            <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
-              <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                El PDF se descargo correctamente
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-brand-300">
-                {failedImages.length > 0
-                  ? 'El PDF se genero, pero algunas imagenes no pudieron incluirse.'
-                  : 'El documento se genero con todas las imagenes disponibles.'}
-              </p>
-            </div>
-
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
-              <p className="text-sm text-brand-300">Resumen</p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-[1rem] bg-white/6 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
-                    Imagenes incluidas
-                  </p>
-                  <p className="mt-2 font-display text-3xl text-brand-100">
-                    {exportResult?.includedImages ?? 0}
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+            {step === 'generating' ? (
+              <div className="space-y-6">
+                <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
+                  <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                    Generando PDF...
+                  </h3>
+                  <p aria-live="polite" className="mt-3 text-sm leading-6 text-brand-300">
+                    {progress
+                      ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
+                      : 'Preparando el documento.'}
                   </p>
                 </div>
-                <div className="rounded-[1rem] bg-white/6 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
-                    Imagenes omitidas
-                  </p>
-                  <p className="mt-2 font-display text-3xl text-brand-100">
-                    {failedImages.length}
-                  </p>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className="h-full rounded-full bg-brand-300 transition-[width]"
+                      style={{
+                        width: progress
+                          ? `${Math.max(8, Math.round((progress.current / progress.total) * 100))}%`
+                          : '8%',
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {failedImages.length > 0 ? (
-              <div className="rounded-[1.5rem] border border-amber-300/30 bg-amber-200/10 p-4">
-                <p className="text-sm font-medium text-amber-100">
-                  Algunas imagenes no pudieron incluirse.
-                </p>
-                <ul className="mt-3 space-y-2 text-sm text-amber-50/90">
-                  {failedImages.slice(0, 5).map((failedImage) => (
-                    <li key={failedImage.key}>
-                      {failedImage.locationCode}: {failedImage.message}
-                    </li>
-                  ))}
-                </ul>
-                {failedImages.length > 5 ? (
-                  <p className="mt-3 text-sm text-amber-50/80">
-                    Y {failedImages.length - 5} imagenes mas.
+            ) : step === 'success' ? (
+              <div className="space-y-6">
+                <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
+                  <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                    El PDF se descargo correctamente
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-brand-300">
+                    {failedImages.length > 0
+                      ? 'El PDF se genero, pero algunas imagenes no pudieron incluirse.'
+                      : 'El documento se genero con todas las imagenes disponibles.'}
                   </p>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
+                  <p className="text-sm text-brand-300">Resumen</p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-[1rem] bg-white/6 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
+                        Imagenes incluidas
+                      </p>
+                      <p className="mt-2 font-display text-3xl text-brand-100">
+                        {exportResult?.includedImages ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[1rem] bg-white/6 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
+                        Imagenes omitidas
+                      </p>
+                      <p className="mt-2 font-display text-3xl text-brand-100">
+                        {failedImages.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {failedImages.length > 0 ? (
+                  <div className="rounded-[1.5rem] border border-amber-300/30 bg-amber-200/10 p-4">
+                    <p className="text-sm font-medium text-amber-100">
+                      Algunas imagenes no pudieron incluirse.
+                    </p>
+                    <ul className="mt-3 space-y-2 text-sm text-amber-50/90">
+                      {failedImages.slice(0, 5).map((failedImage) => (
+                        <li key={failedImage.key}>
+                          {failedImage.locationCode}: {failedImage.message}
+                        </li>
+                      ))}
+                    </ul>
+                    {failedImages.length > 5 ? (
+                      <p className="mt-3 text-sm text-amber-50/80">
+                        Y {failedImages.length - 5} imagenes mas.
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('form')
+                  }}
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/12 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                >
+                  Volver al formulario
+                </button>
               </div>
-            ) : null}
+            ) : (
+              <div className="space-y-6">
+                <div className="rounded-[1.5rem] border border-red-300/30 bg-red-200/10 p-5">
+                  <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                    No pudimos generar el PDF
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-red-100">
+                    {exportError ?? 'Ocurrio un problema durante la generacion.'}
+                  </p>
+                </div>
 
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('preview')
-                }}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/12 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Volver a la preview
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('form')
-                }}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/12 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Editar datos
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('form')
+                  }}
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                >
+                  Editar datos
+                </button>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="rounded-[1.5rem] border border-red-300/30 bg-red-200/10 p-5">
-              <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                No pudimos generar el PDF
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-red-100">
-                {exportError ?? 'Ocurrio un problema durante la generacion.'}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('preview')
-                }}
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-white/12 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Volver a la preview
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('form')
-                }}
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Editar datos
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+        </aside>
+      )}
     </div>
   )
 }

@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom'
 
 import { useAuth } from '@/hooks/useAuth.ts'
 import { UserMenu } from '@/components/layout/UserMenu.tsx'
-import { SelectionDrawerTrigger } from '@/components/selection/SelectionDrawerTrigger.tsx'
 
 export function Header() {
   const { isAuthenticated, loading, profile, signOut, user } = useAuth()
@@ -56,7 +55,6 @@ export function Header() {
         </div>
 
         <div className="flex items-center justify-end gap-3.5">
-          <SelectionDrawerTrigger />
           {loading ? null : isAuthenticated && displayName ? (
             <UserMenu displayName={displayName} onSignOut={signOut} />
           ) : (

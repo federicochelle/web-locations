@@ -27,15 +27,12 @@ export function SelectedLocationGroup({
   })
 
   return (
-    <section className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
+    <section className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-display text-xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
             {locationCode}
           </h3>
-          <p className="mt-2 text-sm text-brand-300">
-            {images.length} {images.length === 1 ? 'imagen' : 'imagenes'}
-          </p>
         </div>
         <Link
           to={locationPath}
