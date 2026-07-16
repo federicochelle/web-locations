@@ -29,7 +29,6 @@ export type SelectionPdfPayload = {
 
 export type SelectionPdfFlowStep =
   | 'form'
-  | 'preview'
   | 'generating'
   | 'success'
   | 'error'
