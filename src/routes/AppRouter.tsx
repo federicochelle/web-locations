@@ -1,25 +1,92 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 
 import { PublicLayout } from '@/layouts/PublicLayout.tsx'
-import { AdminHomePage } from '@/pages/AdminHomePage.tsx'
-import { DashboardPage } from '@/pages/DashboardPage.tsx'
-import { FavoritesPage } from '@/pages/FavoritesPage.tsx'
-import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage.tsx'
-import { CategoryLocationsPage } from '@/pages/CategoryLocationsPage.tsx'
 import { HomePage } from '@/pages/HomePage.tsx'
-import { LoginPage } from '@/pages/LoginPage.tsx'
-import { LocationDetailPage } from '@/pages/LocationDetailPage.tsx'
-import { LocationSubmissionPage } from '@/pages/LocationSubmissionPage.tsx'
-import { NewRequestProjectPage } from '@/pages/NewRequestProjectPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage.tsx'
-import { ProfilePage } from '@/pages/ProfilePage.tsx'
-import { RequestDetailPage } from '@/pages/RequestDetailPage.tsx'
-import { RegisterPage } from '@/pages/RegisterPage.tsx'
-import { RequestsPage } from '@/pages/RequestsPage.tsx'
-import { ResetPasswordPage } from '@/pages/ResetPasswordPage.tsx'
-import { SearchLocationsPage } from '@/pages/SearchLocationsPage.tsx'
 import { ProtectedRoute } from '@/routes/ProtectedRoute.tsx'
 import { PublicOnlyRoute } from '@/routes/PublicOnlyRoute.tsx'
+import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
+
+const LoginPage = lazy(() =>
+  import('@/pages/LoginPage.tsx').then((module) => ({
+    default: module.LoginPage,
+  })),
+)
+const RegisterPage = lazy(() =>
+  import('@/pages/RegisterPage.tsx').then((module) => ({
+    default: module.RegisterPage,
+  })),
+)
+const ForgotPasswordPage = lazy(() =>
+  import('@/pages/ForgotPasswordPage.tsx').then((module) => ({
+    default: module.ForgotPasswordPage,
+  })),
+)
+const ResetPasswordPage = lazy(() =>
+  import('@/pages/ResetPasswordPage.tsx').then((module) => ({
+    default: module.ResetPasswordPage,
+  })),
+)
+const SearchLocationsPage = lazy(() =>
+  import('@/pages/SearchLocationsPage.tsx').then((module) => ({
+    default: module.SearchLocationsPage,
+  })),
+)
+const CategoryLocationsPage = lazy(() =>
+  import('@/pages/CategoryLocationsPage.tsx').then((module) => ({
+    default: module.CategoryLocationsPage,
+  })),
+)
+const LocationDetailPage = lazy(() =>
+  import('@/pages/LocationDetailPage.tsx').then((module) => ({
+    default: module.LocationDetailPage,
+  })),
+)
+const LocationSubmissionPage = lazy(() =>
+  import('@/pages/LocationSubmissionPage.tsx').then((module) => ({
+    default: module.LocationSubmissionPage,
+  })),
+)
+const DashboardPage = lazy(() =>
+  import('@/pages/DashboardPage.tsx').then((module) => ({
+    default: module.DashboardPage,
+  })),
+)
+const ProfilePage = lazy(() =>
+  import('@/pages/ProfilePage.tsx').then((module) => ({
+    default: module.ProfilePage,
+  })),
+)
+const FavoritesPage = lazy(() =>
+  import('@/pages/FavoritesPage.tsx').then((module) => ({
+    default: module.FavoritesPage,
+  })),
+)
+const RequestsPage = lazy(() =>
+  import('@/pages/RequestsPage.tsx').then((module) => ({
+    default: module.RequestsPage,
+  })),
+)
+const NewRequestProjectPage = lazy(() =>
+  import('@/pages/NewRequestProjectPage.tsx').then((module) => ({
+    default: module.NewRequestProjectPage,
+  })),
+)
+const RequestDetailPage = lazy(() =>
+  import('@/pages/RequestDetailPage.tsx').then((module) => ({
+    default: module.RequestDetailPage,
+  })),
+)
+const AdminHomePage = lazy(() =>
+  import('@/pages/AdminHomePage.tsx').then((module) => ({
+    default: module.AdminHomePage,
+  })),
+)
+
+function withRouteSuspense(element: React.ReactNode) {
+  return <Suspense fallback={<RouteLoadingFallback />}>{element}</Suspense>
+}
 
 const router = createBrowserRouter([
   {
@@ -35,68 +102,68 @@ const router = createBrowserRouter([
         children: [
           {
             path: 'login',
-            element: <LoginPage />,
+            element: withRouteSuspense(<LoginPage />),
           },
           {
             path: 'register',
-            element: <RegisterPage />,
+            element: withRouteSuspense(<RegisterPage />),
           },
         ],
       },
       {
         path: 'forgot-password',
-        element: <ForgotPasswordPage />,
+        element: withRouteSuspense(<ForgotPasswordPage />),
       },
       {
         path: 'reset-password',
-        element: <ResetPasswordPage />,
+        element: withRouteSuspense(<ResetPasswordPage />),
       },
       {
         path: 'busqueda',
-        element: <SearchLocationsPage />,
+        element: withRouteSuspense(<SearchLocationsPage />),
       },
       {
         path: 'categorias/:slug',
-        element: <CategoryLocationsPage />,
+        element: withRouteSuspense(<CategoryLocationsPage />),
       },
       {
         path: 'categorias/:categorySlug/:locationCode',
-        element: <LocationDetailPage />,
+        element: withRouteSuspense(<LocationDetailPage />),
       },
       {
         path: 'locations/:slug',
-        element: <LocationDetailPage />,
+        element: withRouteSuspense(<LocationDetailPage />),
       },
       {
         path: 'postular-locacion',
-        element: <LocationSubmissionPage />,
+        element: withRouteSuspense(<LocationSubmissionPage />),
       },
       {
         element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
         children: [
           {
             path: 'dashboard',
-            element: <DashboardPage />,
+            element: withRouteSuspense(<DashboardPage />),
           },
           {
             path: 'profile',
-            element: <ProfilePage />,
+            element: withRouteSuspense(<ProfilePage />),
           },
           {
             path: 'favorites',
-            element: <FavoritesPage />,
+            element: withRouteSuspense(<FavoritesPage />),
           },
           {
             path: 'requests',
-            element: <RequestsPage />,
+            element: withRouteSuspense(<RequestsPage />),
           },
           {
             path: 'requests/new',
-            element: <NewRequestProjectPage />,
+            element: withRouteSuspense(<NewRequestProjectPage />),
           },
           {
             path: 'requests/:id',
-            element: <RequestDetailPage />,
+            element: withRouteSuspense(<RequestDetailPage />),
           },
         ],
       },
@@ -105,7 +172,7 @@ const router = createBrowserRouter([
         children: [
           {
             path: 'admin',
-            element: <AdminHomePage />,
+            element: withRouteSuspense(<AdminHomePage />),
           },
         ],
       },

@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react'
 import image0 from '@/assets/home-mosaic/foto.avif'
 import image1 from '@/assets/home-mosaic/foto1.avif'
-import image2 from '@/assets/home-mosaic/foto2.jpg'
+import image2 from '@/assets/home-mosaic/foto2-hero-opt.jpg'
 import image3 from '@/assets/home-mosaic/foto3.avif'
-import image4 from '@/assets/home-mosaic/foto4.jpeg'
+import image4 from '@/assets/home-mosaic/foto4-hero-opt.jpg'
 import image5 from '@/assets/home-mosaic/foto5.avif'
 
 type MosaicTile = {
@@ -73,11 +73,22 @@ const rows: MosaicRow[] = [
   },
 ]
 
+function isHighPriorityTile(rowId: string, tileIndex: number, sequenceIndex: number) {
+  if (sequenceIndex !== 0) {
+    return false
+  }
+
+  return (
+    (rowId === 'row-1' && tileIndex === 0) ||
+    (rowId === 'row-2' && tileIndex === 0)
+  )
+}
+
 function MosaicTrack({ row }: { row: MosaicRow }) {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
-        className={`hero-mosaic-track hero-mosaic-track-${row.direction} flex h-full w-max will-change-transform motion-reduce:animate-none`}
+        className={`hero-mosaic-track hero-mosaic-track-${row.direction} flex h-full w-max`}
         style={
           {
             '--hero-duration': row.duration,
@@ -90,18 +101,27 @@ function MosaicTrack({ row }: { row: MosaicRow }) {
             className="hero-mosaic-sequence flex h-full shrink-0 gap-px"
             aria-hidden={sequenceIndex === 1}
           >
-            {row.tiles.map((tile, index) => (
-              <div
-                key={`${row.id}-${sequenceIndex}-${tile.src}-${index}`}
-                className={`relative h-full shrink-0 overflow-hidden ${tile.widthClassName}`}
-              >
-                <img
-                  src={tile.src}
-                  alt={tile.alt}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ))}
+            {row.tiles.map((tile, index) => {
+              const isCriticalTile = isHighPriorityTile(row.id, index, sequenceIndex)
+
+              return (
+                <div
+                  key={`${row.id}-${sequenceIndex}-${tile.src}-${index}`}
+                  className={`relative h-full shrink-0 overflow-hidden ${tile.widthClassName}`}
+                >
+                  <img
+                    src={tile.src}
+                    alt={tile.alt}
+                    width={1600}
+                    height={900}
+                    loading={isCriticalTile ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={isCriticalTile ? 'high' : 'auto'}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )
+            })}
           </div>
         ))}
       </div>

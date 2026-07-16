@@ -66,6 +66,7 @@
     animation-timing-function: linear;
     animation-iteration-count: infinite;
     animation-fill-mode: both;
+    will-change: transform;
   }
 
   .hero-mosaic-track-left {
@@ -105,6 +106,7 @@
   .hero-mosaic-track {
     animation: none;
     transform: translate3d(0, 0, 0);
+    will-change: auto;
   }
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
@@ -6,6 +7,7 @@ import { RequestProjectPickerModal } from '@/components/requests/RequestProjectP
 import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
+import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
 import {
@@ -21,6 +23,8 @@ import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-
 function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
 }
+
+const MAX_SELECTED_IMAGES = 30
 
 export function LocationDetailPage() {
   const locationState = useLocation()
@@ -41,10 +45,12 @@ export function LocationDetailPage() {
   const [isAddingLocationToProject, setIsAddingLocationToProject] = useState(false)
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false)
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
+  const [selectionLimitMessage, setSelectionLimitMessage] = useState<string | null>(null)
   const [draftProjects, setDraftProjects] = useState<RequestProject[]>([])
   const requestButtonRef = useRef<HTMLButtonElement | null>(null)
   const { isAuthenticated, loading: authLoading } = useAuth()
   const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
+  const { images, addImage, removeImage, isSelected } = useImageSelection()
 
   usePageTitle(location?.locationCode ?? 'Detalle de locacion')
 
@@ -134,6 +140,12 @@ export function LocationDetailPage() {
 
     setRequestNotice(null)
   }, [isProjectPickerOpen])
+
+  useEffect(() => {
+    if (images.length < MAX_SELECTED_IMAGES && selectionLimitMessage) {
+      setSelectionLimitMessage(null)
+    }
+  }, [images.length, selectionLimitMessage])
 
   function handleRequestIntent() {
     if (
@@ -234,6 +246,42 @@ export function LocationDetailPage() {
     }
   }
 
+  function handleImageSelection(
+    event: MouseEvent<HTMLButtonElement>,
+    image: PublicLocationDetail['images'][number],
+  ) {
+    event.stopPropagation()
+
+    if (!location) {
+      return
+    }
+
+    const key = `${location.id}:${image.url}`
+
+    if (isSelected(key)) {
+      removeImage(key)
+      setSelectionLimitMessage(null)
+      return
+    }
+
+    if (images.length >= MAX_SELECTED_IMAGES) {
+      setSelectionLimitMessage('Llegaste al maximo de 30 imagenes.')
+      return
+    }
+
+    addImage({
+      key,
+      imageUrl: image.url,
+      sortOrder: image.sortOrder,
+      locationId: location.id,
+      locationCode: location.locationCode,
+      locationTitle: location.title,
+      categorySlug: location.categorySlug,
+      selectedAt: new Date().toISOString(),
+    })
+    setSelectionLimitMessage(null)
+  }
+
   if (notFound) {
     return <Navigate replace to="/404" />
   }
@@ -291,19 +339,64 @@ export function LocationDetailPage() {
                 />
               </div>
             </div>
+            <div aria-live="polite" className="min-h-6 px-1">
+              {selectionLimitMessage ? (
+                <p className="text-sm font-medium text-brand-700">
+                  {selectionLimitMessage}
+                </p>
+              ) : null}
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {location.images.length > 0 ? (
-                location.images.map((image, index) => (
-                  <div
-                    key={`${image.url}-${index}`}
-                    className="overflow-hidden rounded-[1.75rem]"
-                  >
+                location.images.map((image, index) => {
+                  const imageSelectionKey = `${location.id}:${image.url}`
+                  const imageIsSelected = isSelected(imageSelectionKey)
+
+                  return (
                     <div
-                      className="aspect-[16/13] bg-cover bg-center lg:aspect-[16/12]"
-                      style={{ backgroundImage: `url(${image.url})` }}
-                    />
-                  </div>
-                ))
+                      key={`${image.url}-${index}`}
+                      className="group relative overflow-hidden rounded-[1.75rem]"
+                    >
+                      <div
+                        className={`pointer-events-none absolute inset-0 z-0 rounded-[1.75rem] transition ${
+                          imageIsSelected
+                            ? 'bg-brand-950/14 ring-2 ring-brand-300 ring-inset'
+                            : 'bg-black/0 md:group-hover:bg-black/18'
+                        }`}
+                      />
+                      <div className="absolute left-3 top-3 z-10">
+                        <button
+                          type="button"
+                          aria-pressed={imageIsSelected}
+                          aria-label={
+                            imageIsSelected
+                              ? `Quitar imagen ${index + 1} de la seleccion`
+                              : `Seleccionar imagen ${index + 1}`
+                          }
+                          onClick={(event) => {
+                            handleImageSelection(event, image)
+                          }}
+                          className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
+                            imageIsSelected
+                              ? 'border-brand-300 bg-brand-300 text-brand-950'
+                              : 'border-white/15 bg-black/60 text-white hover:bg-black/76 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+                          }`}
+                        >
+                          <span aria-hidden="true" className="mr-2 text-base leading-none">
+                            {imageIsSelected ? '✓' : '+'}
+                          </span>
+                          <span>
+                            {imageIsSelected ? 'Seleccionada' : 'Seleccionar'}
+                          </span>
+                        </button>
+                      </div>
+                      <div
+                        className="aspect-[16/13] bg-cover bg-center lg:aspect-[16/12]"
+                        style={{ backgroundImage: `url(${image.url})` }}
+                      />
+                    </div>
+                  )
+                })
               ) : (
                 <div className="aspect-[16/13] rounded-[1.75rem] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))] lg:aspect-[16/12]" />
               )}
