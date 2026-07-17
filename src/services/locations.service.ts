@@ -22,6 +22,7 @@ type CategoryLookupRow = {
 }
 
 type LocationImageRow = {
+  id?: string | null
   url?: string | null
   is_cover?: boolean | null
   sort_order?: number | null
@@ -294,6 +295,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
           slug
         ),
         location_images (
+          id,
           url,
           sort_order
         )
@@ -321,6 +323,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
             slug
           ),
           location_images (
+            id,
             url,
             sort_order
           )
@@ -342,6 +345,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
     const fallbackImages = sortImages(fallbackRow.location_images)
       .filter((image) => Boolean(image.url))
       .map((image) => ({
+        id: image.id ?? (image.url as string),
         url: image.url as string,
         sortOrder: image.sort_order ?? null,
       }))
@@ -367,6 +371,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
   const images = sortImages(row.location_images)
     .filter((image) => Boolean(image.url))
     .map((image) => ({
+      id: image.id ?? (image.url as string),
       url: image.url as string,
       sortOrder: image.sort_order ?? null,
     }))

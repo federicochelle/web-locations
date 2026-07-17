@@ -80,6 +80,7 @@ export type PublicLocationCard = {
 }
 
 export type PublicLocationDetailImage = {
+  id: string
   url: string
   sortOrder: number | null
 }

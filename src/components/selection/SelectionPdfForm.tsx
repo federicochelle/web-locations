@@ -1,5 +1,3 @@
-import type { FormEvent } from 'react'
-
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
@@ -9,14 +7,18 @@ type SelectionPdfFormProps = {
   values: SelectionPdfFormValues
   errors: SelectionPdfFormErrors
   onChange: (field: keyof SelectionPdfFormValues, value: string) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  disabled?: boolean
+  variant?: 'default' | 'compact'
+  columns?: 1 | 2
+  showTentativeDates?: boolean
 }
 
 type FieldConfig = {
   name: keyof SelectionPdfFormValues
   label: string
-  type?: 'text' | 'email'
+  type?: 'text' | 'email' | 'date'
   autoComplete?: string
+  placeholder?: string
 }
 
 const fields: FieldConfig[] = [
@@ -24,22 +26,36 @@ const fields: FieldConfig[] = [
     name: 'product',
     label: 'Producto',
     autoComplete: 'organization-title',
+    placeholder: 'Ej. Campana verano 2026',
   },
   {
     name: 'productionCompany',
     label: 'Productora',
     autoComplete: 'organization',
+    placeholder: 'Nombre de la empresa',
   },
   {
     name: 'locationManager',
     label: 'Jefe de locaciones',
     autoComplete: 'name',
+    placeholder: 'Nombre y apellido',
   },
   {
     name: 'email',
     label: 'Email',
     type: 'email',
     autoComplete: 'email',
+    placeholder: 'nombre@empresa.com',
+  },
+  {
+    name: 'tentativeStartDate',
+    label: 'Fecha desde',
+    type: 'date',
+  },
+  {
+    name: 'tentativeEndDate',
+    label: 'Fecha hasta',
+    type: 'date',
   },
 ]
 
@@ -47,11 +63,33 @@ export function SelectionPdfForm({
   values,
   errors,
   onChange,
-  onSubmit,
+  disabled = false,
+  variant = 'default',
+  columns = 1,
+  showTentativeDates = true,
 }: SelectionPdfFormProps) {
+  const isCompact = variant === 'compact'
+  const useTwoColumns = columns === 2
+  const visibleFields = showTentativeDates
+    ? fields
+    : fields.filter(
+        (field) =>
+          field.name !== 'tentativeStartDate' && field.name !== 'tentativeEndDate',
+      )
+
   return (
-    <form className="space-y-4" noValidate onSubmit={onSubmit}>
-      {fields.map((field) => {
+    <div
+      className={
+        useTwoColumns
+          ? isCompact
+            ? 'grid gap-x-4 gap-y-3 sm:grid-cols-2'
+            : 'grid gap-x-4 gap-y-4 sm:grid-cols-2'
+          : isCompact
+            ? 'space-y-3'
+            : 'space-y-4'
+      }
+    >
+      {visibleFields.map((field) => {
         const errorId = `${field.name}-error`
         const hasError = Boolean(errors[field.name])
 
@@ -69,12 +107,14 @@ export function SelectionPdfForm({
               type={field.type ?? 'text'}
               autoComplete={field.autoComplete}
               value={values[field.name]}
+              placeholder={field.placeholder}
+              disabled={disabled}
               onChange={(event) => {
                 onChange(field.name, event.target.value)
               }}
               aria-invalid={hasError}
               aria-describedby={hasError ? errorId : undefined}
-              className={`min-h-12 w-full rounded-2xl border bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+              className={`${isCompact ? 'min-h-11 rounded-xl px-3.5' : 'min-h-12 rounded-2xl px-4'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
                 hasError
                   ? 'border-red-300 focus-visible:ring-red-300'
                   : 'border-white/12'
@@ -88,13 +128,6 @@ export function SelectionPdfForm({
           </div>
         )
       })}
-
-      <button
-        type="submit"
-        className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-      >
-        Preparar datos
-      </button>
-    </form>
+    </div>
   )
 }

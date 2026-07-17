@@ -17,6 +17,8 @@ import type { RequestProject, RequestProjectLocation } from '@/types/request-pro
 type UpdateProjectValues = {
   title: string
   message: string
+  tentativeStartDate: string | null
+  tentativeEndDate: string | null
 }
 
 export function useRequestProjectDetail(projectId: string | undefined) {
@@ -122,7 +124,12 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   }, [refreshProject])
 
   const saveProject = useCallback(
-    async ({ title, message }: UpdateProjectValues) => {
+    async ({
+      title,
+      message,
+      tentativeStartDate,
+      tentativeEndDate,
+    }: UpdateProjectValues) => {
       if (!projectId) {
         return null
       }
@@ -134,6 +141,8 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         const nextProject = await updateRequestProject(projectId, {
           title,
           message: message.trim() || null,
+          tentativeStartDate,
+          tentativeEndDate,
         })
 
         setProject(nextProject)

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { useAuth } from '@/hooks/useAuth.ts'
 import {
   createRequestProject,
+  deleteRequestProject,
   getMyRequestProjects,
   getRequestProjectErrorMessage,
 } from '@/services/request-projects.service.ts'
@@ -13,9 +15,11 @@ type CreateRequestProjectValues = {
 }
 
 export function useRequestProjects() {
+  const { isAuthenticated, loading: authLoading } = useAuth()
   const [projects, setProjects] = useState<RequestProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const refreshProjects = useCallback(async () => {
@@ -34,8 +38,19 @@ export function useRequestProjects() {
   }, [])
 
   useEffect(() => {
+    if (authLoading) {
+      return
+    }
+
+    if (!isAuthenticated) {
+      setProjects([])
+      setError(null)
+      setIsLoading(false)
+      return
+    }
+
     void refreshProjects()
-  }, [refreshProjects])
+  }, [authLoading, isAuthenticated, refreshProjects])
 
   const createProject = useCallback(async ({ title, message }: CreateRequestProjectValues) => {
     try {
@@ -57,6 +72,24 @@ export function useRequestProjects() {
     }
   }, [])
 
+  const removeProject = useCallback(async (projectId: string) => {
+    try {
+      setDeletingProjectId(projectId)
+      setError(null)
+
+      await deleteRequestProject(projectId)
+      setProjects((currentProjects) =>
+        currentProjects.filter((project) => project.id !== projectId),
+      )
+      return true
+    } catch (deleteError) {
+      setError(getRequestProjectErrorMessage(deleteError))
+      return false
+    } finally {
+      setDeletingProjectId(null)
+    }
+  }, [])
+
   const draftProjects = useMemo(
     () => projects.filter((project) => project.status === 'draft'),
     [projects],
@@ -67,8 +100,10 @@ export function useRequestProjects() {
     draftProjects,
     isLoading,
     isCreating,
+    deletingProjectId,
     error,
     refreshProjects,
     createProject,
+    removeProject,
   }
 }

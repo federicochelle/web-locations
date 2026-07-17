@@ -272,6 +272,7 @@ export function LocationDetailPage() {
     addImage({
       key,
       imageUrl: image.url,
+      locationImageId: image.id,
       sortOrder: image.sortOrder,
       locationId: location.id,
       locationCode: location.locationCode,

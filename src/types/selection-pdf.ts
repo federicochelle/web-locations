@@ -3,6 +3,8 @@ export type SelectionPdfProject = {
   productionCompany: string
   locationManager: string
   email: string
+  tentativeStartDate: string
+  tentativeEndDate: string
 }
 
 export type SelectionPdfLocationImage = {
@@ -59,6 +61,8 @@ export type SelectionPdfFormValues = {
   productionCompany: string
   locationManager: string
   email: string
+  tentativeStartDate: string
+  tentativeEndDate: string
 }
 
 export type SelectionPdfFormErrors = Partial<
