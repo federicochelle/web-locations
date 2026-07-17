@@ -1,24 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 
+import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
+import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
-import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
-
-type ProjectFormValues = {
-  title: string
-  message: string
-}
-
-function formatProjectDate(value: string) {
-  return new Date(value).toLocaleDateString('es-UY', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
+import type { SelectionPdfFormErrors, SelectionPdfFormValues } from '@/types/selection-pdf.ts'
+import {
+  createSelectionPdf,
+  downloadSelectionPdf,
+} from '@/utils/selection-pdf-exporter.ts'
+import {
+  buildRequestProjectMessageFromPdfForm,
+  buildSelectionPdfPayloadFromProject,
+  mapRequestProjectToPdfFormValues,
+  validateSelectionPdfForm,
+} from '@/utils/selection-pdf-workspace.ts'
 
 export function RequestDetailPage() {
   const location = useLocation()
@@ -38,18 +37,23 @@ export function RequestDetailPage() {
     error,
     notFound,
     addLocations,
-    loadAvailableFavorites,
     removeLocation,
     saveProject,
     sendProject,
   } = useRequestProjectDetail(id)
-  const [values, setValues] = useState<ProjectFormValues>({
-    title: '',
-    message: '',
+  const [values, setValues] = useState<SelectionPdfFormValues>({
+    product: '',
+    productionCompany: '',
+    locationManager: '',
+    email: '',
+    tentativeStartDate: '',
+    tentativeEndDate: '',
   })
+  const [formErrors, setFormErrors] = useState<SelectionPdfFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
 
   usePageTitle(project?.title ?? 'Detalle de proyecto')
 
@@ -58,10 +62,7 @@ export function RequestDetailPage() {
       return
     }
 
-    setValues({
-      title: project.title,
-      message: project.message ?? '',
-    })
+    setValues(mapRequestProjectToPdfFormValues(project))
   }, [project])
 
   useEffect(() => {
@@ -78,32 +79,62 @@ export function RequestDetailPage() {
     }
   }, [location.state])
 
+  useEffect(() => {
+    if (!isPdfPreviewOpen) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsPdfPreviewOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isPdfPreviewOpen])
+
   if (notFound) {
     return <Navigate replace to="/404" />
   }
 
   const isDraft = project?.status === 'draft'
+  const pdfPayload =
+    project
+      ? buildSelectionPdfPayloadFromProject(
+          values,
+          locations,
+          project.updatedAt || project.createdAt,
+        )
+      : null
 
-  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!project || !isDraft) {
-      return
-    }
-
-    if (!values.title.trim()) {
-      setValidationError('Ingresa un titulo para el proyecto.')
-      return
-    }
-
+  function handleFieldChange(
+    field: keyof SelectionPdfFormValues,
+    value: string,
+  ) {
+    setValues((current) => ({
+      ...current,
+      [field]: value,
+    }))
     setValidationError(null)
-    setSuccessMessage(null)
 
-    const nextProject = await saveProject(values)
+    setFormErrors((currentErrors) => {
+      if (!currentErrors[field]) {
+        return currentErrors
+      }
 
-    if (nextProject) {
-      setSuccessMessage('Los cambios se guardaron correctamente.')
-    }
+      return {
+        ...currentErrors,
+        [field]: undefined,
+      }
+    })
   }
 
   async function handleSubmitProject() {
@@ -111,16 +142,33 @@ export function RequestDetailPage() {
       return
     }
 
-    if (!values.title.trim()) {
-      setValidationError('Ingresa un titulo antes de enviar el proyecto.')
+    const nextErrors = validateSelectionPdfForm(values)
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors)
+      setValidationError('Revisa los datos del proyecto antes de enviarlo.')
       return
     }
 
+    setFormErrors({})
     setValidationError(null)
     setSuccessMessage(null)
 
-    if (values.title !== project.title || values.message !== (project.message ?? '')) {
-      const savedProject = await saveProject(values)
+    const nextMessage = buildRequestProjectMessageFromPdfForm(values)
+    const nextTentativeStartDate = values.tentativeStartDate || null
+    const nextTentativeEndDate = values.tentativeEndDate || null
+
+    if (
+      values.product !== project.title ||
+      nextMessage !== (project.message ?? '') ||
+      nextTentativeStartDate !== project.tentativeStartDate ||
+      nextTentativeEndDate !== project.tentativeEndDate
+    ) {
+      const savedProject = await saveProject({
+        title: values.product,
+        message: nextMessage,
+        tentativeStartDate: nextTentativeStartDate,
+        tentativeEndDate: nextTentativeEndDate,
+      })
 
       if (!savedProject) {
         return
@@ -134,175 +182,276 @@ export function RequestDetailPage() {
     }
   }
 
-  async function handleOpenFavoritesModal() {
+  async function handleDownloadPdf() {
+    if (!project || !pdfPayload || locations.length === 0) {
+      setValidationError(
+        locations.length === 0
+          ? 'Agrega al menos una locacion antes de descargar el PDF.'
+          : 'No pudimos preparar la propuesta para descargar.',
+      )
+      return
+    }
+
+    const nextErrors = validateSelectionPdfForm(values)
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors)
+      setValidationError('Revisa los datos del proyecto antes de descargar el PDF.')
+      return
+    }
+
+    setFormErrors({})
+    setValidationError(null)
     setSuccessMessage(null)
-    await loadAvailableFavorites()
-    setIsFavoritesModalOpen(true)
+
+    try {
+      const result = await createSelectionPdf(pdfPayload)
+      downloadSelectionPdf(result.blob, result.fileName)
+      setSuccessMessage('El PDF se descargo correctamente.')
+    } catch (downloadError) {
+      setValidationError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : 'No pudimos generar el PDF.',
+      )
+    }
   }
 
   return (
-    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
-      <div className="mx-auto max-w-[1720px]">
-        <section className="mx-auto max-w-5xl">
-          {isLoading ? (
-            <div className="space-y-4">
-              <div className="h-8 animate-pulse rounded bg-sand-200" />
-              <div className="h-28 animate-pulse rounded-[1.5rem] bg-sand-200" />
-              <div className="h-28 animate-pulse rounded-[1.5rem] bg-sand-200" />
-            </div>
-          ) : null}
+    <>
+      <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
+        <div className="w-full">
+          <section className="w-full">
+            {isLoading ? (
+              <div className="space-y-4">
+                <div className="h-8 animate-pulse rounded bg-sand-200" />
+                <div className="h-28 animate-pulse rounded-[1.5rem] bg-sand-200" />
+                <div className="h-28 animate-pulse rounded-[1.5rem] bg-sand-200" />
+              </div>
+            ) : null}
 
-          {!isLoading && error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-              {error}
-            </div>
-          ) : null}
+            {!isLoading && error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                {error}
+              </div>
+            ) : null}
 
           {!isLoading && !error && project ? (
-            <div className="space-y-7">
-              <form className="space-y-7" onSubmit={handleSave}>
-                <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isDraft ? (
-                          <input
-                            type="text"
-                            value={values.title}
-                            onChange={(event) => {
-                              setValues((current) => ({
-                                ...current,
-                                title: event.target.value,
-                              }))
-                              setValidationError(null)
-                            }}
-                            className="min-w-[14rem] flex-1 bg-transparent font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 outline-none placeholder:text-brand-100/38 sm:text-5xl"
-                            placeholder="Titulo del proyecto"
-                            disabled={isSaving || isSubmitting}
-                          />
-                        ) : (
-                          <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-                            {project.title}
-                          </h1>
-                        )}
+            <div className="space-y-10">
+                <form
+                  className="space-y-10"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void handleSubmitProject()
+                  }}
+                >
+                  <section className="mx-auto w-full max-w-[1720px] px-4 pt-8 sm:px-6 sm:pt-10 lg:px-10 lg:pt-12 2xl:px-14">
+                    <div className="rounded-[1.75rem] border border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-7 lg:p-8">
+                      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
+                        <div className="space-y-8">
+                          <div>
+                            <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
+                              Informacion del proyecto
+                            </h2>
+                          </div>
 
-                        <RequestProjectStatusBadge status={project.status} />
+                          {successMessage ? (
+                            <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                              {successMessage}
+                            </div>
+                          ) : null}
+
+                          {validationError ? (
+                            <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                              {validationError}
+                            </div>
+                          ) : null}
+
+                          <div className="max-w-[720px]">
+                            <SelectionPdfForm
+                              values={values}
+                              errors={formErrors}
+                              onChange={handleFieldChange}
+                              disabled={!isDraft || isSaving || isSubmitting}
+                              variant="compact"
+                              columns={2}
+                              showTentativeDates={false}
+                            />
+                          </div>
+
+                        </div>
+
+                        <div className="flex flex-col gap-10 pt-1">
+                          <div className="space-y-5">
+                            <h2 className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-3xl">
+                              Fechas tentativas
+                            </h2>
+
+                          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                              <div className="px-1 py-1">
+                                <p className="text-xs font-medium uppercase tracking-[0.24em] text-brand-100/45">
+                                  Inicio
+                                </p>
+                                <input
+                                  type="date"
+                                  value={values.tentativeStartDate}
+                                  disabled={!isDraft || isSaving || isSubmitting}
+                                  onChange={(event) => {
+                                    handleFieldChange(
+                                      'tentativeStartDate',
+                                      event.target.value,
+                                    )
+                                  }}
+                                  className="mt-3 min-h-11 w-full border border-white/12 bg-white/6 px-3.5 text-sm text-brand-100 outline-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70"
+                                />
+                              </div>
+
+                              <div className="px-1 py-1">
+                                <p className="text-xs font-medium uppercase tracking-[0.24em] text-brand-100/45">
+                                  Fin
+                                </p>
+                                <input
+                                  type="date"
+                                  value={values.tentativeEndDate}
+                                  disabled={!isDraft || isSaving || isSubmitting}
+                                  min={values.tentativeStartDate || undefined}
+                                  onChange={(event) => {
+                                    handleFieldChange(
+                                      'tentativeEndDate',
+                                      event.target.value,
+                                    )
+                                  }}
+                                  className="mt-3 min-h-11 w-full border border-white/12 bg-white/6 px-3.5 text-sm text-brand-100 outline-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-5">
+                            <h2 className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-3xl">
+                              Propuesta PDF
+                            </h2>
+
+                            <div className="flex flex-col gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setValidationError(null)
+                                  setSuccessMessage(null)
+                                  setIsPdfPreviewOpen(true)
+                                }}
+                                disabled={!pdfPayload || locations.length === 0}
+                                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                Vista previa PDF
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void handleDownloadPdf()
+                                }}
+                                disabled={isSaving || isSubmitting || locations.length === 0}
+                                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                Descargar PDF
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-
-                      <p className="text-sm leading-6 text-brand-100/62 sm:text-base">
-                        Creado el {formatProjectDate(project.createdAt)}
-                      </p>
                     </div>
+                  </section>
 
-                    {successMessage ? (
-                      <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                        {successMessage}
-                      </div>
-                    ) : null}
+                  <section className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-10 2xl:px-14">
+                    <div className="rounded-[1.75rem] border border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-7 lg:p-8">
+                      <div className="space-y-7">
+                        <div>
+                          <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
+                            Locaciones asociadas
+                          </h2>
+                        </div>
 
-                    {validationError ? (
-                      <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                        {validationError}
-                      </div>
-                    ) : null}
+                        <RequestProjectLocationsList
+                          locations={locations}
+                          isLoading={isLoadingLocations}
+                          canRemove={isDraft}
+                          removingLocationIds={removingLocationIds}
+                          onRemove={(locationId) => {
+                            if (isMutatingLocations) {
+                              return
+                            }
 
-                    <section className="space-y-2">
-                      <h2 className="text-base font-semibold text-brand-100 sm:text-lg">
-                        Mensaje
-                      </h2>
-                      {isDraft ? (
-                        <textarea
-                          value={values.message}
-                          onChange={(event) => {
-                            setValues((current) => ({
-                              ...current,
-                              message: event.target.value,
-                            }))
+                            void removeLocation(locationId)
                           }}
-                          rows={5}
-                          className="w-full rounded-[1.5rem] border border-white/10 bg-white/6 px-4 py-3 text-sm leading-7 text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 sm:text-base"
-                          placeholder="Describe tu proyecto, referencias y necesidades generales."
-                          disabled={isSaving || isSubmitting}
                         />
-                      ) : (
-                        <p className="whitespace-pre-line text-sm leading-7 text-brand-100/72 sm:text-base">
-                          {project.message?.trim() || 'Sin mensaje.'}
-                        </p>
-                      )}
-                    </section>
-
-                    {isDraft ? (
-                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                        <button
-                          type="submit"
-                          disabled={isSaving || isSubmitting}
-                          className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {isSaving ? 'Guardando...' : 'Guardar cambios'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleSubmitProject()
-                          }}
-                          disabled={isSaving || isSubmitting}
-                          className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {isSubmitting ? 'Enviando proyecto...' : 'Enviar proyecto'}
-                        </button>
                       </div>
-                    ) : null}
-                  </div>
-                </section>
-
-                <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
-                  <div className="space-y-5">
-                    <div className="flex flex-wrap items-end justify-between gap-4">
-                      <div className="space-y-2">
-                        <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
-                          Locaciones seleccionadas
-                        </h2>
-                        <p className="text-sm leading-6 text-brand-100/62 sm:text-base">
-                          Agrega y revisa las locaciones que formarán parte de este proyecto.
-                        </p>
-                      </div>
-
-                      {isDraft ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleOpenFavoritesModal()
-                          }}
-                          disabled={isMutatingLocations || isLoadingAvailableFavorites}
-                          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {isLoadingAvailableFavorites
-                            ? 'Cargando favoritos...'
-                            : 'Agregar desde favoritos'}
-                        </button>
-                      ) : null}
                     </div>
+                  </section>
 
-                    <RequestProjectLocationsList
-                      locations={locations}
-                      isLoading={isLoadingLocations}
-                      canRemove={isDraft}
-                      removingLocationIds={removingLocationIds}
-                      onRemove={(locationId) => {
-                        if (isMutatingLocations) {
-                          return
-                        }
-
-                        void removeLocation(locationId)
-                      }}
-                    />
-                  </div>
-                </section>
-              </form>
-            </div>
-          ) : null}
-        </section>
+                  {isDraft ? (
+                    <section className="mx-auto flex w-full max-w-[1720px] justify-center px-4 pb-14 pt-2 sm:px-6 lg:px-10 lg:pb-20 2xl:px-14">
+                      <button
+                        type="submit"
+                        disabled={isSaving || isSubmitting}
+                        className="inline-flex min-h-14 min-w-[300px] items-center justify-center rounded-full border border-brand-300/30 bg-brand-300/10 px-10 text-sm font-medium text-brand-100 transition hover:bg-brand-300/15 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {isSubmitting ? 'Enviando proyecto...' : 'Enviar proyecto'}
+                      </button>
+                    </section>
+                  ) : null}
+                </form>
+              </div>
+            ) : null}
+          </section>
+        </div>
       </div>
+      {isPdfPreviewOpen && pdfPayload ? (
+        <div
+          className="fixed inset-0 z-[70] bg-black/65 px-4 py-4 sm:px-6 sm:py-6"
+          onClick={() => {
+            setIsPdfPreviewOpen(false)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="request-project-preview-title"
+            className="flex h-full items-start justify-center"
+          >
+            <div
+              className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[#0f0b09] shadow-[0_28px_80px_rgba(0,0,0,0.4)]"
+              onClick={(event) => {
+                event.stopPropagation()
+              }}
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-5">
+                <p
+                  id="request-project-preview-title"
+                  className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-300"
+                >
+                  Vista previa PDF
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPdfPreviewOpen(false)
+                  }}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0b09]"
+                  aria-label="Cerrar vista previa PDF"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+                <SelectionPdfPreview payload={pdfPayload} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <RequestProjectFavoritesModal
         favorites={availableFavorites}
         favoriteCount={favoriteCount}
@@ -328,6 +477,6 @@ export function RequestDetailPage() {
           setIsFavoritesModalOpen(false)
         }}
       />
-    </div>
+    </>
   )
 }

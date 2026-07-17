@@ -12,6 +12,10 @@ function isNullableNumber(value: unknown): value is number | null {
   return value === null || typeof value === 'number'
 }
 
+function isOptionalNullableString(value: unknown) {
+  return value === undefined || value === null || isNonEmptyString(value)
+}
+
 function isSelectedLocationImage(value: unknown): value is SelectedLocationImage {
   if (!value || typeof value !== 'object') {
     return false
@@ -22,6 +26,7 @@ function isSelectedLocationImage(value: unknown): value is SelectedLocationImage
   return (
     isNonEmptyString(candidate.key) &&
     isNonEmptyString(candidate.imageUrl) &&
+    isOptionalNullableString(candidate.locationImageId) &&
     isNullableNumber(candidate.sortOrder) &&
     isNonEmptyString(candidate.locationId) &&
     isNonEmptyString(candidate.locationCode) &&

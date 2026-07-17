@@ -10,6 +10,8 @@ export type RequestProject = {
   title: string
   message: string | null
   status: RequestProjectStatus
+  tentativeStartDate: string | null
+  tentativeEndDate: string | null
   createdAt: string
   updatedAt: string
   locationCount: number
@@ -24,6 +26,13 @@ export type RequestProjectLocation = {
   notes: string | null
   sortOrder: number | null
   createdAt: string
+  selectedImages: {
+    id: string
+    locationImageId: string | null
+    imageUrl: string
+    sortOrder: number | null
+    createdAt: string
+  }[]
   location: {
     id: string
     slug: string

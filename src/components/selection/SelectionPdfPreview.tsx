@@ -25,19 +25,15 @@ function getPreviewValue(value: string) {
 export function SelectionPdfPreview({
   payload,
 }: SelectionPdfPreviewProps) {
+  const previewTitle = payload.project.product.trim()
+
   return (
     <div className="space-y-6">
       <section>
-        <h3 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] text-brand-100">
-          Seleccion de locaciones
+        <h3 className="mt-2 min-h-[3rem] font-display text-3xl font-semibold tracking-[-0.03em] text-brand-100">
+          {previewTitle}
         </h3>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Producto</p>
-            <p className="mt-2 text-sm text-brand-100">
-              {getPreviewValue(payload.project.product)}
-            </p>
-          </div>
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Productora</p>
             <p className="mt-2 text-sm text-brand-100">
@@ -62,13 +58,6 @@ export function SelectionPdfPreview({
             <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Fecha</p>
             <p className="mt-2 text-sm text-brand-100">
               {formatPreviewDate(payload.generatedAt)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Resumen</p>
-            <p className="mt-2 text-sm text-brand-100">
-              {payload.totalLocations} {payload.totalLocations === 1 ? 'locacion' : 'locaciones'} y{' '}
-              {payload.totalImages} {payload.totalImages === 1 ? 'imagen' : 'imagenes'}
             </p>
           </div>
         </div>

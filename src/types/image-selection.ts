@@ -1,6 +1,7 @@
 export type SelectedLocationImage = {
   key: string
   imageUrl: string
+  locationImageId?: string | null
   sortOrder: number | null
   locationId: string
   locationCode: string
@@ -18,6 +19,10 @@ export type ImageSelectionAction =
   | {
       type: 'add-image'
       payload: SelectedLocationImage
+    }
+  | {
+      type: 'replace-selection'
+      payload: SelectedLocationImage[]
     }
   | {
       type: 'remove-image'

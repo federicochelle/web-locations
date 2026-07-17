@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase.ts'
 import { getSession, getSessionUser } from '@/services/auth.service.ts'
+import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type {
   RequestProject,
   RequestProjectLocation,
@@ -12,6 +13,7 @@ type RequestProjectLocationRow = {
   location_id?: string | null
   sort_order?: number | null
   created_at?: string | null
+  request_project_location_images?: RequestProjectSelectionImageRow[] | null
   locations?: RequestProjectLocationLocationRow | RequestProjectLocationLocationRow[] | null
 }
 
@@ -20,6 +22,8 @@ type RequestProjectRow = {
   title?: string | null
   message?: string | null
   status?: RequestProjectStatus | null
+  tentative_start_date?: string | null
+  tentative_end_date?: string | null
   created_at?: string | null
   updated_at?: string | null
   request_project_locations?: RequestProjectLocationRow[] | null
@@ -36,10 +40,18 @@ type RelatedNameRow =
     }[]
   | null
 
-type RequestProjectLocationImageRow = {
+type LocationCatalogImageRow = {
   url?: string | null
   sort_order?: number | null
   is_cover?: boolean | null
+}
+
+type RequestProjectSelectionImageRow = {
+  id: string
+  location_image_id?: string | null
+  sort_order?: number | null
+  image_url_snapshot?: string | null
+  created_at?: string | null
 }
 
 type RequestProjectLocationLocationRow = {
@@ -49,7 +61,7 @@ type RequestProjectLocationLocationRow = {
   categories?: RelatedNameRow
   departments?: RelatedNameRow
   zones?: RelatedNameRow
-  location_images?: RequestProjectLocationImageRow[] | null
+  location_images?: LocationCatalogImageRow[] | null
 }
 
 type RequestProjectLocationRelationRow = {
@@ -57,6 +69,8 @@ type RequestProjectLocationRelationRow = {
   notes?: string | null
   sort_order?: number | null
   created_at?: string | null
+  location_id?: string | null
+  request_project_location_images?: RequestProjectSelectionImageRow[] | null
   locations?:
     | RequestProjectLocationLocationRow
     | RequestProjectLocationLocationRow[]
@@ -66,11 +80,15 @@ type RequestProjectLocationRelationRow = {
 type CreateRequestProjectInput = {
   title: string
   message: string | null
+  tentativeStartDate?: string | null
+  tentativeEndDate?: string | null
 }
 
 type UpdateRequestProjectInput = {
   title: string
   message: string | null
+  tentativeStartDate: string | null
+  tentativeEndDate: string | null
 }
 
 type AddLocationToRequestProjectResult = 'added' | 'exists'
@@ -80,6 +98,8 @@ const REQUEST_PROJECT_SELECT = `
   title,
   message,
   status,
+  tentative_start_date,
+  tentative_end_date,
   created_at,
   updated_at,
   request_project_locations (
@@ -87,6 +107,13 @@ const REQUEST_PROJECT_SELECT = `
     location_id,
     sort_order,
     created_at,
+    request_project_location_images (
+      id,
+      location_image_id,
+      sort_order,
+      image_url_snapshot,
+      created_at
+    ),
     locations (
       id,
       location_code,
@@ -160,7 +187,7 @@ function getSingleRelation<T>(value: T | T[] | null | undefined) {
   return value ?? null
 }
 
-function sortImages(images: RequestProjectLocationImageRow[] | null | undefined) {
+function sortImages(images: LocationCatalogImageRow[] | null | undefined) {
   return [...(images ?? [])].sort((left, right) => {
     const leftCoverOrder = left.is_cover ? -1 : 0
     const rightCoverOrder = right.is_cover ? -1 : 0
@@ -176,9 +203,27 @@ function sortImages(images: RequestProjectLocationImageRow[] | null | undefined)
   })
 }
 
+function sortPersistedSelectionImages(
+  images: RequestProjectSelectionImageRow[] | null | undefined,
+) {
+  return [...(images ?? [])].sort((left, right) => {
+    const leftSortOrder = left.sort_order ?? Number.MAX_SAFE_INTEGER
+    const rightSortOrder = right.sort_order ?? Number.MAX_SAFE_INTEGER
+
+    if (leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder
+    }
+
+    return (left.created_at ?? '').localeCompare(right.created_at ?? '')
+  })
+}
+
 function mapRequestProject(row: RequestProjectRow): RequestProject {
   const firstLocationRow = sortProjectLocationRows(row.request_project_locations)[0] ?? null
   const firstLocation = getSingleRelation(firstLocationRow?.locations)
+  const firstSelectedImage = sortPersistedSelectionImages(
+    firstLocationRow?.request_project_location_images,
+  ).find((image) => Boolean(image.image_url_snapshot))
   const firstLocationCoverImage = sortImages(firstLocation?.location_images).find((image) =>
     Boolean(image.url),
   )
@@ -190,7 +235,10 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
         categoryName: getRelatedName(firstLocation.categories),
         departmentName: getRelatedName(firstLocation.departments),
         zoneName: getRelatedName(firstLocation.zones),
-        coverImageUrl: firstLocationCoverImage?.url ?? null,
+        coverImageUrl:
+          firstSelectedImage?.image_url_snapshot ??
+          firstLocationCoverImage?.url ??
+          null,
         coverImageAlt: 'Imagen de locacion',
         features: [],
       })
@@ -201,6 +249,8 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
     title: row.title?.trim() || 'Solicitud sin titulo',
     message: row.message?.trim() || null,
     status: row.status ?? 'draft',
+    tentativeStartDate: row.tentative_start_date ?? null,
+    tentativeEndDate: row.tentative_end_date ?? null,
     createdAt: row.created_at ?? new Date(0).toISOString(),
     updatedAt: row.updated_at ?? row.created_at ?? new Date(0).toISOString(),
     locationCount: row.request_project_locations?.length ?? 0,
@@ -238,11 +288,24 @@ function mapRequestProjectLocation(
     features: [],
   })
 
+  const selectedImages = sortPersistedSelectionImages(
+    row.request_project_location_images,
+  )
+    .filter((image) => Boolean(image.image_url_snapshot))
+    .map((image) => ({
+      id: image.id,
+      locationImageId: image.location_image_id ?? null,
+      imageUrl: image.image_url_snapshot ?? '',
+      sortOrder: image.sort_order ?? null,
+      createdAt: image.created_at ?? row.created_at ?? new Date(0).toISOString(),
+    }))
+
   return {
     id: row.id,
     notes: row.notes?.trim() || null,
     sortOrder: row.sort_order ?? null,
     createdAt: row.created_at ?? new Date(0).toISOString(),
+    selectedImages,
     location: {
       id: locationCard.id,
       slug: locationCard.slug,
@@ -333,6 +396,8 @@ export async function getRequestProjectById(id: string) {
 export async function createRequestProject({
   title,
   message,
+  tentativeStartDate = null,
+  tentativeEndDate = null,
 }: CreateRequestProjectInput) {
   const userId = await getCurrentUserId()
 
@@ -342,6 +407,8 @@ export async function createRequestProject({
       user_id: userId,
       title: title.trim(),
       message: message?.trim() || null,
+      tentative_start_date: tentativeStartDate,
+      tentative_end_date: tentativeEndDate,
     })
     .select(REQUEST_PROJECT_SELECT)
     .single()
@@ -355,13 +422,20 @@ export async function createRequestProject({
 
 export async function updateRequestProject(
   id: string,
-  { title, message }: UpdateRequestProjectInput,
+  {
+    title,
+    message,
+    tentativeStartDate,
+    tentativeEndDate,
+  }: UpdateRequestProjectInput,
 ) {
   const { data, error } = await supabase
     .from('request_projects')
     .update({
       title: title.trim(),
       message: message?.trim() || null,
+      tentative_start_date: tentativeStartDate,
+      tentative_end_date: tentativeEndDate,
     })
     .eq('id', id)
     .select(REQUEST_PROJECT_SELECT)
@@ -391,6 +465,19 @@ export async function submitRequestProject(id: string) {
   return mapRequestProject(data as RequestProjectRow)
 }
 
+export async function deleteRequestProject(id: string) {
+  await getCurrentUserId()
+
+  const { error } = await supabase
+    .from('request_projects')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 export async function getRequestProjectLocations(projectId: string) {
   await getCurrentUserId()
 
@@ -402,6 +489,14 @@ export async function getRequestProjectLocations(projectId: string) {
         notes,
         sort_order,
         created_at,
+        location_id,
+        request_project_location_images (
+          id,
+          location_image_id,
+          sort_order,
+          image_url_snapshot,
+          created_at
+        ),
         locations!inner (
           id,
           location_code,
@@ -455,6 +550,167 @@ export async function addLocationToRequestProject(
   }
 
   return 'added'
+}
+
+function sortSelectedImages(images: SelectedLocationImage[]) {
+  return [...images].sort((left, right) => {
+    const leftSortOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
+    const rightSortOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER
+
+    if (leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder
+    }
+
+    return left.selectedAt.localeCompare(right.selectedAt)
+  })
+}
+
+function groupSelectionImagesByLocation(images: SelectedLocationImage[]) {
+  const groupedImages = new Map<
+    string,
+    {
+      locationId: string
+      images: SelectedLocationImage[]
+    }
+  >()
+
+  for (const image of sortSelectedImages(images)) {
+    const existingGroup = groupedImages.get(image.locationId)
+
+    if (existingGroup) {
+      existingGroup.images.push(image)
+      continue
+    }
+
+    groupedImages.set(image.locationId, {
+      locationId: image.locationId,
+      images: [image],
+    })
+  }
+
+  return [...groupedImages.values()]
+}
+
+export async function syncRequestProjectSelection(
+  projectId: string,
+  images: SelectedLocationImage[],
+) {
+  await getCurrentUserId()
+
+  const groupedLocations = groupSelectionImagesByLocation(images)
+  const selectedLocationIds = groupedLocations.map((location) => location.locationId)
+
+  const { data: existingLocations, error: existingLocationsError } = await supabase
+    .from('request_project_locations')
+    .select('id, location_id')
+    .eq('request_project_id', projectId)
+
+  if (existingLocationsError) {
+    throw new Error(existingLocationsError.message)
+  }
+
+  const existingLocationRows = (existingLocations ?? []) as {
+    id: string
+    location_id: string | null
+  }[]
+
+  const locationIdsToRemove = existingLocationRows
+    .map((row) => row.location_id)
+    .filter((locationId): locationId is string => Boolean(locationId))
+    .filter((locationId) => !selectedLocationIds.includes(locationId))
+
+  if (locationIdsToRemove.length > 0) {
+    const { error: removeLocationsError } = await supabase
+      .from('request_project_locations')
+      .delete()
+      .eq('request_project_id', projectId)
+      .in('location_id', locationIdsToRemove)
+
+    if (removeLocationsError) {
+      throw new Error(removeLocationsError.message)
+    }
+  }
+
+  if (groupedLocations.length === 0) {
+    return
+  }
+
+  const { error: upsertLocationsError } = await supabase
+    .from('request_project_locations')
+    .upsert(
+      groupedLocations.map((location, index) => ({
+        request_project_id: projectId,
+        location_id: location.locationId,
+        sort_order: index,
+      })),
+      {
+        onConflict: 'request_project_id,location_id',
+      },
+    )
+
+  if (upsertLocationsError) {
+    throw new Error(upsertLocationsError.message)
+  }
+
+  const { data: syncedLocations, error: syncedLocationsError } = await supabase
+    .from('request_project_locations')
+    .select('id, location_id')
+    .eq('request_project_id', projectId)
+    .in('location_id', selectedLocationIds)
+
+  if (syncedLocationsError) {
+    throw new Error(syncedLocationsError.message)
+  }
+
+  const requestProjectLocationIdByLocationId = new Map<string, string>()
+
+  for (const row of (syncedLocations ?? []) as { id: string; location_id: string | null }[]) {
+    if (!row.location_id) {
+      continue
+    }
+
+    requestProjectLocationIdByLocationId.set(row.location_id, row.id)
+  }
+
+  const requestProjectLocationIds = [...requestProjectLocationIdByLocationId.values()]
+
+  if (requestProjectLocationIds.length > 0) {
+    const { error: deleteImagesError } = await supabase
+      .from('request_project_location_images')
+      .delete()
+      .in('request_project_location_id', requestProjectLocationIds)
+
+    if (deleteImagesError) {
+      throw new Error(deleteImagesError.message)
+    }
+  }
+
+  const nextProjectImages = groupedLocations.flatMap((location) => {
+    const requestProjectLocationId = requestProjectLocationIdByLocationId.get(location.locationId)
+
+    if (!requestProjectLocationId) {
+      return []
+    }
+
+    return location.images.map((image, index) => ({
+      request_project_location_id: requestProjectLocationId,
+      location_image_id: image.locationImageId ?? null,
+      sort_order: index,
+      image_url_snapshot: image.imageUrl,
+    }))
+  })
+
+  if (nextProjectImages.length === 0) {
+    return
+  }
+
+  const { error: insertImagesError } = await supabase
+    .from('request_project_location_images')
+    .insert(nextProjectImages)
+
+  if (insertImagesError) {
+    throw new Error(insertImagesError.message)
+  }
 }
 
 export async function removeLocationFromRequestProject(

@@ -16,6 +16,7 @@ type ImageSelectionContextValue = {
   images: SelectedLocationImage[]
   isDrawerOpen: boolean
   addImage: (image: SelectedLocationImage) => void
+  replaceSelection: (images: SelectedLocationImage[]) => void
   removeImage: (key: string) => void
   clearSelection: () => void
   isSelected: (key: string) => boolean
@@ -54,6 +55,12 @@ function imageSelectionReducer(
         images: [...state.images, action.payload],
       }
     }
+
+    case 'replace-selection':
+      return {
+        ...state,
+        images: action.payload.slice(0, MAX_SELECTED_IMAGES),
+      }
 
     case 'remove-image':
       return {
@@ -127,6 +134,12 @@ export function ImageSelectionProvider({
         dispatch({
           type: 'add-image',
           payload: image,
+        })
+      },
+      replaceSelection: (images) => {
+        dispatch({
+          type: 'replace-selection',
+          payload: images,
         })
       },
       removeImage: (key) => {
