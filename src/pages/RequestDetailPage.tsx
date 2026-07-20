@@ -19,6 +19,132 @@ import {
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
 
+function ProjectWorkspaceDecoration() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 520 360"
+      className="h-auto w-full"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id="project-decoration-panel" x1="122" y1="66" x2="358" y2="274" gradientUnits="userSpaceOnUse">
+          <stop stopColor="currentColor" stopOpacity="0.08" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.04" />
+        </linearGradient>
+        <linearGradient id="project-decoration-clapper" x1="0" y1="0" x2="108" y2="78" gradientUnits="userSpaceOnUse">
+          <stop stopColor="currentColor" stopOpacity="0.12" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.06" />
+        </linearGradient>
+      </defs>
+
+      <g opacity="0.72">
+        <ellipse cx="270" cy="308" rx="116" ry="18" fill="currentColor" fillOpacity="0.05" />
+
+        <g transform="translate(122 58)">
+          <rect
+            x="0"
+            y="30"
+            width="244"
+            height="176"
+            rx="28"
+            fill="url(#project-decoration-panel)"
+            stroke="currentColor"
+            strokeOpacity="0.08"
+            strokeWidth="1.6"
+          />
+
+          <rect
+            x="24"
+            y="58"
+            width="196"
+            height="116"
+            rx="24"
+            fill="currentColor"
+            fillOpacity="0.04"
+          />
+
+          <g transform="translate(34 0)">
+            <rect
+              x="0"
+              y="0"
+              width="108"
+              height="74"
+              rx="18"
+              fill="url(#project-decoration-clapper)"
+            />
+            <path d="M20 0L0 26" stroke="currentColor" strokeOpacity="0.16" strokeWidth="8" />
+            <path d="M58 0L30 34" stroke="currentColor" strokeOpacity="0.16" strokeWidth="8" />
+            <path d="M96 4L66 40" stroke="currentColor" strokeOpacity="0.16" strokeWidth="8" />
+          </g>
+
+          <g transform="translate(126 52)">
+            <rect
+              x="0"
+              y="0"
+              width="86"
+              height="70"
+              rx="18"
+              fill="currentColor"
+              fillOpacity="0.07"
+              stroke="currentColor"
+              strokeOpacity="0.08"
+              strokeWidth="1.4"
+            />
+            <rect x="15" y="16" width="52" height="10" rx="5" fill="currentColor" fillOpacity="0.12" />
+            <rect x="15" y="34" width="40" height="10" rx="5" fill="currentColor" fillOpacity="0.08" />
+            <rect x="15" y="52" width="48" height="8" rx="4" fill="currentColor" fillOpacity="0.06" />
+          </g>
+
+          <g transform="translate(18 124) rotate(-7 48 34)">
+            <rect
+              x="0"
+              y="0"
+              width="96"
+              height="68"
+              rx="16"
+              fill="currentColor"
+              fillOpacity="0.06"
+              stroke="currentColor"
+              strokeOpacity="0.08"
+              strokeWidth="1.4"
+            />
+            <rect x="14" y="14" width="66" height="24" rx="10" fill="currentColor" fillOpacity="0.1" />
+            <rect x="14" y="48" width="44" height="8" rx="4" fill="currentColor" fillOpacity="0.06" />
+          </g>
+
+          <g transform="translate(166 136) rotate(6 52 36)">
+            <rect
+              x="0"
+              y="0"
+              width="104"
+              height="72"
+              rx="18"
+              fill="currentColor"
+              fillOpacity="0.05"
+              stroke="currentColor"
+              strokeOpacity="0.08"
+              strokeWidth="1.4"
+            />
+            <rect x="16" y="14" width="60" height="26" rx="10" fill="currentColor" fillOpacity="0.08" />
+            <rect x="16" y="50" width="52" height="8" rx="4" fill="currentColor" fillOpacity="0.06" />
+          </g>
+
+          <g transform="translate(188 104)">
+            <path
+              d="M28 0C12.536 0 0 12.536 0 28C0 48.046 22.293 68.96 26.232 72.49C27.248 73.4 28.752 73.4 29.768 72.49C33.707 68.96 56 48.046 56 28C56 12.536 43.464 0 28 0Z"
+              fill="currentColor"
+              fillOpacity="0.1"
+            />
+            <circle cx="28" cy="28" r="9" fill="currentColor" fillOpacity="0.16" />
+          </g>
+        </g>
+      </g>
+    </svg>
+  )
+}
+
 export function RequestDetailPage() {
   const location = useLocation()
   const { id } = useParams()
@@ -137,6 +263,9 @@ export function RequestDetailPage() {
     })
   }
 
+  const isPdfPreviewDisabled = !pdfPayload || locations.length === 0
+  const isPdfDownloadDisabled = isSaving || isSubmitting || locations.length === 0
+
   async function handleSubmitProject() {
     if (!project || !isDraft) {
       return
@@ -247,12 +376,75 @@ export function RequestDetailPage() {
                 >
                   <section className="mx-auto w-full max-w-[1720px] px-4 pt-8 sm:px-6 sm:pt-10 lg:px-10 lg:pt-12 2xl:px-14">
                     <div className="rounded-[1.75rem] border border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-7 lg:p-8">
-                      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
+                      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
                         <div className="space-y-8">
-                          <div>
+                          <div className="flex flex-wrap items-center justify-between gap-4">
                             <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
                               Informacion del proyecto
                             </h2>
+
+                            <div className="flex items-center gap-2">
+                              <div className="group relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setValidationError(null)
+                                    setSuccessMessage(null)
+                                    setIsPdfPreviewOpen(true)
+                                  }}
+                                  disabled={isPdfPreviewDisabled}
+                                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/6 text-brand-100 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D] disabled:cursor-not-allowed disabled:opacity-55"
+                                  aria-label="Vista previa"
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    viewBox="0 0 24 24"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+                                    <circle cx="12" cy="12" r="2.75" />
+                                  </svg>
+                                </button>
+                                <div className="pointer-events-none absolute right-0 top-[calc(100%+0.6rem)] z-20 rounded-full border border-white/10 bg-[#141416] px-3 py-1.5 text-xs font-medium text-brand-100 opacity-0 shadow-[0_14px_30px_rgba(0,0,0,0.28)] transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                                  Vista previa
+                                </div>
+                              </div>
+
+                              <div className="group relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleDownloadPdf()
+                                  }}
+                                  disabled={isPdfDownloadDisabled}
+                                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/6 text-brand-100 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D] disabled:cursor-not-allowed disabled:opacity-55"
+                                  aria-label="Descargar PDF"
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    viewBox="0 0 24 24"
+                                    className="h-5 w-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M12 3.5V14.5" />
+                                    <path d="M8 10.5L12 14.5L16 10.5" />
+                                    <path d="M4.5 18.5H19.5" />
+                                  </svg>
+                                </button>
+                                <div className="pointer-events-none absolute right-0 top-[calc(100%+0.6rem)] z-20 rounded-full border border-white/10 bg-[#141416] px-3 py-1.5 text-xs font-medium text-brand-100 opacity-0 shadow-[0_14px_30px_rgba(0,0,0,0.28)] transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                                  Descargar PDF
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                           {successMessage ? (
@@ -267,7 +459,7 @@ export function RequestDetailPage() {
                             </div>
                           ) : null}
 
-                          <div className="max-w-[720px]">
+                          <div className="max-w-[860px]">
                             <SelectionPdfForm
                               values={values}
                               errors={formErrors}
@@ -279,15 +471,13 @@ export function RequestDetailPage() {
                             />
                           </div>
 
-                        </div>
-
-                        <div className="flex flex-col gap-10 pt-1">
                           <div className="space-y-5">
                             <h2 className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-3xl">
                               Fechas tentativas
                             </h2>
 
-                          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                            <div className="max-w-[860px]">
+                              <div className="grid gap-4 sm:grid-cols-2">
                               <div className="px-1 py-1">
                                 <p className="text-xs font-medium uppercase tracking-[0.24em] text-brand-100/45">
                                   Inicio
@@ -325,38 +515,13 @@ export function RequestDetailPage() {
                                 />
                               </div>
                             </div>
-                          </div>
-
-                          <div className="space-y-5">
-                            <h2 className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-3xl">
-                              Propuesta PDF
-                            </h2>
-
-                            <div className="flex flex-col gap-3">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setValidationError(null)
-                                  setSuccessMessage(null)
-                                  setIsPdfPreviewOpen(true)
-                                }}
-                                disabled={!pdfPayload || locations.length === 0}
-                                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                Vista previa PDF
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void handleDownloadPdf()
-                                }}
-                                disabled={isSaving || isSubmitting || locations.length === 0}
-                                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                Descargar PDF
-                              </button>
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="pointer-events-none hidden items-center justify-center text-brand-100 xl:flex">
+                          <div className="w-full max-w-[22rem]">
+                            <ProjectWorkspaceDecoration />
                           </div>
                         </div>
                       </div>

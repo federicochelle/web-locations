@@ -6,7 +6,10 @@ import { SelectedLocationGroup } from '@/components/selection/SelectedLocationGr
 import { SELECTION_DRAWER_TRIGGER_ID } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import { getRequestProjectLocations } from '@/services/request-projects.service.ts'
+import {
+  getRequestProjectLocations,
+  syncRequestProjectSelection,
+} from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { RequestProjectLocation } from '@/types/request-project.ts'
 
@@ -63,6 +66,43 @@ function groupImagesByLocation(images: SelectedLocationImage[]) {
   }))
 }
 
+function DraftSaveIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.05rem] w-[1.05rem] shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5.5 4.75h10.25l2.75 2.75v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4.5 18.5v-12A1.75 1.75 0 0 1 6.25 4.75Z" />
+      <path d="M8 4.75v5h7v-5" />
+      <path d="M8.25 15.25h7.5" />
+    </svg>
+  )
+}
+
+function ProposalPreviewIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.05rem] w-[1.05rem] shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.75 12s2.9-5.25 7.25-5.25S19.25 12 19.25 12 16.35 17.25 12 17.25 4.75 12 4.75 12Z" />
+      <circle cx="12" cy="12" r="2.35" />
+    </svg>
+  )
+}
+
 export function SelectionDrawer() {
   const {
     images,
@@ -82,12 +122,14 @@ export function SelectionDrawer() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [isLoadingProjectContent, setIsLoadingProjectContent] = useState(false)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [draftSaveError, setDraftSaveError] = useState<string | null>(null)
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),
     [images],
   )
-  const totalLocations = groupedSelections.length
   const activeProject =
     draftProjects.find((project) => project.id === activeProjectId) ?? null
 
@@ -183,6 +225,8 @@ export function SelectionDrawer() {
     setActiveView('selection')
     setIsPdfFlowDetached(false)
     setProjectLoadError(null)
+    setDraftNotice(null)
+    setDraftSaveError(null)
   }
 
   function buildProjectFallbackImage(location: RequestProjectLocation): SelectedLocationImage {
@@ -275,6 +319,27 @@ export function SelectionDrawer() {
     setActiveProjectId(projectId)
   }
 
+  async function handleSaveDraftSelection() {
+    if (!activeProjectId || images.length === 0) {
+      return
+    }
+
+    try {
+      setIsSavingDraft(true)
+      setDraftSaveError(null)
+      setDraftNotice(null)
+      await syncRequestProjectSelection(activeProjectId, images)
+      await refreshProjects()
+      setDraftNotice('Borrador guardado.')
+    } catch (error) {
+      setDraftSaveError(
+        error instanceof Error ? error.message : 'No pudimos guardar el borrador.',
+      )
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-40">
       {!isPdfFlowDetached ? (
@@ -318,16 +383,11 @@ export function SelectionDrawer() {
                   activeProjectId={activeProjectId}
                   projects={draftProjects}
                   isLoading={isLoading || isLoadingProjectContent}
+                  compact
                   onChange={(projectId) => {
                     void handleActiveProjectChange(projectId)
                   }}
                 />
-                {totalLocations > 0 ? (
-                  <p className="mt-3 text-sm text-brand-300">
-                    {totalLocations}{' '}
-                    {totalLocations === 1 ? 'locacion guardada' : 'locaciones guardadas'}
-                  </p>
-                ) : null}
               </div>
               <button
                 ref={closeButtonRef}
@@ -344,6 +404,16 @@ export function SelectionDrawer() {
               {projectLoadError ? (
                 <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
                   {projectLoadError}
+                </div>
+              ) : null}
+              {draftSaveError ? (
+                <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                  {draftSaveError}
+                </div>
+              ) : null}
+              {draftNotice ? (
+                <div className="mb-4 rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                  {draftNotice}
                 </div>
               ) : null}
 
@@ -389,20 +459,35 @@ export function SelectionDrawer() {
               )}
             </div>
 
-            <footer className="border-t border-white/10 px-4 py-4 sm:px-5">
-              <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveView('pdf-flow')
-                  }}
-                  disabled={images.length === 0}
-                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Ver propuesta
-                </button>
-              </div>
-            </footer>
+            {images.length > 0 ? (
+              <footer className="border-t border-white/10 px-4 py-4 sm:px-5">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {activeProjectId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleSaveDraftSelection()
+                      }}
+                      disabled={isSavingDraft}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                    >
+                      <DraftSaveIcon />
+                      {isSavingDraft ? 'Guardando...' : 'Guardar borrador'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveView('pdf-flow')
+                    }}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100"
+                  >
+                    <ProposalPreviewIcon />
+                    Continuar
+                  </button>
+                </div>
+              </footer>
+            ) : null}
           </>
         </aside>
       ) : (

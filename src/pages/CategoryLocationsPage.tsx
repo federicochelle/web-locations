@@ -95,18 +95,10 @@ export function CategoryLocationsPage() {
 
   return (
     <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-12 lg:pb-24 lg:pt-12">
-      <section className="max-w-4xl space-y-3">
-        <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-700">
-          Categoria
-        </p>
+      <section className="max-w-4xl">
         <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
           {activeCategoryName ?? 'Locaciones'}
         </h1>
-        <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-          {hasActiveSearch
-            ? `Explora las locaciones publicadas de esta categoria para la busqueda "${trimmedSearchQuery}".`
-            : 'Explora las locaciones publicadas de esta categoria.'}
-        </p>
       </section>
 
       {isLoading ? (

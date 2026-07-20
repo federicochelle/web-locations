@@ -35,7 +35,7 @@ export function RequestProjectLocationCard({
       : null
 
   return (
-    <article className="relative overflow-hidden rounded-[0.75rem] border border-white/10 bg-[#1B1B1D]">
+    <article className="group relative overflow-hidden rounded-[0.75rem] border border-white/10 bg-[#1B1B1D]">
       <Link
         to={buildPublicLocationPath({
           categorySlug: item.location.categorySlug,
@@ -45,6 +45,18 @@ export function RequestProjectLocationCard({
         aria-label={`Ver locacion ${locationTitle}`}
         className="absolute inset-0 z-10"
       />
+
+      {canRemove && onRemove ? (
+        <button
+          type="button"
+          onClick={() => onRemove(item.location.id)}
+          disabled={isRemoving}
+          className="absolute right-3 top-3 z-20 inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 bg-black/55 px-4 text-sm font-medium text-brand-100 opacity-0 transition duration-200 hover:bg-black/72 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D] disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isRemoving ? 'Quitando...' : 'Quitar'}
+        </button>
+      ) : null}
+
       <div className="grid md:grid-cols-[minmax(0,1fr)]">
         <div className="block h-full min-h-[220px] bg-sand-100">
           {item.location.coverImageUrl ? (
@@ -70,19 +82,6 @@ export function RequestProjectLocationCard({
               ) : null}
             </div>
 
-            {canRemove && onRemove ? (
-              <button
-                type="button"
-                onClick={() => onRemove(item.location.id)}
-                disabled={isRemoving}
-                className="relative z-20 inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isRemoving ? 'Quitando...' : 'Quitar'}
-              </button>
-            ) : null}
-          </div>
-
-          <div>
             <span className="inline-flex items-center text-sm font-medium text-brand-300 transition">
               Ver locacion →
             </span>

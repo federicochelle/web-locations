@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
-import { RequestsEmptyState } from '@/components/requests/RequestsEmptyState.tsx'
+import {
+  RequestProjectForm,
+  type RequestProjectFormValues,
+} from '@/components/requests/RequestProjectForm.tsx'
+import { RequestProjectsSectionIllustration } from '@/components/requests/RequestProjectsSectionIllustrations.tsx'
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
@@ -15,78 +19,51 @@ function formatProjectDate(value: string) {
   })
 }
 
-export function RequestsPage() {
-  usePageTitle('Mis proyectos')
+function formatLocationCount(count: number) {
+  return `${count} locacion${count === 1 ? '' : 'es'}`
+}
 
-  const { deletingProjectId, error, isLoading, projects, removeProject } = useRequestProjects()
-  const [projectPendingDeletion, setProjectPendingDeletion] = useState<RequestProject | null>(null)
-  const [successToast, setSuccessToast] = useState<string | null>(null)
+type ProjectsSectionProps = {
+  activeSegment: 'drafts' | 'submitted'
+  projects: RequestProject[]
+  emptyTitle: string
+  emptyDescription: string
+  emptyVariant: 'drafts' | 'submitted'
+  emptyCtaLabel?: string
+  onEmptyCtaClick?: () => void
+  onDeleteDraft: (project: RequestProject) => void
+}
 
-  useEffect(() => {
-    if (!successToast) {
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setSuccessToast(null)
-    }, 3200)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [successToast])
-
-  async function handleConfirmDelete() {
-    if (!projectPendingDeletion) {
-      return
-    }
-
-    const deleted = await removeProject(projectPendingDeletion.id)
-
-    if (!deleted) {
-      return
-    }
-
-    setSuccessToast('Borrador eliminado correctamente.')
-    setProjectPendingDeletion(null)
-  }
-
+function ProjectsSection({
+  activeSegment,
+  projects,
+  emptyTitle,
+  emptyDescription,
+  emptyVariant,
+  emptyCtaLabel,
+  onEmptyCtaClick,
+  onDeleteDraft,
+}: ProjectsSectionProps) {
   return (
-    <>
-      <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-10 lg:pb-24 lg:pt-12">
-      {isLoading ? (
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={index}
-              className="min-h-[320px] animate-pulse rounded-[0.75rem] bg-sand-200"
-            />
-          ))}
-        </section>
-      ) : null}
-
-      {!isLoading && error ? (
-        <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
-          <h1 className="text-lg font-semibold">No se pudieron cargar tus proyectos</h1>
-          <p className="mt-2 text-sm">{error}</p>
-        </section>
-      ) : null}
-
-      {!isLoading && !error && projects.length === 0 ? (
-        <RequestsEmptyState />
-      ) : null}
-
-      {!isLoading && !error && projects.length > 0 ? (
-        <section className="max-w-6xl space-y-8 sm:space-y-10">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-                Mis proyectos
-              </h1>
-
-              <Link
-                to="/requests/new"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700"
+    <section
+      key={activeSegment}
+      className="rounded-[1.5rem] border border-white/8 bg-[#171719] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.18)] transition-all duration-300 ease-out sm:p-5 lg:p-6"
+    >
+      {projects.length === 0 ? (
+        <div className="grid items-center gap-6 p-2 sm:p-3 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
+          <div className="flex justify-center lg:justify-start">
+            <RequestProjectsSectionIllustration variant={emptyVariant} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-brand-100">{emptyTitle}</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
+              {emptyDescription}
+            </p>
+            {emptyCtaLabel && onEmptyCtaClick ? (
+              <button
+                type="button"
+                onClick={onEmptyCtaClick}
+                className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700"
               >
                 <svg
                   aria-hidden="true"
@@ -95,25 +72,25 @@ export function RequestsPage() {
                 >
                   <path d="M9 4a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4Z" />
                 </svg>
-                Nuevo proyecto
-              </Link>
-            </div>
-
-            <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-              Gestiona tus proyectos y prepara las locaciones que quieras consultar.
-            </p>
+                {emptyCtaLabel}
+              </button>
+            ) : null}
           </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {projects.map((project) => {
+            const isDraft = project.status === 'draft'
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
+            return (
               <div key={project.id} className="group relative">
-                {project.status === 'draft' ? (
+                {isDraft ? (
                   <button
                     type="button"
                     onClick={() => {
-                      setProjectPendingDeletion(project)
+                      onDeleteDraft(project)
                     }}
-                    className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/72 text-white opacity-0 transition duration-200 hover:bg-black/86 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/72 text-white opacity-0 transition duration-200 hover:bg-black/86 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     aria-label={`Eliminar borrador ${project.title}`}
                   >
                     <svg
@@ -137,55 +114,339 @@ export function RequestsPage() {
 
                 <Link
                   to={`/requests/${project.id}`}
-                  className="block overflow-hidden rounded-[0.75rem] border border-white/8 bg-[#1B1B1D] transition hover:border-white/14 hover:bg-[#212124] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  className="block overflow-hidden rounded-[0.75rem] border border-white/8 bg-[#1B1B1D] transition hover:border-white/14 hover:bg-[#212124] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black lg:flex lg:min-h-[16rem]"
                 >
-                  <div className="relative bg-sand-100">
+                  <div className="relative bg-sand-100 lg:w-[15.5rem] lg:shrink-0">
+                    <div className="absolute left-3 top-3 z-10">
+                      <RequestProjectStatusBadge status={project.status} />
+                    </div>
+
                     {project.locationCount > 1 ? (
-                      <div className="absolute left-3 top-3 z-10 inline-flex min-h-8 items-center justify-center rounded-full bg-black/55 px-3 text-sm font-medium text-white backdrop-blur-sm">
+                      <div className="absolute bottom-3 left-3 z-10 inline-flex min-h-8 items-center justify-center rounded-full bg-black/55 px-3 text-sm font-medium text-white backdrop-blur-sm">
                         +{project.locationCount - 1}
                       </div>
                     ) : null}
 
                     {project.firstLocation?.coverImageUrl ? (
                       <div
-                        className="aspect-[4/3] w-full bg-cover bg-center"
+                        className="aspect-[4/3] w-full bg-cover bg-center lg:h-full lg:min-h-[16rem] lg:aspect-auto"
                         style={{
                           backgroundImage: `url(${project.firstLocation.coverImageUrl})`,
                         }}
                       />
                     ) : (
-                      <div className="flex aspect-[4/3] w-full items-center justify-center bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))] px-5 text-center text-sm font-medium text-white/88">
+                      <div className="flex aspect-[4/3] w-full items-center justify-center bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))] px-5 text-center text-sm font-medium text-white/88 lg:h-full lg:min-h-[16rem] lg:aspect-auto">
                         Sin locaciones
                       </div>
                     )}
                   </div>
 
-                  <div className="flex min-w-0 flex-col justify-between gap-4 p-4 sm:p-5">
-                    <div className="space-y-2.5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1 font-display text-[1.55rem] font-semibold leading-none tracking-[-0.03em] text-white transition group-hover:text-brand-100">
+                  <div className="flex min-w-0 flex-col gap-4 p-4 sm:p-5 lg:flex-1 lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="min-w-0 font-display text-[1.55rem] font-semibold leading-none tracking-[-0.03em] text-white transition group-hover:text-brand-100">
                           {project.title}
                         </div>
 
-                        <RequestProjectStatusBadge status={project.status} />
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex min-h-8 items-center rounded-full border border-white/8 bg-white/5 px-3 text-sm text-brand-100/78">
+                            {formatLocationCount(project.locationCount)}
+                          </span>
+                          <span className="inline-flex min-h-8 items-center rounded-full border border-white/8 bg-white/5 px-3 text-sm text-brand-100/62">
+                            Editado {formatProjectDate(project.updatedAt)}
+                          </span>
+                        </div>
                       </div>
-
-                      <p className="text-sm text-brand-100/58">
-                        {formatProjectDate(project.updatedAt)}
-                      </p>
                     </div>
 
                     <div className="inline-flex items-center text-sm font-medium text-brand-300 transition">
-                      Ver proyecto
+                      {isDraft ? 'Continuar editando' : 'Ver proyecto'}
                     </div>
                   </div>
                 </Link>
               </div>
-            ))}
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function RequestsPage() {
+  usePageTitle('Mis proyectos')
+
+  const navigate = useNavigate()
+  const { createProject, deletingProjectId, error, isCreating, isLoading, projects, removeProject } =
+    useRequestProjects()
+  const [projectPendingDeletion, setProjectPendingDeletion] = useState<RequestProject | null>(null)
+  const [successToast, setSuccessToast] = useState<string | null>(null)
+  const [activeSegment, setActiveSegment] = useState<'drafts' | 'submitted' | null>(null)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const draftProjects = projects.filter((project) => project.status === 'draft')
+  const sentProjects = projects.filter((project) => project.status !== 'draft')
+
+  useEffect(() => {
+    if (!successToast) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSuccessToast(null)
+    }, 3200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [successToast])
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !isCreating) {
+        setIsCreateModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isCreateModalOpen, isCreating])
+
+  useEffect(() => {
+    if (activeSegment) {
+      return
+    }
+
+    if (draftProjects.length > 0) {
+      setActiveSegment('drafts')
+      return
+    }
+
+    if (sentProjects.length > 0) {
+      setActiveSegment('submitted')
+      return
+    }
+
+    setActiveSegment('drafts')
+  }, [activeSegment, draftProjects.length, sentProjects.length])
+
+  async function handleConfirmDelete() {
+    if (!projectPendingDeletion) {
+      return
+    }
+
+    const deleted = await removeProject(projectPendingDeletion.id)
+
+    if (!deleted) {
+      return
+    }
+
+    setSuccessToast('Borrador eliminado correctamente.')
+    setProjectPendingDeletion(null)
+  }
+
+  async function handleCreateProject(values: RequestProjectFormValues) {
+    const project = await createProject(values)
+
+    if (!project) {
+      return
+    }
+
+    setIsCreateModalOpen(false)
+    navigate(`/requests/${project.id}`)
+  }
+
+  const currentSegment = activeSegment ?? 'drafts'
+  const visibleProjects = currentSegment === 'drafts' ? draftProjects : sentProjects
+  const currentEmptyTitle =
+    currentSegment === 'drafts'
+      ? 'No tienes borradores activos.'
+      : 'Todavía no enviaste ningún proyecto.'
+  const currentEmptyDescription =
+    currentSegment === 'drafts'
+      ? 'Cuando crees un proyecto nuevo o dejes uno pendiente, aparecerá aquí para que puedas retomarlo.'
+      : 'Los proyectos enviados y sus estados aparecerán aquí para que puedas hacer seguimiento de todas tus propuestas.'
+
+  return (
+    <>
+      <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-10 lg:pb-24 lg:pt-12">
+      {isLoading ? (
+        <section className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="min-h-[320px] animate-pulse rounded-[0.75rem] bg-sand-200"
+            />
+          ))}
+        </section>
+      ) : null}
+
+      {!isLoading && error ? (
+        <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
+          <h1 className="text-lg font-semibold">No se pudieron cargar tus proyectos</h1>
+          <p className="mt-2 text-sm">{error}</p>
+        </section>
+      ) : null}
+
+      {!isLoading && !error ? (
+        <section className="w-full max-w-[1720px] space-y-8 sm:space-y-10">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+                Mis proyectos
+              </h1>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateModalOpen(true)
+                }}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4 fill-current"
+                >
+                  <path d="M9 4a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4Z" />
+                </svg>
+                Nuevo proyecto
+              </button>
+            </div>
+
+            <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
+              Gestiona tus proyectos y prepara las locaciones que quieras consultar.
+            </p>
+          </div>
+
+          <div className="inline-flex w-full max-w-[34rem] rounded-[1.35rem] border border-white/10 bg-[#171719] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSegment('drafts')
+              }}
+              aria-pressed={currentSegment === 'drafts'}
+              className={`inline-flex min-h-12 flex-1 items-center justify-center rounded-[1rem] px-4 text-sm font-medium transition duration-200 ${
+                currentSegment === 'drafts'
+                  ? 'bg-brand-300 text-brand-950 shadow-[0_10px_24px_rgba(0,0,0,0.18)]'
+                  : 'text-brand-100/72 hover:bg-white/6 hover:text-brand-100'
+              }`}
+            >
+              Borradores ({draftProjects.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSegment('submitted')
+              }}
+              aria-pressed={currentSegment === 'submitted'}
+              className={`inline-flex min-h-12 flex-1 items-center justify-center rounded-[1rem] px-4 text-sm font-medium transition duration-200 ${
+                currentSegment === 'submitted'
+                  ? 'bg-brand-300 text-brand-950 shadow-[0_10px_24px_rgba(0,0,0,0.18)]'
+                  : 'text-brand-100/72 hover:bg-white/6 hover:text-brand-100'
+              }`}
+            >
+              Enviados ({sentProjects.length})
+            </button>
+          </div>
+
+          <div className="relative min-h-[20rem]">
+            <div
+              className="transition-all duration-300 ease-out data-[segment=submitted]:animate-none"
+              key={currentSegment}
+            >
+              <ProjectsSection
+                activeSegment={currentSegment}
+                projects={visibleProjects}
+                emptyTitle={currentEmptyTitle}
+                emptyDescription={currentEmptyDescription}
+                emptyVariant={currentSegment}
+                emptyCtaLabel={currentSegment === 'drafts' ? 'Nuevo proyecto' : undefined}
+                onEmptyCtaClick={
+                  currentSegment === 'drafts'
+                    ? () => {
+                        setIsCreateModalOpen(true)
+                      }
+                    : undefined
+                }
+                onDeleteDraft={(project) => {
+                  setProjectPendingDeletion(project)
+                }}
+              />
+            </div>
           </div>
         </section>
       ) : null}
       </div>
+
+      {isCreateModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/68 px-4 py-4 backdrop-blur-sm transition-opacity duration-200 sm:px-6"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !isCreating) {
+              setIsCreateModalOpen(false)
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-project-modal-title"
+            aria-describedby="create-project-modal-description"
+            className="w-full max-w-3xl rounded-[1.25rem] border border-white/10 bg-[#1B1B1D] p-5 text-brand-100 shadow-[0_24px_80px_rgba(0,0,0,0.38)] transition-all duration-200 sm:p-6 lg:p-7"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-3">
+                <h2
+                  id="create-project-modal-title"
+                  className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
+                >
+                  Nuevo proyecto
+                </h2>
+                <p
+                  id="create-project-modal-description"
+                  className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base"
+                >
+                  Crea un proyecto para organizar las locaciones que quieras consultar.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateModalOpen(false)
+                }}
+                disabled={isCreating}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-brand-100/72 transition hover:bg-white/6 hover:text-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+                aria-label="Cerrar modal"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-6">
+              <RequestProjectForm
+                error={error}
+                isSubmitting={isCreating}
+                onCancel={() => {
+                  setIsCreateModalOpen(false)
+                }}
+                onSubmit={handleCreateProject}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {projectPendingDeletion ? (
         <div
@@ -205,27 +466,6 @@ export function RequestsPage() {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-4">
-                <div
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-400/30 bg-red-500/10 text-red-200"
-                  aria-hidden="true"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 7h16" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                    <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
-                    <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
-                  </svg>
-                </div>
-
                 <div className="space-y-3">
                   <h2
                     id="delete-draft-project-title"
@@ -249,7 +489,7 @@ export function RequestsPage() {
                   setProjectPendingDeletion(null)
                 }}
                 disabled={Boolean(deletingProjectId)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-300 text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-300 text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
                 aria-label="Cerrar modal"
               >
                 ×
@@ -273,7 +513,7 @@ export function RequestsPage() {
                   void handleConfirmDelete()
                 }}
                 disabled={Boolean(deletingProjectId)}
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full bg-red-500 px-5 text-sm font-medium text-white transition hover:bg-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full bg-red-500/18 px-5 text-red-100 transition hover:bg-red-500/28 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {deletingProjectId ? 'Eliminando...' : 'Eliminar'}
               </button>
