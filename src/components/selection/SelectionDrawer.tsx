@@ -134,6 +134,15 @@ export function SelectionDrawer() {
     draftProjects.find((project) => project.id === activeProjectId) ?? null
 
   useEffect(() => {
+    if (!activeProjectId || activeProject) {
+      return
+    }
+
+    resetSelectionFlow()
+    setActiveProjectId(null)
+  }, [activeProject, activeProjectId])
+
+  useEffect(() => {
     if (!isRendered) {
       return
     }
@@ -376,9 +385,11 @@ export function SelectionDrawer() {
                 <span id="selection-drawer-title" className="sr-only">
                   Editor de propuesta
                 </span>
-                <p className="mb-3 font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                  Proyecto actual
-                </p>
+                <div className="mb-3 flex min-h-11 items-center">
+                  <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
+                    Proyecto actual
+                  </p>
+                </div>
                 <ActiveProjectSelect
                   activeProjectId={activeProjectId}
                   projects={draftProjects}

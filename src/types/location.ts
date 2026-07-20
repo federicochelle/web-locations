@@ -91,6 +91,8 @@ export type PublicLocationDetail = {
   title: string
   locationCode: string
   categorySlug: string
+  departmentName: string
+  zoneName: string
   images: PublicLocationDetailImage[]
 }
 

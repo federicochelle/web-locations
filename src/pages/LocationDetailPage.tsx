@@ -1,28 +1,36 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
-import { RequestProjectPickerModal } from '@/components/requests/RequestProjectPickerModal.tsx'
-import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
-import {
-  addLocationToRequestProject,
-  createRequestProject,
-  getMyDraftRequestProjects,
-  getRequestProjectErrorMessage,
-} from '@/services/request-projects.service.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
-import type { RequestProject } from '@/types/request-project.ts'
 import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
 
 function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
+}
+
+function formatLocationPlace(location: PublicLocationDetail) {
+  const departmentName =
+    location.departmentName && !location.departmentName.startsWith('Sin ')
+      ? location.departmentName
+      : null
+  const zoneName =
+    location.zoneName && !location.zoneName.startsWith('Sin ')
+      ? location.zoneName
+      : null
+
+  if (departmentName && zoneName) {
+    return `${departmentName} · ${zoneName}`
+  }
+
+  return departmentName ?? zoneName ?? 'Sin ubicación'
 }
 
 const MAX_SELECTED_IMAGES = 30
@@ -39,18 +47,10 @@ export function LocationDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
-  const [requestNotice, setRequestNotice] = useState<string | null>(null)
-  const [requestActionError, setRequestActionError] = useState<string | null>(null)
-  const [isLoadingDraftProjects, setIsLoadingDraftProjects] = useState(false)
-  const [isCreatingProject, setIsCreatingProject] = useState(false)
-  const [isAddingLocationToProject, setIsAddingLocationToProject] = useState(false)
-  const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false)
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [selectionLimitMessage, setSelectionLimitMessage] = useState<string | null>(null)
-  const [draftProjects, setDraftProjects] = useState<RequestProject[]>([])
-  const requestButtonRef = useRef<HTMLButtonElement | null>(null)
   const { isAuthenticated, loading: authLoading } = useAuth()
   const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
   const { images, addImage, removeImage, isSelected } = useImageSelection()
@@ -137,27 +137,13 @@ export function LocationDetailPage() {
   }, [legacySlug, locationState.pathname, navigate, routeCategorySlug, routeLocationCode])
 
   useEffect(() => {
-    if (!isProjectPickerOpen) {
-      return
-    }
-
-    setRequestNotice(null)
-  }, [isProjectPickerOpen])
-
-  useEffect(() => {
     if (images.length < MAX_SELECTED_IMAGES && selectionLimitMessage) {
       setSelectionLimitMessage(null)
     }
   }, [images.length, selectionLimitMessage])
 
-  function handleRequestIntent() {
-    if (
-      !location ||
-      authLoading ||
-      isLoadingDraftProjects ||
-      isCreatingProject ||
-      isAddingLocationToProject
-    ) {
+  function handleFavoriteIntent() {
+    if (!location || authLoading) {
       return
     }
 
@@ -166,87 +152,7 @@ export function LocationDetailPage() {
       return
     }
 
-    void handleOpenProjectPicker()
-  }
-
-  async function handleOpenProjectPicker() {
-    if (!location) {
-      return
-    }
-
-    try {
-      setIsLoadingDraftProjects(true)
-      setRequestActionError(null)
-      setRequestNotice(null)
-
-      const drafts = await getMyDraftRequestProjects()
-      setDraftProjects(drafts)
-      setIsProjectPickerOpen(true)
-    } catch (requestProjectError) {
-      setRequestActionError(getRequestProjectErrorMessage(requestProjectError))
-      setDraftProjects([])
-      setIsProjectPickerOpen(true)
-    } finally {
-      setIsLoadingDraftProjects(false)
-    }
-  }
-
-  async function handleAddToProject(projectId: string) {
-    if (!location) {
-      return
-    }
-
-    try {
-      setIsAddingLocationToProject(true)
-      setRequestActionError(null)
-      setRequestNotice(null)
-
-      const result = await addLocationToRequestProject(projectId, location.id)
-
-      setRequestNotice(
-        result === 'exists'
-          ? 'Esta locacion ya está en el proyecto.'
-          : 'Locacion agregada al proyecto.',
-      )
-
-      const drafts = await getMyDraftRequestProjects()
-      setDraftProjects(drafts)
-    } catch (requestProjectError) {
-      setRequestActionError(getRequestProjectErrorMessage(requestProjectError))
-    } finally {
-      setIsAddingLocationToProject(false)
-    }
-  }
-
-  async function handleCreateProject(projectTitle: string) {
-    if (!location) {
-      return
-    }
-
-    try {
-      setIsCreatingProject(true)
-      setRequestActionError(null)
-      setRequestNotice(null)
-
-      const project = await createRequestProject({
-        title: projectTitle,
-        message: null,
-      })
-
-      const result = await addLocationToRequestProject(project.id, location.id)
-      const drafts = await getMyDraftRequestProjects()
-
-      setDraftProjects(drafts)
-      setRequestNotice(
-        result === 'exists'
-          ? 'Esta locacion ya está en el proyecto.'
-          : 'Locacion agregada al proyecto.',
-      )
-    } catch (requestProjectError) {
-      setRequestActionError(getRequestProjectErrorMessage(requestProjectError))
-    } finally {
-      setIsCreatingProject(false)
-    }
+    void toggleFavorite({ id: location.id })
   }
 
   function toggleImageSelection(image: PublicLocationDetail['images'][number]) {
@@ -319,31 +225,43 @@ export function LocationDetailPage() {
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto space-y-4 max-w-[1720px]">
             <div className="flex items-center justify-between gap-4">
-              <p className="px-1 font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
-                {formatLocationCode(location.locationCode)}
-              </p>
+              <div className="px-1">
+                <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
+                  {formatLocationCode(location.locationCode)}
+                </p>
+                <p className="mt-2 text-sm text-brand-100/66 sm:text-base">
+                  Ubicación: {formatLocationPlace(location)}
+                </p>
+              </div>
               <div className="flex items-center gap-3">
                 <button
-                  ref={requestButtonRef}
                   type="button"
-                  onClick={handleRequestIntent}
-                  disabled={
-                    authLoading ||
-                    isLoadingDraftProjects ||
-                    isCreatingProject ||
-                    isAddingLocationToProject
-                  }
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  onClick={handleFavoriteIntent}
+                  disabled={authLoading || pendingIds.includes(location.id)}
+                  className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                    favoriteIds.has(location.id)
+                      ? 'border border-white/12 bg-white text-brand-950 hover:bg-brand-100'
+                      : 'bg-brand-500 text-white hover:bg-brand-700'
+                  }`}
                 >
-                  {isLoadingDraftProjects ? 'Cargando proyectos...' : 'Agregar a proyecto'}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="mr-2 h-4.5 w-4.5"
+                    fill={favoriteIds.has(location.id) ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 20.5c-.3 0-.6-.1-.8-.3C7 16.6 4 13.8 4 10.3 4 7.9 5.9 6 8.3 6c1.5 0 2.9.7 3.7 1.9C12.8 6.7 14.2 6 15.7 6 18.1 6 20 7.9 20 10.3c0 3.5-3 6.3-7.2 9.9-.2.2-.5.3-.8.3Z" />
+                  </svg>
+                  {pendingIds.includes(location.id)
+                    ? 'Guardando...'
+                    : favoriteIds.has(location.id)
+                      ? 'Quitar de favoritos'
+                      : 'Agregar a favoritos'}
                 </button>
-                <FavoriteButton
-                  active={favoriteIds.has(location.id)}
-                  loading={pendingIds.includes(location.id)}
-                  onClick={() => {
-                    void toggleFavorite({ id: location.id })
-                  }}
-                />
               </div>
             </div>
             <div aria-live="polite" className="min-h-6 px-1">
@@ -416,32 +334,6 @@ export function LocationDetailPage() {
           </div>
         </section>
       ) : null}
-      <RequestProjectPickerModal
-        isOpen={isProjectPickerOpen}
-        isLoadingProjects={isLoadingDraftProjects}
-        isCreatingProject={isCreatingProject}
-        isAddingLocation={isAddingLocationToProject}
-        projects={draftProjects}
-        error={requestActionError}
-        successMessage={requestNotice}
-        onClose={() => {
-          if (
-            isLoadingDraftProjects ||
-            isCreatingProject ||
-            isAddingLocationToProject
-          ) {
-            return
-          }
-
-          setIsProjectPickerOpen(false)
-          requestButtonRef.current?.focus()
-        }}
-        onAddToProject={handleAddToProject}
-        onCreateProject={handleCreateProject}
-        onViewProject={(projectId) => {
-          navigate(`/requests/${projectId}`)
-        }}
-      />
       <ImageLightbox
         images={
           location?.images.map((image, index) => ({
@@ -470,7 +362,6 @@ export function LocationDetailPage() {
         isOpen={isAuthRequiredModalOpen}
         onClose={() => {
           setIsAuthRequiredModalOpen(false)
-          requestButtonRef.current?.focus()
         }}
         loginState={{
           from: locationState,

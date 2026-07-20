@@ -7,11 +7,10 @@ import { SubmissionResultModal } from '@/components/submissions/SubmissionResult
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
+import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
-  createRequestProject,
   syncRequestProjectSelection,
   submitRequestProject,
-  updateRequestProject,
 } from '@/services/request-projects.service.ts'
 import type { RequestProject } from '@/types/request-project.ts'
 import type {
@@ -105,6 +104,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   } = props
   const navigate = useNavigate()
   const { images, clearSelection } = useImageSelection()
+  const { createProject, updateProject } = useRequestProjects()
   const [step, setStep] = useState<SelectionPdfFlowStep>('form')
   const [values, setValues] = useState<SelectionPdfFormValues>(initialValues)
   const [errors, setErrors] = useState<SelectionPdfFormErrors>({})
@@ -124,6 +124,28 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   )
 
   const hasSelectedImages = images.length > 0
+
+  function renderProjectHeader(disabled = false, compact = false) {
+    return (
+      <div className="min-w-0 flex-1">
+        <div className={`${compact ? 'mb-0' : 'mb-3'} flex min-h-11 items-center`}>
+          <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
+            Proyecto actual
+          </p>
+        </div>
+        <div className={compact ? 'mt-3' : ''}>
+          <ActiveProjectSelect
+            activeProjectId={activeProjectId}
+            projects={draftProjects}
+            isLoading={isLoadingProjects}
+            disabled={disabled}
+            compact
+            onChange={onProjectSelectionChange}
+          />
+        </div>
+      </div>
+    )
+  }
 
   function applyProjectToForm(project: RequestProject | null) {
     if (!project) {
@@ -199,8 +221,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       return null
     }
 
-    setErrors({})
-    setExportError(null)
+      setErrors({})
+      setExportError(null)
 
     const draftPayload = {
       title: values.product.trim(),
@@ -214,13 +236,23 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
     try {
       if (!projectId) {
-        const createdProject = await createRequestProject(draftPayload)
+        const createdProject = await createProject(draftPayload)
+
+        if (!createdProject) {
+          throw new Error('No pudimos guardar el borrador.')
+        }
+
         projectId = createdProject.id
         created = true
         setCreatedProjectId(projectId)
         onPersistedProjectChange(projectId)
       } else {
-        await updateRequestProject(projectId, draftPayload)
+        const updatedProject = await updateProject(projectId, draftPayload)
+
+        if (!updatedProject) {
+          throw new Error('No pudimos guardar el borrador.')
+        }
+
         setCreatedProjectId(projectId)
       }
 
@@ -306,27 +338,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         <ProposalWorkspace
           preview={<SelectionPdfPreview payload={livePreviewPayload} />}
           sidebarTitle="Datos del proyecto"
-          sidebarHeader={
-            <div className="min-w-0">
-              <p className="mb-3 font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                Proyecto actual
-              </p>
-              <ActiveProjectSelect
-                activeProjectId={activeProjectId}
-                projects={draftProjects}
-                isLoading={isLoadingProjects}
-                onChange={onProjectSelectionChange}
-              />
-              {livePreviewPayload.totalLocations > 0 ? (
-                <p className="mt-3 text-sm text-brand-300">
-                  {livePreviewPayload.totalLocations}{' '}
-                  {livePreviewPayload.totalLocations === 1
-                    ? 'locacion guardada'
-                    : 'locaciones guardadas'}
-                </p>
-              ) : null}
-            </div>
-          }
+          sidebarHeader={renderProjectHeader()}
           sidebarBody={
             <div className="space-y-4">
               {draftNotice ? (
@@ -376,26 +388,36 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         />
       ) : step !== 'form' ? (
           <aside className="ml-auto flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] shadow-[-16px_0_48px_rgba(0,0,0,0.32)] sm:w-[min(92vw,460px)]">
-            <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
-              <div className="min-w-0">
-                <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                  {step === 'generating'
-                    ? 'Guardando propuesta'
-                    : step === 'success'
-                      ? 'Propuesta guardada'
-                      : 'No pudimos completar la propuesta'}
-                </h2>
+            <header className="border-b border-white/10 px-4 py-4 sm:px-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-h-11 items-center">
+                    <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
+                      Proyecto actual
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={step === 'generating' || isSuccessModalOpen}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                  aria-label="Cerrar flujo de preparacion"
+                  autoFocus
+                >
+                  ×
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={step === 'generating' || isSuccessModalOpen}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                aria-label="Cerrar flujo de preparacion"
-                autoFocus
-              >
-                ×
-              </button>
+              <div className="mt-3">
+                <ActiveProjectSelect
+                  activeProjectId={activeProjectId}
+                  projects={draftProjects}
+                  isLoading={isLoadingProjects}
+                  disabled={step === 'generating'}
+                  compact
+                  onChange={onProjectSelectionChange}
+                />
+              </div>
             </header>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
