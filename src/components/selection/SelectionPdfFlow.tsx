@@ -52,6 +52,43 @@ const initialValues: SelectionPdfFormValues = {
   tentativeEndDate: '',
 }
 
+function DraftSaveIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.05rem] w-[1.05rem] shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5.5 4.75h10.25l2.75 2.75v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4.5 18.5v-12A1.75 1.75 0 0 1 6.25 4.75Z" />
+      <path d="M8 4.75v5h7v-5" />
+      <path d="M8.25 15.25h7.5" />
+    </svg>
+  )
+}
+
+function SubmitProposalIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.05rem] w-[1.05rem] shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.75 11.75 18.5 5.5 14 19.25l-3.15-4.35-4.1-3.15Z" />
+      <path d="m10.6 14.7 2.6-2.6" />
+    </svg>
+  )
+}
+
 export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const {
     onClose,
@@ -317,8 +354,9 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
                 onClick={() => {
                   void handleSaveDraft()
                 }}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
               >
+                <DraftSaveIcon />
                 Guardar borrador
               </button>
               <button
@@ -327,8 +365,9 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
                   void handleSubmitProposal()
                 }}
                 disabled={!hasSelectedImages}
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
               >
+                <SubmitProposalIcon />
                 Enviar propuesta
               </button>
             </div>

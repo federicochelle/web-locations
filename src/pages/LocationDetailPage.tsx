@@ -5,6 +5,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
 import { RequestProjectPickerModal } from '@/components/requests/RequestProjectPickerModal.tsx'
 import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
+import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
@@ -45,6 +46,8 @@ export function LocationDetailPage() {
   const [isAddingLocationToProject, setIsAddingLocationToProject] = useState(false)
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false)
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [selectionLimitMessage, setSelectionLimitMessage] = useState<string | null>(null)
   const [draftProjects, setDraftProjects] = useState<RequestProject[]>([])
   const requestButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -246,12 +249,7 @@ export function LocationDetailPage() {
     }
   }
 
-  function handleImageSelection(
-    event: MouseEvent<HTMLButtonElement>,
-    image: PublicLocationDetail['images'][number],
-  ) {
-    event.stopPropagation()
-
+  function toggleImageSelection(image: PublicLocationDetail['images'][number]) {
     if (!location) {
       return
     }
@@ -281,6 +279,14 @@ export function LocationDetailPage() {
       selectedAt: new Date().toISOString(),
     })
     setSelectionLimitMessage(null)
+  }
+
+  function handleImageSelection(
+    event: MouseEvent<HTMLButtonElement>,
+    image: PublicLocationDetail['images'][number],
+  ) {
+    event.stopPropagation()
+    toggleImageSelection(image)
   }
 
   if (notFound) {
@@ -354,8 +360,13 @@ export function LocationDetailPage() {
                   const imageIsSelected = isSelected(imageSelectionKey)
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={`${image.url}-${index}`}
+                      onClick={() => {
+                        setLightboxIndex(index)
+                        setIsLightboxOpen(true)
+                      }}
                       className="group relative overflow-hidden rounded-[1.75rem]"
                     >
                       <div
@@ -365,7 +376,7 @@ export function LocationDetailPage() {
                             : 'bg-black/0 md:group-hover:bg-black/18'
                         }`}
                       />
-                      <div className="absolute left-3 top-3 z-10">
+                      <div className="absolute right-3 top-3 z-10">
                         <button
                           type="button"
                           aria-pressed={imageIsSelected}
@@ -395,7 +406,7 @@ export function LocationDetailPage() {
                         className="aspect-[16/13] bg-cover bg-center lg:aspect-[16/12]"
                         style={{ backgroundImage: `url(${image.url})` }}
                       />
-                    </div>
+                    </button>
                   )
                 })
               ) : (
@@ -429,6 +440,30 @@ export function LocationDetailPage() {
         onCreateProject={handleCreateProject}
         onViewProject={(projectId) => {
           navigate(`/requests/${projectId}`)
+        }}
+      />
+      <ImageLightbox
+        images={
+          location?.images.map((image, index) => ({
+            id: image.id,
+            url: image.url,
+            alt: `${formatLocationCode(location.locationCode)} · imagen ${index + 1}`,
+            isSelected: isSelected(`${location.id}:${image.url}`),
+          })) ?? []
+        }
+        initialIndex={lightboxIndex}
+        isOpen={isLightboxOpen}
+        onToggleSelect={(lightboxImage) => {
+          const sourceImage = location?.images.find((image) => image.id === lightboxImage.id)
+
+          if (!sourceImage) {
+            return
+          }
+
+          toggleImageSelection(sourceImage)
+        }}
+        onClose={() => {
+          setIsLightboxOpen(false)
         }}
       />
       <AuthRequiredModal

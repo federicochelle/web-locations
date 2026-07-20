@@ -51,7 +51,7 @@ export function RequestProjectLocationsList({
   }
 
   return (
-    <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <section className="grid gap-4 lg:grid-cols-3">
       {locations.map((item) => (
         <RequestProjectLocationCard
           key={item.id}
