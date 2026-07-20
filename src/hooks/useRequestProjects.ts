@@ -1,109 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useContext } from 'react'
 
-import { useAuth } from '@/hooks/useAuth.ts'
-import {
-  createRequestProject,
-  deleteRequestProject,
-  getMyRequestProjects,
-  getRequestProjectErrorMessage,
-} from '@/services/request-projects.service.ts'
-import type { RequestProject } from '@/types/request-project.ts'
-
-type CreateRequestProjectValues = {
-  title: string
-  message: string
-}
+import { RequestProjectsContext } from '@/providers/RequestProjectsContext.ts'
 
 export function useRequestProjects() {
-  const { isAuthenticated, loading: authLoading } = useAuth()
-  const [projects, setProjects] = useState<RequestProject[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const context = useContext(RequestProjectsContext)
 
-  const refreshProjects = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      const nextProjects = await getMyRequestProjects()
-      setProjects(nextProjects)
-    } catch (loadError) {
-      setError(getRequestProjectErrorMessage(loadError))
-      setProjects([])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (authLoading) {
-      return
-    }
-
-    if (!isAuthenticated) {
-      setProjects([])
-      setError(null)
-      setIsLoading(false)
-      return
-    }
-
-    void refreshProjects()
-  }, [authLoading, isAuthenticated, refreshProjects])
-
-  const createProject = useCallback(async ({ title, message }: CreateRequestProjectValues) => {
-    try {
-      setIsCreating(true)
-      setError(null)
-
-      const nextProject = await createRequestProject({
-        title,
-        message: message.trim() || null,
-      })
-
-      setProjects((currentProjects) => [nextProject, ...currentProjects])
-      return nextProject
-    } catch (createError) {
-      setError(getRequestProjectErrorMessage(createError))
-      return null
-    } finally {
-      setIsCreating(false)
-    }
-  }, [])
-
-  const removeProject = useCallback(async (projectId: string) => {
-    try {
-      setDeletingProjectId(projectId)
-      setError(null)
-
-      await deleteRequestProject(projectId)
-      setProjects((currentProjects) =>
-        currentProjects.filter((project) => project.id !== projectId),
-      )
-      return true
-    } catch (deleteError) {
-      setError(getRequestProjectErrorMessage(deleteError))
-      return false
-    } finally {
-      setDeletingProjectId(null)
-    }
-  }, [])
-
-  const draftProjects = useMemo(
-    () => projects.filter((project) => project.status === 'draft'),
-    [projects],
-  )
-
-  return {
-    projects,
-    draftProjects,
-    isLoading,
-    isCreating,
-    deletingProjectId,
-    error,
-    refreshProjects,
-    createProject,
-    removeProject,
+  if (!context) {
+    throw new Error(
+      'useRequestProjects debe usarse dentro de RequestProjectsProvider.',
+    )
   }
+
+  return context
 }

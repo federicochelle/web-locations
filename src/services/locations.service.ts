@@ -291,6 +291,12 @@ export async function getLocationByLocationCode(publicSlug: string) {
         title,
         location_code,
         published,
+        departments (
+          name
+        ),
+        zones (
+          name
+        ),
         categories (
           slug
         ),
@@ -319,6 +325,12 @@ export async function getLocationByLocationCode(publicSlug: string) {
           title,
           location_code,
           published,
+          departments (
+            name
+          ),
+          zones (
+            name
+          ),
           categories (
             slug
           ),
@@ -363,6 +375,8 @@ export async function getLocationByLocationCode(publicSlug: string) {
       title: fallbackLocationCode,
       locationCode: fallbackLocationCode,
       categorySlug: fallbackCategory.slug.trim(),
+      departmentName: fallbackRow.departments?.name?.trim() || 'Sin departamento',
+      zoneName: fallbackRow.zones?.name?.trim() || 'Sin zona',
       images: fallbackImages,
     } satisfies PublicLocationDetail
   }
@@ -389,6 +403,8 @@ export async function getLocationByLocationCode(publicSlug: string) {
     title: publicLocationCode,
     locationCode: publicLocationCode,
     categorySlug: category.slug.trim(),
+    departmentName: row.departments?.name?.trim() || 'Sin departamento',
+    zoneName: row.zones?.name?.trim() || 'Sin zona',
     images,
   } satisfies PublicLocationDetail
 }
