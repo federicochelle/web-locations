@@ -225,44 +225,51 @@ export function LocationDetailPage() {
       {!isLoading && !error && location ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto space-y-4 max-w-[1720px]">
-            <div className="flex items-center justify-between gap-4">
-              <div className="px-1">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1 px-1">
                 <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
                   {formatLocationCode(location.locationCode)}
                 </p>
                 <p className="mt-2 text-sm text-brand-100/66 sm:text-base">
                   Ubicación: {formatLocationPlace(location)}
                 </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleFavoriteIntent}
-                  disabled={authLoading || pendingIds.includes(location.id)}
-                  className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70 ${
-                    favoriteIds.has(location.id)
-                      ? 'border border-white/12 bg-white text-brand-950 hover:bg-brand-100'
-                      : 'bg-brand-500 text-white hover:bg-brand-700'
-                  }`}
-                >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    className="mr-2 h-4.5 w-4.5"
-                    fill={favoriteIds.has(location.id) ? 'currentColor' : 'none'}
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleFavoriteIntent}
+                    disabled={authLoading || pendingIds.includes(location.id)}
+                    className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                      favoriteIds.has(location.id)
+                        ? 'border border-white/12 bg-white text-brand-950 hover:bg-brand-100'
+                        : 'bg-brand-500 text-white hover:bg-brand-700'
+                    }`}
                   >
-                    <path d="M12 20.5c-.3 0-.6-.1-.8-.3C7 16.6 4 13.8 4 10.3 4 7.9 5.9 6 8.3 6c1.5 0 2.9.7 3.7 1.9C12.8 6.7 14.2 6 15.7 6 18.1 6 20 7.9 20 10.3c0 3.5-3 6.3-7.2 9.9-.2.2-.5.3-.8.3Z" />
-                  </svg>
-                  {pendingIds.includes(location.id)
-                    ? 'Guardando...'
-                    : favoriteIds.has(location.id)
-                      ? 'Quitar de favoritos'
-                      : 'Agregar a favoritos'}
-                </button>
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="mr-2 h-4.5 w-4.5"
+                      fill={favoriteIds.has(location.id) ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 20.5c-.3 0-.6-.1-.8-.3C7 16.6 4 13.8 4 10.3 4 7.9 5.9 6 8.3 6c1.5 0 2.9.7 3.7 1.9C12.8 6.7 14.2 6 15.7 6 18.1 6 20 7.9 20 10.3c0 3.5-3 6.3-7.2 9.9-.2.2-.5.3-.8.3Z" />
+                    </svg>
+                    {pendingIds.includes(location.id)
+                      ? 'Guardando...'
+                      : favoriteIds.has(location.id)
+                        ? 'Quitar de favoritos'
+                        : 'Agregar a favoritos'}
+                  </button>
+                </div>
+              </div>
+              <div className="w-full shrink-0 lg:w-auto">
+                <LocationApproxMap
+                  approxLat={location.approxLat}
+                  approxLng={location.approxLng}
+                  approxRadius={location.approxRadius}
+                />
               </div>
             </div>
             <div aria-live="polite" className="min-h-6 px-1">
@@ -272,13 +279,6 @@ export function LocationDetailPage() {
                 </p>
               ) : null}
             </div>
-            {location.approxLat !== null && location.approxLng !== null ? (
-              <LocationApproxMap
-                approxLat={location.approxLat}
-                approxLng={location.approxLng}
-                approxRadius={location.approxRadius}
-              />
-            ) : null}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {location.images.length > 0 ? (
                 location.images.map((image, index) => {

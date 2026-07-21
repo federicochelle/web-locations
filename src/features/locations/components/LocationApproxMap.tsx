@@ -25,18 +25,30 @@ const LOCATION_APPROX_MAP_STYLES: google.maps.MapTypeStyle[] = [
 ]
 
 type LocationApproxMapProps = {
-  approxLat: number
-  approxLng: number
+  approxLat: number | null
+  approxLng: number | null
   approxRadius: number | null
 }
 
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ?? ''
+
+function LocationApproxMapPlaceholder({ message }: { message: string }) {
+  return (
+    <div className="flex h-[15rem] w-full max-w-[26rem] items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/6 px-6 text-center text-sm text-brand-100/72 shadow-[0_18px_34px_rgba(0,0,0,0.12)]">
+      {message}
+    </div>
+  )
+}
 
 export function LocationApproxMap({
   approxLat,
   approxLng,
   approxRadius,
 }: LocationApproxMapProps) {
+  if (approxLat === null || approxLng === null) {
+    return <LocationApproxMapPlaceholder message="Mapa aproximado no disponible." />
+  }
+
   const center = {
     lat: approxLat,
     lng: approxLng,
@@ -46,23 +58,13 @@ export function LocationApproxMap({
 
   if (!googleMapsApiKey) {
     return (
-      <div className="flex aspect-[16/9] items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/6 px-6 text-center text-sm text-brand-100/72">
-        Configura <code className="mx-1">VITE_GOOGLE_MAPS_API_KEY</code> para mostrar la zona aproximada.
-      </div>
+      <LocationApproxMapPlaceholder message="Configura VITE_GOOGLE_MAPS_API_KEY para mostrar la zona aproximada." />
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#EEE7DE] shadow-[0_20px_44px_rgba(0,0,0,0.12)]">
-      <div className="border-b border-black/6 px-5 py-4 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-          Zona aproximada
-        </p>
-        <p className="mt-1 text-sm text-sand-700">
-          Referencia visual estimada dentro de un radio de {radius} m.
-        </p>
-      </div>
-      <div className="aspect-[16/9] min-h-[18rem]">
+    <div className="w-full max-w-[26rem] overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#EEE7DE] shadow-[0_18px_34px_rgba(0,0,0,0.18)]">
+      <div className="h-[15rem] w-full">
         <APIProvider apiKey={googleMapsApiKey} libraries={GOOGLE_MAP_LIBRARIES}>
           <Map
             defaultCenter={center}
