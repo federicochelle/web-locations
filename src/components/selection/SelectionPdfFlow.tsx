@@ -30,6 +30,7 @@ import {
 
 type SelectionPdfFlowProps = {
   onClose: () => void
+  onSuccessComplete: () => void
   isDetached: boolean
   onStartProcessing: () => void
   onRestoreAfterError: () => void
@@ -91,6 +92,7 @@ function SubmitProposalIcon() {
 export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const {
     onClose,
+    onSuccessComplete,
     isDetached,
     onStartProcessing,
     onRestoreAfterError,
@@ -124,6 +126,18 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   )
 
   const hasSelectedImages = images.length > 0
+
+  function resetFlowState() {
+    setStep('form')
+    setProgress(null)
+    setExportResult(null)
+    setFailedImages([])
+    setExportError(null)
+    setCreatedProjectId(null)
+    setProjectSavedBeforeError(false)
+    setIsLoadingModalOpen(false)
+    setIsSuccessModalOpen(false)
+  }
 
   function renderProjectHeader(disabled = false, compact = false) {
     return (
@@ -310,6 +324,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
       downloadSelectionPdf(result.blob, result.fileName)
       await submitRequestProject(draftResult.projectId)
+      await onProjectsRefresh()
       setExportResult(result)
       setFailedImages(result.failedImages)
       clearSelection()
@@ -327,8 +342,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   }
 
   function handleSuccessModalClose() {
-    setIsSuccessModalOpen(false)
-    onClose()
+    resetFlowState()
+    onSuccessComplete()
     navigate('/requests')
   }
 
