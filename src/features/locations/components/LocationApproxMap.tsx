@@ -46,14 +46,14 @@ export function LocationApproxMap({
 
   if (!googleMapsApiKey) {
     return (
-      <div className="flex h-[15.5rem] w-full max-w-[31rem] items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/6 px-6 text-center text-sm text-brand-100/72 shadow-[0_18px_34px_rgba(0,0,0,0.12)]">
+      <div className="flex h-[15.5rem] w-full items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/6 px-6 text-center text-sm text-brand-100/72 shadow-[0_18px_34px_rgba(0,0,0,0.12)]">
         Configura <code className="mx-1">VITE_GOOGLE_MAPS_API_KEY</code> para mostrar la zona aproximada.
       </div>
     )
   }
 
   return (
-    <div className="w-full max-w-[31rem] overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#EEE7DE] p-1 shadow-[0_18px_34px_rgba(0,0,0,0.18)]">
+    <div className="h-[15.5rem] w-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#EEE7DE] p-1 shadow-[0_18px_34px_rgba(0,0,0,0.18)]">
       <div className="h-[15.5rem] w-full overflow-hidden rounded-[1.2rem]">
         <APIProvider apiKey={googleMapsApiKey} libraries={GOOGLE_MAP_LIBRARIES}>
           <Map
