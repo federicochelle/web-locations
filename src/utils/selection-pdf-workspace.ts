@@ -1,4 +1,8 @@
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
+import {
+  getRequestProjectById,
+  getRequestProjectLocations,
+} from '@/services/request-projects.service.ts'
 import type {
   RequestProject,
   RequestProjectLocation,
@@ -172,10 +176,41 @@ export function buildSelectionPdfPayloadFromImages(
 }
 
 export function buildSelectionPdfPayloadFromProject(
+  projectId: string,
+): Promise<SelectionPdfPayload>
+export function buildSelectionPdfPayloadFromProject(
   values: SelectionPdfFormValues,
   locations: RequestProjectLocation[],
   generatedAt: string,
-): SelectionPdfPayload {
+): SelectionPdfPayload
+export function buildSelectionPdfPayloadFromProject(
+  projectIdOrValues: string | SelectionPdfFormValues,
+  locations?: RequestProjectLocation[],
+  generatedAt?: string,
+): Promise<SelectionPdfPayload> | SelectionPdfPayload {
+  if (typeof projectIdOrValues === 'string') {
+    return Promise.all([
+      getRequestProjectById(projectIdOrValues),
+      getRequestProjectLocations(projectIdOrValues),
+    ]).then(([project, projectLocations]) => {
+      if (!project) {
+        throw new Error('No encontramos la solicitud indicada.')
+      }
+
+      const values = mapRequestProjectToPdfFormValues(project)
+
+      return buildSelectionPdfPayloadFromProject(
+        values,
+        projectLocations,
+        project.updatedAt || project.createdAt,
+      )
+    })
+  }
+
+  if (!locations || !generatedAt) {
+    throw new Error('Faltan datos para reconstruir el PDF del proyecto.')
+  }
+
   const pdfLocations: SelectionPdfLocation[] = locations.map((location) => ({
     locationId: location.location.id,
     locationCode: location.location.locationCode,
@@ -206,12 +241,12 @@ export function buildSelectionPdfPayloadFromProject(
 
   return {
     project: {
-      product: normalizeValue(values.product),
-      productionCompany: normalizeValue(values.productionCompany),
-      locationManager: normalizeValue(values.locationManager),
-      email: normalizeValue(values.email),
-      tentativeStartDate: normalizeValue(values.tentativeStartDate),
-      tentativeEndDate: normalizeValue(values.tentativeEndDate),
+      product: normalizeValue(projectIdOrValues.product),
+      productionCompany: normalizeValue(projectIdOrValues.productionCompany),
+      locationManager: normalizeValue(projectIdOrValues.locationManager),
+      email: normalizeValue(projectIdOrValues.email),
+      tentativeStartDate: normalizeValue(projectIdOrValues.tentativeStartDate),
+      tentativeEndDate: normalizeValue(projectIdOrValues.tentativeEndDate),
     },
     generatedAt,
     totalImages,
