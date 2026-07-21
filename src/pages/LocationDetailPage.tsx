@@ -225,7 +225,7 @@ export function LocationDetailPage() {
       {!isLoading && !error && location ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto space-y-4 max-w-[1720px]">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
               <div className="min-w-0 flex-1 px-1">
                 <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
                   {formatLocationCode(location.locationCode)}
@@ -265,7 +265,7 @@ export function LocationDetailPage() {
                 </div>
               </div>
               {location.approxLat !== null && location.approxLng !== null ? (
-                <div className="w-full shrink-0 lg:w-auto">
+                <div className="w-full lg:w-[31rem] lg:flex-none">
                   <LocationApproxMap
                     approxLat={location.approxLat}
                     approxLng={location.approxLng}
