@@ -58,9 +58,6 @@ export type Location = {
   category: Category
   department: Department
   zone: Zone
-  publicLat?: number | null
-  publicLng?: number | null
-  publicRadius?: number
   images: LocationImage[]
   features: Feature[]
 }
