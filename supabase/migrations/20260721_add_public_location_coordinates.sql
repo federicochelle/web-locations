@@ -1,15 +1,13 @@
 alter table public.locations
-  add column public_lat double precision,
-  add column public_lng double precision,
-  add column public_radius integer not null default 700,
-  add constraint locations_public_lat_range_check
-    check (public_lat is null or (public_lat >= -90 and public_lat <= 90)),
-  add constraint locations_public_lng_range_check
-    check (public_lng is null or (public_lng >= -180 and public_lng <= 180)),
-  add constraint locations_public_radius_positive_check
-    check (public_radius > 0),
-  add constraint locations_public_coordinates_pair_check
+  add column approx_radius integer not null default 700,
+  add constraint locations_approx_lat_range_check
+    check (approx_lat is null or (approx_lat >= -90 and approx_lat <= 90)),
+  add constraint locations_approx_lng_range_check
+    check (approx_lng is null or (approx_lng >= -180 and approx_lng <= 180)),
+  add constraint locations_approx_radius_positive_check
+    check (approx_radius > 0),
+  add constraint locations_approx_coordinates_pair_check
     check (
-      (public_lat is null and public_lng is null)
-      or (public_lat is not null and public_lng is not null)
+      (approx_lat is null and approx_lng is null)
+      or (approx_lat is not null and approx_lng is not null)
     );
