@@ -35,7 +35,7 @@ export function PublicLayout() {
             backgroundSize: 'min(72vw, 760px)',
           }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.04),transparent_34%),linear-gradient(180deg,rgba(10,8,7,0.92),rgba(10,8,7,0.84)_24%,rgba(10,8,7,0.88)_72%,rgba(10,8,7,0.96))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.07),transparent_38%),linear-gradient(180deg,rgba(10,8,7,0.78),rgba(10,8,7,0.66)_24%,rgba(10,8,7,0.72)_72%,rgba(10,8,7,0.84))]" />
       </div>
       <ScrollManager />
       <Header />
