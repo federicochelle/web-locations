@@ -93,6 +93,9 @@ export type PublicLocationDetail = {
   categorySlug: string
   departmentName: string
   zoneName: string
+  approxLat: number | null
+  approxLng: number | null
+  approxRadius: number | null
   images: PublicLocationDetailImage[]
 }
 

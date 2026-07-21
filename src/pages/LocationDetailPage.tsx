@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
+import { LocationApproxMap } from '@/features/locations/components/LocationApproxMap.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
@@ -271,6 +272,13 @@ export function LocationDetailPage() {
                 </p>
               ) : null}
             </div>
+            {location.approxLat !== null && location.approxLng !== null ? (
+              <LocationApproxMap
+                approxLat={location.approxLat}
+                approxLng={location.approxLng}
+                approxRadius={location.approxRadius}
+              />
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {location.images.length > 0 ? (
                 location.images.map((image, index) => {
