@@ -13,6 +13,10 @@ type RequestProjectLocationRow = {
   location_id?: string | null
   sort_order?: number | null
   created_at?: string | null
+  location_code_snapshot?: string | null
+  location_title_snapshot?: string | null
+  category_slug_snapshot?: string | null
+  cover_image_url_snapshot?: string | null
   request_project_location_images?: RequestProjectSelectionImageRow[] | null
   locations?: RequestProjectLocationLocationRow | RequestProjectLocationLocationRow[] | null
 }
@@ -56,6 +60,7 @@ type RequestProjectSelectionImageRow = {
 
 type RequestProjectLocationLocationRow = {
   id: string
+  title?: string | null
   location_code?: string | null
   published?: boolean | null
   categories?: RelatedNameRow
@@ -70,6 +75,10 @@ type RequestProjectLocationRelationRow = {
   sort_order?: number | null
   created_at?: string | null
   location_id?: string | null
+  location_code_snapshot?: string | null
+  location_title_snapshot?: string | null
+  category_slug_snapshot?: string | null
+  cover_image_url_snapshot?: string | null
   request_project_location_images?: RequestProjectSelectionImageRow[] | null
   locations?:
     | RequestProjectLocationLocationRow
@@ -107,6 +116,10 @@ const REQUEST_PROJECT_SELECT = `
     location_id,
     sort_order,
     created_at,
+    location_code_snapshot,
+    location_title_snapshot,
+    category_slug_snapshot,
+    cover_image_url_snapshot,
     request_project_location_images (
       id,
       location_image_id,
@@ -116,6 +129,7 @@ const REQUEST_PROJECT_SELECT = `
     ),
     locations (
       id,
+      title,
       location_code,
       published,
       categories (
@@ -227,16 +241,24 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
   const firstLocationCoverImage = sortImages(firstLocation?.location_images).find((image) =>
     Boolean(image.url),
   )
+  const firstLocationCode =
+    firstLocationRow?.location_code_snapshot?.trim() ||
+    firstLocation?.location_code?.trim() ||
+    firstLocation?.id
+  const firstLocationCategorySlug =
+    firstLocationRow?.category_slug_snapshot?.trim() ||
+    (getSingleRelation(firstLocation?.categories)?.slug ?? null)
   const firstLocationCard = firstLocation
     ? mapPublicLocationCard({
         id: firstLocation.id,
-        locationCode: firstLocation.location_code ?? firstLocation.id,
-        categorySlug: getSingleRelation(firstLocation.categories)?.slug ?? null,
+        locationCode: firstLocationCode,
+        categorySlug: firstLocationCategorySlug,
         categoryName: getRelatedName(firstLocation.categories),
         departmentName: getRelatedName(firstLocation.departments),
         zoneName: getRelatedName(firstLocation.zones),
         coverImageUrl:
           firstSelectedImage?.image_url_snapshot ??
+          firstLocationRow?.cover_image_url_snapshot ??
           firstLocationCoverImage?.url ??
           null,
         coverImageAlt: 'Imagen de locacion',
@@ -268,22 +290,36 @@ function mapRequestProjectLocation(
 ): RequestProjectLocation | null {
   const location = getSingleRelation(row.locations)
 
-  if (!location || location.published === false) {
+  if (!location) {
     return null
   }
 
   const coverImage = sortImages(location.location_images).find((image) =>
     Boolean(image.url),
   )
+  const locationCode =
+    row.location_code_snapshot?.trim() ||
+    location.location_code ||
+    location.id
+  const locationTitle =
+    row.location_title_snapshot?.trim() ||
+    location.title?.trim() ||
+    locationCode
+  const categorySlug =
+    row.category_slug_snapshot?.trim() ||
+    (getSingleRelation(location.categories)?.slug ?? null)
+  const coverImageUrl =
+    row.cover_image_url_snapshot?.trim() ||
+    (coverImage?.url ?? null)
 
   const locationCard = mapPublicLocationCard({
     id: location.id,
-    locationCode: location.location_code ?? location.id,
-    categorySlug: getSingleRelation(location.categories)?.slug ?? null,
+    locationCode,
+    categorySlug,
     categoryName: getRelatedName(location.categories),
     departmentName: getRelatedName(location.departments),
     zoneName: getRelatedName(location.zones),
-    coverImageUrl: coverImage?.url ?? null,
+    coverImageUrl,
     coverImageAlt: 'Imagen de locacion',
     features: [],
   })
@@ -309,7 +345,7 @@ function mapRequestProjectLocation(
     location: {
       id: locationCard.id,
       slug: locationCard.slug,
-      title: locationCard.title,
+      title: locationTitle,
       locationCode: locationCard.locationCode,
       categorySlug: locationCard.categorySlug,
       categoryName: locationCard.categoryName,
@@ -490,6 +526,10 @@ export async function getRequestProjectLocations(projectId: string) {
         sort_order,
         created_at,
         location_id,
+        location_code_snapshot,
+        location_title_snapshot,
+        category_slug_snapshot,
+        cover_image_url_snapshot,
         request_project_location_images (
           id,
           location_image_id,
@@ -499,6 +539,7 @@ export async function getRequestProjectLocations(projectId: string) {
         ),
         locations!inner (
           id,
+          title,
           location_code,
           published,
           categories (
@@ -570,6 +611,9 @@ function groupSelectionImagesByLocation(images: SelectedLocationImage[]) {
     string,
     {
       locationId: string
+      locationCode: string
+      locationTitle: string
+      categorySlug: string
       images: SelectedLocationImage[]
     }
   >()
@@ -584,6 +628,9 @@ function groupSelectionImagesByLocation(images: SelectedLocationImage[]) {
 
     groupedImages.set(image.locationId, {
       locationId: image.locationId,
+      locationCode: image.locationCode,
+      locationTitle: image.locationTitle,
+      categorySlug: image.categorySlug,
       images: [image],
     })
   }
@@ -642,6 +689,10 @@ export async function syncRequestProjectSelection(
         request_project_id: projectId,
         location_id: location.locationId,
         sort_order: index,
+        location_code_snapshot: location.locationCode,
+        location_title_snapshot: location.locationTitle,
+        category_slug_snapshot: location.categorySlug || null,
+        cover_image_url_snapshot: location.images[0]?.imageUrl ?? null,
       })),
       {
         onConflict: 'request_project_id,location_id',

@@ -7,14 +7,18 @@ import { RequestProjectFavoritesModal } from '@/components/requests/RequestProje
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
-import type { SelectionPdfFormErrors, SelectionPdfFormValues } from '@/types/selection-pdf.ts'
+import type {
+  SelectionPdfFormErrors,
+  SelectionPdfFormValues,
+  SelectionPdfPayload,
+} from '@/types/selection-pdf.ts'
 import {
   createSelectionPdf,
   downloadSelectionPdf,
 } from '@/utils/selection-pdf-exporter.ts'
 import {
-  buildRequestProjectMessageFromPdfForm,
   buildSelectionPdfPayloadFromProject,
+  buildRequestProjectMessageFromPdfForm,
   mapRequestProjectToPdfFormValues,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
@@ -180,16 +184,48 @@ export function RequestDetailPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
+  const [pdfPayload, setPdfPayload] = useState<SelectionPdfPayload | null>(null)
 
   usePageTitle(project?.title ?? 'Detalle de proyecto')
 
   useEffect(() => {
     if (!project) {
+      setPdfPayload(null)
       return
     }
 
     setValues(mapRequestProjectToPdfFormValues(project))
   }, [project])
+
+  useEffect(() => {
+    if (!id || !project) {
+      setPdfPayload(null)
+      return
+    }
+
+    const projectId = id
+    let isCancelled = false
+
+    async function loadPdfPayload() {
+      try {
+        const nextPayload = await buildSelectionPdfPayloadFromProject(projectId)
+
+        if (!isCancelled) {
+          setPdfPayload(nextPayload)
+        }
+      } catch {
+        if (!isCancelled) {
+          setPdfPayload(null)
+        }
+      }
+    }
+
+    void loadPdfPayload()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [id, project, locations])
 
   useEffect(() => {
     const notice =
@@ -232,15 +268,6 @@ export function RequestDetailPage() {
   }
 
   const isDraft = project?.status === 'draft'
-  const pdfPayload =
-    project
-      ? buildSelectionPdfPayloadFromProject(
-          values,
-          locations,
-          project.updatedAt || project.createdAt,
-        )
-      : null
-
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
     value: string,
