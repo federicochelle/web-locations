@@ -305,12 +305,13 @@ export async function getLocationByLocationCode(publicSlug: string) {
     .from('locations')
     .select(
       `
-        id,
-        slug,
-        title,
-        location_code,
-        approx_lat,
-        approx_lng,
+      id,
+      slug,
+      title,
+      description,
+      location_code,
+      approx_lat,
+      approx_lng,
         approx_radius,
         published,
         departments (
@@ -345,6 +346,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
           id,
           slug,
           title,
+          description,
           location_code,
           approx_lat,
           approx_lng,
@@ -398,6 +400,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
       id: fallbackRow.id,
       slug: fallbackSlug,
       title: fallbackLocationCode,
+      description: fallbackRow.description?.trim() || null,
       locationCode: fallbackLocationCode,
       categorySlug: fallbackCategory.slug.trim(),
       departmentName: fallbackRow.departments?.name?.trim() || 'Sin departamento',
@@ -429,6 +432,7 @@ export async function getLocationByLocationCode(publicSlug: string) {
     id: row.id,
     slug: normalizedSlug,
     title: publicLocationCode,
+    description: row.description?.trim() || null,
     locationCode: publicLocationCode,
     categorySlug: category.slug.trim(),
     departmentName: row.departments?.name?.trim() || 'Sin departamento',
