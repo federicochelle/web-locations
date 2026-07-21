@@ -10,28 +10,10 @@ import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
-import type { PublicLocationDetail } from '@/types/location.ts'
 import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
 
 function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
-}
-
-function formatLocationPlace(location: PublicLocationDetail) {
-  const departmentName =
-    location.departmentName && !location.departmentName.startsWith('Sin ')
-      ? location.departmentName
-      : null
-  const zoneName =
-    location.zoneName && !location.zoneName.startsWith('Sin ')
-      ? location.zoneName
-      : null
-
-  if (departmentName && zoneName) {
-    return `${departmentName} · ${zoneName}`
-  }
-
-  return departmentName ?? zoneName ?? 'Sin ubicación'
 }
 
 const MAX_SELECTED_IMAGES = 30
@@ -227,18 +209,22 @@ export function LocationDetailPage() {
           <div className="mx-auto space-y-4 max-w-[1720px]">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
               <div className="min-w-0 flex-1 px-1">
-                <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
-                  {formatLocationCode(location.locationCode)}
-                </p>
-                <p className="mt-2 text-sm text-brand-100/66 sm:text-base">
-                  Ubicación: {formatLocationPlace(location)}
-                </p>
-                <div className="mt-4 flex items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
+                    {formatLocationCode(location.locationCode)}
+                  </p>
                   <button
                     type="button"
                     onClick={handleFavoriteIntent}
                     disabled={authLoading || pendingIds.includes(location.id)}
-                    className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                    aria-label={
+                      pendingIds.includes(location.id)
+                        ? 'Guardando favorito'
+                        : favoriteIds.has(location.id)
+                          ? 'Quitar de favoritos'
+                          : 'Agregar a favoritos'
+                    }
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-70 sm:h-10 sm:w-10 ${
                       favoriteIds.has(location.id)
                         ? 'border border-white/12 bg-white text-brand-950 hover:bg-brand-100'
                         : 'bg-brand-500 text-white hover:bg-brand-700'
@@ -247,7 +233,7 @@ export function LocationDetailPage() {
                     <svg
                       aria-hidden="true"
                       viewBox="0 0 24 24"
-                      className="mr-2 h-4.5 w-4.5"
+                      className="h-5.5 w-5.5"
                       fill={favoriteIds.has(location.id) ? 'currentColor' : 'none'}
                       stroke="currentColor"
                       strokeWidth="1.8"
@@ -256,16 +242,16 @@ export function LocationDetailPage() {
                     >
                       <path d="M12 20.5c-.3 0-.6-.1-.8-.3C7 16.6 4 13.8 4 10.3 4 7.9 5.9 6 8.3 6c1.5 0 2.9.7 3.7 1.9C12.8 6.7 14.2 6 15.7 6 18.1 6 20 7.9 20 10.3c0 3.5-3 6.3-7.2 9.9-.2.2-.5.3-.8.3Z" />
                     </svg>
-                    {pendingIds.includes(location.id)
-                      ? 'Guardando...'
-                      : favoriteIds.has(location.id)
-                        ? 'Quitar de favoritos'
-                        : 'Agregar a favoritos'}
                   </button>
                 </div>
+                {location.description ? (
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-brand-100/78 sm:text-base">
+                    {location.description}
+                  </p>
+                ) : null}
               </div>
               {location.approxLat !== null && location.approxLng !== null ? (
-                <div className="w-full lg:w-[31rem] lg:flex-none">
+                <div className="w-full lg:w-[28rem] lg:flex-none">
                   <LocationApproxMap
                     approxLat={location.approxLat}
                     approxLng={location.approxLng}

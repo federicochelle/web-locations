@@ -89,6 +89,7 @@ export type PublicLocationDetail = {
   id: string
   slug: string
   title: string
+  description: string | null
   locationCode: string
   categorySlug: string
   departmentName: string
