@@ -7,6 +7,7 @@ import { RequestProjectFavoritesModal } from '@/components/requests/RequestProje
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
+import { syncRequestProjectPdfPayloadSnapshot } from '@/services/request-projects.service.ts'
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
@@ -361,6 +362,7 @@ export function RequestDetailPage() {
     setSuccessMessage(null)
 
     try {
+      await syncRequestProjectPdfPayloadSnapshot(project.id, pdfPayload)
       const result = await createSelectionPdf(pdfPayload)
       downloadSelectionPdf(result.blob, result.fileName)
       setSuccessMessage('El PDF se descargo correctamente.')

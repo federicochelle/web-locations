@@ -133,14 +133,40 @@ export function SelectionDrawer() {
   const activeProject =
     draftProjects.find((project) => project.id === activeProjectId) ?? null
 
+  function focusTriggerButton() {
+    const trigger = document.getElementById(SELECTION_DRAWER_TRIGGER_ID)
+
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.focus()
+    }
+  }
+
+  function resetSelectionFlow() {
+    clearSelection()
+    setActiveView('selection')
+    setIsPdfFlowDetached(false)
+    setProjectLoadError(null)
+    setDraftNotice(null)
+    setDraftSaveError(null)
+  }
+
+  function forceCloseDrawerWithCleanup() {
+    resetSelectionFlow()
+    setActiveProjectId(null)
+    setIsVisible(false)
+    setIsRendered(false)
+    closeDrawer()
+    focusTriggerButton()
+  }
+
   useEffect(() => {
-    if (!activeProjectId || activeProject) {
+    if (!activeProjectId || activeProject || isPdfFlowDetached) {
       return
     }
 
     resetSelectionFlow()
     setActiveProjectId(null)
-  }, [activeProject, activeProjectId])
+  }, [activeProject, activeProjectId, isPdfFlowDetached])
 
   useEffect(() => {
     if (!isRendered) {
@@ -181,20 +207,27 @@ export function SelectionDrawer() {
 
     setIsVisible(false)
 
+    if (isPdfFlowDetached) {
+      setIsRendered(false)
+      setActiveView('selection')
+      setIsPdfFlowDetached(false)
+      focusTriggerButton()
+      return () => {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+
     if (prefersReducedMotion) {
       setIsRendered(false)
       setActiveView('selection')
       setIsPdfFlowDetached(false)
-      const trigger = document.getElementById(SELECTION_DRAWER_TRIGGER_ID)
-      if (trigger instanceof HTMLButtonElement) {
-        trigger.focus()
-      }
+      focusTriggerButton()
     }
 
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [isDrawerOpen])
+  }, [isDrawerOpen, isPdfFlowDetached])
 
   useEffect(() => {
     if (!isRendered || !isVisible) {
@@ -211,10 +244,8 @@ export function SelectionDrawer() {
 
     setIsRendered(false)
     setActiveView('selection')
-    const trigger = document.getElementById(SELECTION_DRAWER_TRIGGER_ID)
-    if (trigger instanceof HTMLButtonElement) {
-      trigger.focus()
-    }
+    setIsPdfFlowDetached(false)
+    focusTriggerButton()
   }
 
   if (!isRendered) {
@@ -227,15 +258,6 @@ export function SelectionDrawer() {
         removeImage(image.key)
       }
     }
-  }
-
-  function resetSelectionFlow() {
-    clearSelection()
-    setActiveView('selection')
-    setIsPdfFlowDetached(false)
-    setProjectLoadError(null)
-    setDraftNotice(null)
-    setDraftSaveError(null)
   }
 
   function buildProjectFallbackImage(location: RequestProjectLocation): SelectedLocationImage {
@@ -537,6 +559,7 @@ export function SelectionDrawer() {
           >
             <SelectionPdfFlow
               onClose={closeDrawer}
+              onSuccessComplete={forceCloseDrawerWithCleanup}
               isDetached={isPdfFlowDetached}
               onStartProcessing={() => {
                 setIsPdfFlowDetached(true)

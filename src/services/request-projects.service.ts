@@ -6,6 +6,7 @@ import type {
   RequestProjectLocation,
   RequestProjectStatus,
 } from '@/types/request-project.ts'
+import type { SelectionPdfPayload } from '@/types/selection-pdf.ts'
 import { mapPublicLocationCard } from '@/utils/location-public.ts'
 
 type RequestProjectLocationRow = {
@@ -761,6 +762,79 @@ export async function syncRequestProjectSelection(
 
   if (insertImagesError) {
     throw new Error(insertImagesError.message)
+  }
+}
+
+export async function syncRequestProjectPdfPayloadSnapshot(
+  projectId: string,
+  payload: SelectionPdfPayload,
+) {
+  await getCurrentUserId()
+
+  const locationIds = payload.locations.map((location) => location.locationId)
+
+  if (locationIds.length === 0) {
+    return
+  }
+
+  const { data: projectLocations, error: projectLocationsError } = await supabase
+    .from('request_project_locations')
+    .select('id, location_id')
+    .eq('request_project_id', projectId)
+    .in('location_id', locationIds)
+
+  if (projectLocationsError) {
+    throw new Error(projectLocationsError.message)
+  }
+
+  const requestProjectLocationIdByLocationId = new Map<string, string>()
+
+  for (const row of (projectLocations ?? []) as { id: string; location_id: string | null }[]) {
+    if (!row.location_id) {
+      continue
+    }
+
+    requestProjectLocationIdByLocationId.set(row.location_id, row.id)
+  }
+
+  const requestProjectLocationIds = [...requestProjectLocationIdByLocationId.values()]
+
+  if (requestProjectLocationIds.length > 0) {
+    const { error: deleteImagesError } = await supabase
+      .from('request_project_location_images')
+      .delete()
+      .in('request_project_location_id', requestProjectLocationIds)
+
+    if (deleteImagesError) {
+      throw new Error(deleteImagesError.message)
+    }
+  }
+
+  const snapshotRows = payload.locations.flatMap((location) => {
+    const requestProjectLocationId = requestProjectLocationIdByLocationId.get(location.locationId)
+
+    if (!requestProjectLocationId) {
+      return []
+    }
+
+    return location.images.map((image, index) => ({
+      request_project_location_id: requestProjectLocationId,
+      location_image_id: null,
+      sort_order: index,
+      image_url_snapshot: image.imageUrl,
+    }))
+  })
+
+  if (snapshotRows.length === 0) {
+    return
+  }
+
+  const { error: insertSnapshotRowsError } = await supabase
+    .from('request_project_location_images')
+    .insert(snapshotRows)
+
+  if (insertSnapshotRowsError) {
+    throw new Error(insertSnapshotRowsError.message)
   }
 }
 
