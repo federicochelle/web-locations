@@ -1,8 +1,6 @@
 /// <reference types="google.maps" />
 
-import { APIProvider, AdvancedMarker, Circle, Map } from '@vis.gl/react-google-maps'
-
-import approxMarkerUrl from '@/assets/map/location-approx-marker.svg'
+import { APIProvider, Circle, Map } from '@vis.gl/react-google-maps'
 
 const GOOGLE_MAP_LIBRARIES: string[] = []
 const DEFAULT_APPROX_RADIUS_METERS = 700
@@ -72,20 +70,6 @@ export function LocationApproxMap({
             className="h-full w-full"
             styles={LOCATION_APPROX_MAP_STYLES}
           >
-            <AdvancedMarker
-              position={center}
-              clickable={false}
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-transparent">
-                <img
-                  src={approxMarkerUrl}
-                  alt=""
-                  aria-hidden="true"
-                  className="h-11 w-11 select-none drop-shadow-[0_10px_18px_rgba(0,0,0,0.32)]"
-                  draggable={false}
-                />
-              </div>
-            </AdvancedMarker>
             <Circle
               center={center}
               radius={radius}
