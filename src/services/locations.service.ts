@@ -42,6 +42,9 @@ type LocationRow = {
   title: string | null
   description?: string | null
   location_code?: string | null
+  approx_lat?: number | null
+  approx_lng?: number | null
+  approx_radius?: number | null
   category_id?: string | null
   published?: boolean | null
   categories?: RelatedEntity | RelatedEntity[] | null
@@ -99,6 +102,22 @@ function buildLocationCodeFromSlug(publicSlug: string) {
   }
 
   return normalizedPublicSlug.toUpperCase()
+}
+
+function parseApproxCoordinate(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null
+  }
+
+  return value
+}
+
+function parseApproxRadius(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null
+  }
+
+  return value
 }
 
 function mapSearchPublicLocationsRow(
@@ -290,6 +309,9 @@ export async function getLocationByLocationCode(publicSlug: string) {
         slug,
         title,
         location_code,
+        approx_lat,
+        approx_lng,
+        approx_radius,
         published,
         departments (
           name
@@ -324,6 +346,9 @@ export async function getLocationByLocationCode(publicSlug: string) {
           slug,
           title,
           location_code,
+          approx_lat,
+          approx_lng,
+          approx_radius,
           published,
           departments (
             name
@@ -377,6 +402,9 @@ export async function getLocationByLocationCode(publicSlug: string) {
       categorySlug: fallbackCategory.slug.trim(),
       departmentName: fallbackRow.departments?.name?.trim() || 'Sin departamento',
       zoneName: fallbackRow.zones?.name?.trim() || 'Sin zona',
+      approxLat: parseApproxCoordinate(fallbackRow.approx_lat),
+      approxLng: parseApproxCoordinate(fallbackRow.approx_lng),
+      approxRadius: parseApproxRadius(fallbackRow.approx_radius),
       images: fallbackImages,
     } satisfies PublicLocationDetail
   }
@@ -405,6 +433,9 @@ export async function getLocationByLocationCode(publicSlug: string) {
     categorySlug: category.slug.trim(),
     departmentName: row.departments?.name?.trim() || 'Sin departamento',
     zoneName: row.zones?.name?.trim() || 'Sin zona',
+    approxLat: parseApproxCoordinate(row.approx_lat),
+    approxLng: parseApproxCoordinate(row.approx_lng),
+    approxRadius: parseApproxRadius(row.approx_radius),
     images,
   } satisfies PublicLocationDetail
 }
