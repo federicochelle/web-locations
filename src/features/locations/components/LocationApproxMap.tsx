@@ -25,30 +25,18 @@ const LOCATION_APPROX_MAP_STYLES: google.maps.MapTypeStyle[] = [
 ]
 
 type LocationApproxMapProps = {
-  approxLat: number | null
-  approxLng: number | null
+  approxLat: number
+  approxLng: number
   approxRadius: number | null
 }
 
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ?? ''
-
-function LocationApproxMapPlaceholder({ message }: { message: string }) {
-  return (
-    <div className="flex h-[15rem] w-full max-w-[26rem] items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/6 px-6 text-center text-sm text-brand-100/72 shadow-[0_18px_34px_rgba(0,0,0,0.12)]">
-      {message}
-    </div>
-  )
-}
 
 export function LocationApproxMap({
   approxLat,
   approxLng,
   approxRadius,
 }: LocationApproxMapProps) {
-  if (approxLat === null || approxLng === null) {
-    return <LocationApproxMapPlaceholder message="Mapa aproximado no disponible." />
-  }
-
   const center = {
     lat: approxLat,
     lng: approxLng,
@@ -58,13 +46,15 @@ export function LocationApproxMap({
 
   if (!googleMapsApiKey) {
     return (
-      <LocationApproxMapPlaceholder message="Configura VITE_GOOGLE_MAPS_API_KEY para mostrar la zona aproximada." />
+      <div className="flex h-[15.5rem] w-full max-w-[31rem] items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/6 px-6 text-center text-sm text-brand-100/72 shadow-[0_18px_34px_rgba(0,0,0,0.12)]">
+        Configura <code className="mx-1">VITE_GOOGLE_MAPS_API_KEY</code> para mostrar la zona aproximada.
+      </div>
     )
   }
 
   return (
-    <div className="w-full max-w-[26rem] overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#EEE7DE] shadow-[0_18px_34px_rgba(0,0,0,0.18)]">
-      <div className="h-[15rem] w-full">
+    <div className="w-full max-w-[31rem] overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#EEE7DE] p-1 shadow-[0_18px_34px_rgba(0,0,0,0.18)]">
+      <div className="h-[15.5rem] w-full overflow-hidden rounded-[1.2rem]">
         <APIProvider apiKey={googleMapsApiKey} libraries={GOOGLE_MAP_LIBRARIES}>
           <Map
             defaultCenter={center}

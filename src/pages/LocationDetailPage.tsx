@@ -264,13 +264,15 @@ export function LocationDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="w-full shrink-0 lg:w-auto">
-                <LocationApproxMap
-                  approxLat={location.approxLat}
-                  approxLng={location.approxLng}
-                  approxRadius={location.approxRadius}
-                />
-              </div>
+              {location.approxLat !== null && location.approxLng !== null ? (
+                <div className="w-full shrink-0 lg:w-auto">
+                  <LocationApproxMap
+                    approxLat={location.approxLat}
+                    approxLng={location.approxLng}
+                    approxRadius={location.approxRadius}
+                  />
+                </div>
+              ) : null}
             </div>
             <div aria-live="polite" className="min-h-6 px-1">
               {selectionLimitMessage ? (
