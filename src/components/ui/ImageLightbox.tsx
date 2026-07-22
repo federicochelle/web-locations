@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 type ImageLightboxImage = {
   id: string
@@ -133,9 +134,9 @@ export function ImageLightbox({
     setTouchStartX(null)
   }
 
-  return (
+  const lightbox = (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/92 px-4 py-4 backdrop-blur-sm transition-opacity duration-200 sm:px-6 sm:py-6"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/96 px-4 py-4 backdrop-blur-sm transition-opacity duration-200 sm:px-6 sm:py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose()
@@ -146,7 +147,7 @@ export function ImageLightbox({
         role="dialog"
         aria-modal="true"
         aria-label="Galeria de imagenes"
-        className="relative flex h-full w-full max-w-[min(92rem,100%)] items-center justify-center"
+        className="relative flex max-h-full w-full max-w-[min(92rem,100%)] items-center justify-center"
       >
         <button
           type="button"
@@ -230,4 +231,6 @@ export function ImageLightbox({
       </div>
     </div>
   )
+
+  return createPortal(lightbox, document.body)
 }

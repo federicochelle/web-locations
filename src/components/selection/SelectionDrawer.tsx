@@ -191,17 +191,22 @@ export function SelectionDrawer() {
 
   useEffect(() => {
     let frameId = 0
+    let nestedFrameId = 0
     const prefersReducedMotion =
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     if (isDrawerOpen) {
       setIsRendered(true)
+      setIsVisible(false)
       frameId = window.requestAnimationFrame(() => {
-        setIsVisible(true)
+        nestedFrameId = window.requestAnimationFrame(() => {
+          setIsVisible(true)
+        })
       })
       return () => {
         window.cancelAnimationFrame(frameId)
+        window.cancelAnimationFrame(nestedFrameId)
       }
     }
 
@@ -226,6 +231,7 @@ export function SelectionDrawer() {
 
     return () => {
       window.cancelAnimationFrame(frameId)
+      window.cancelAnimationFrame(nestedFrameId)
     }
   }, [isDrawerOpen, isPdfFlowDetached])
 

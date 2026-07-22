@@ -14,7 +14,7 @@ export function SelectionDrawerTrigger() {
       aria-expanded={isDrawerOpen}
       aria-controls="selection-drawer"
       aria-label="Abrir selección de imágenes"
-      className={`fixed z-30 inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
+      className={`fixed z-30 inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] lg:min-h-16 lg:min-w-16 ${
         hasImages
           ? 'border-brand-300/60 bg-brand-300 text-brand-950 hover:bg-brand-100'
           : 'border-white/10 bg-[#14110f]/88 text-brand-100 hover:bg-[#201712]'
@@ -24,13 +24,13 @@ export function SelectionDrawerTrigger() {
         bottom: 'calc(env(safe-area-inset-bottom) + 1rem)',
       }}
     >
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="h-6 w-6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-6 w-6 lg:h-7 lg:w-7"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -40,7 +40,7 @@ export function SelectionDrawerTrigger() {
         <circle cx="9" cy="9.5" r="1.1" fill="currentColor" stroke="none" />
       </svg>
       <span
-        className={`absolute -right-1.5 -top-1.5 inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
+        className={`absolute -right-1.5 -top-1.5 inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-xs font-semibold lg:-right-2 lg:-top-2 lg:min-w-8 lg:text-sm ${
           hasImages
             ? 'bg-brand-100 text-brand-950'
             : 'bg-white/10 text-brand-100'
