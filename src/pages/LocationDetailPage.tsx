@@ -10,6 +10,7 @@ import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
+import type { PublicLocationDetail } from '@/types/location.ts'
 import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
 
 function formatLocationCode(locationCode: string) {
