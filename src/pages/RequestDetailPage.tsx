@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 
-import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
+import {
+  DateInputWithVisualShell,
+  SelectionPdfForm,
+} from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
@@ -23,132 +27,6 @@ import {
   mapRequestProjectToPdfFormValues,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
-
-function ProjectWorkspaceDecoration() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 520 360"
-      className="h-auto w-full"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id="project-decoration-panel" x1="122" y1="66" x2="358" y2="274" gradientUnits="userSpaceOnUse">
-          <stop stopColor="currentColor" stopOpacity="0.08" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.04" />
-        </linearGradient>
-        <linearGradient id="project-decoration-clapper" x1="0" y1="0" x2="108" y2="78" gradientUnits="userSpaceOnUse">
-          <stop stopColor="currentColor" stopOpacity="0.12" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.06" />
-        </linearGradient>
-      </defs>
-
-      <g opacity="0.72">
-        <ellipse cx="270" cy="308" rx="116" ry="18" fill="currentColor" fillOpacity="0.05" />
-
-        <g transform="translate(122 58)">
-          <rect
-            x="0"
-            y="30"
-            width="244"
-            height="176"
-            rx="28"
-            fill="url(#project-decoration-panel)"
-            stroke="currentColor"
-            strokeOpacity="0.08"
-            strokeWidth="1.6"
-          />
-
-          <rect
-            x="24"
-            y="58"
-            width="196"
-            height="116"
-            rx="24"
-            fill="currentColor"
-            fillOpacity="0.04"
-          />
-
-          <g transform="translate(34 0)">
-            <rect
-              x="0"
-              y="0"
-              width="108"
-              height="74"
-              rx="18"
-              fill="url(#project-decoration-clapper)"
-            />
-            <path d="M20 0L0 26" stroke="currentColor" strokeOpacity="0.16" strokeWidth="8" />
-            <path d="M58 0L30 34" stroke="currentColor" strokeOpacity="0.16" strokeWidth="8" />
-            <path d="M96 4L66 40" stroke="currentColor" strokeOpacity="0.16" strokeWidth="8" />
-          </g>
-
-          <g transform="translate(126 52)">
-            <rect
-              x="0"
-              y="0"
-              width="86"
-              height="70"
-              rx="18"
-              fill="currentColor"
-              fillOpacity="0.07"
-              stroke="currentColor"
-              strokeOpacity="0.08"
-              strokeWidth="1.4"
-            />
-            <rect x="15" y="16" width="52" height="10" rx="5" fill="currentColor" fillOpacity="0.12" />
-            <rect x="15" y="34" width="40" height="10" rx="5" fill="currentColor" fillOpacity="0.08" />
-            <rect x="15" y="52" width="48" height="8" rx="4" fill="currentColor" fillOpacity="0.06" />
-          </g>
-
-          <g transform="translate(18 124) rotate(-7 48 34)">
-            <rect
-              x="0"
-              y="0"
-              width="96"
-              height="68"
-              rx="16"
-              fill="currentColor"
-              fillOpacity="0.06"
-              stroke="currentColor"
-              strokeOpacity="0.08"
-              strokeWidth="1.4"
-            />
-            <rect x="14" y="14" width="66" height="24" rx="10" fill="currentColor" fillOpacity="0.1" />
-            <rect x="14" y="48" width="44" height="8" rx="4" fill="currentColor" fillOpacity="0.06" />
-          </g>
-
-          <g transform="translate(166 136) rotate(6 52 36)">
-            <rect
-              x="0"
-              y="0"
-              width="104"
-              height="72"
-              rx="18"
-              fill="currentColor"
-              fillOpacity="0.05"
-              stroke="currentColor"
-              strokeOpacity="0.08"
-              strokeWidth="1.4"
-            />
-            <rect x="16" y="14" width="60" height="26" rx="10" fill="currentColor" fillOpacity="0.08" />
-            <rect x="16" y="50" width="52" height="8" rx="4" fill="currentColor" fillOpacity="0.06" />
-          </g>
-
-          <g transform="translate(188 104)">
-            <path
-              d="M28 0C12.536 0 0 12.536 0 28C0 48.046 22.293 68.96 26.232 72.49C27.248 73.4 28.752 73.4 29.768 72.49C33.707 68.96 56 48.046 56 28C56 12.536 43.464 0 28 0Z"
-              fill="currentColor"
-              fillOpacity="0.1"
-            />
-            <circle cx="28" cy="28" r="9" fill="currentColor" fillOpacity="0.16" />
-          </g>
-        </g>
-      </g>
-    </svg>
-  )
-}
 
 export function RequestDetailPage() {
   const location = useLocation()
@@ -403,16 +281,15 @@ export function RequestDetailPage() {
                     void handleSubmitProject()
                   }}
                 >
-                  <section className="mx-auto w-full max-w-[1720px] px-4 pt-8 sm:px-6 sm:pt-10 lg:px-10 lg:pt-12 2xl:px-14">
-                    <div className="rounded-[1.75rem] border border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-7 lg:p-8">
-                      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
-                        <div className="space-y-8">
-                          <div className="flex flex-wrap items-center justify-between gap-4">
-                            <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
-                              Informacion del proyecto
+                  <section className="mx-auto w-full max-w-[980px] px-0 pt-8 sm:px-6 sm:pt-10 lg:px-10 lg:pt-12">
+                    <div className="w-full rounded-none border-x-0 border-y border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:rounded-[1.75rem] sm:border sm:p-7 lg:p-8">
+                      <div className="space-y-8">
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                            <h2 className="min-w-0 font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
+                              Información del proyecto
                             </h2>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex shrink-0 items-center justify-end gap-2 self-start">
                               <div className="group relative">
                                 <button
                                   type="button"
@@ -507,58 +384,37 @@ export function RequestDetailPage() {
 
                             <div className="max-w-[860px]">
                               <div className="grid gap-4 sm:grid-cols-2">
-                              <div className="px-1 py-1">
-                                <p className="text-xs font-medium uppercase tracking-[0.24em] text-brand-100/45">
-                                  Inicio
-                                </p>
-                                <input
-                                  type="date"
+                                <DateInputWithVisualShell
+                                  id="project-tentative-start-date"
+                                  name="tentativeStartDate"
+                                  label="Inicio"
                                   value={values.tentativeStartDate}
+                                  error={formErrors.tentativeStartDate}
                                   disabled={!isDraft || isSaving || isSubmitting}
-                                  onChange={(event) => {
-                                    handleFieldChange(
-                                      'tentativeStartDate',
-                                      event.target.value,
-                                    )
-                                  }}
-                                  className="mt-3 min-h-11 w-full border border-white/12 bg-white/6 px-3.5 text-sm text-brand-100 outline-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70"
+                                  compact
+                                  onChange={handleFieldChange}
                                 />
-                              </div>
 
-                              <div className="px-1 py-1">
-                                <p className="text-xs font-medium uppercase tracking-[0.24em] text-brand-100/45">
-                                  Fin
-                                </p>
-                                <input
-                                  type="date"
+                                <DateInputWithVisualShell
+                                  id="project-tentative-end-date"
+                                  name="tentativeEndDate"
+                                  label="Fin"
                                   value={values.tentativeEndDate}
+                                  error={formErrors.tentativeEndDate}
                                   disabled={!isDraft || isSaving || isSubmitting}
                                   min={values.tentativeStartDate || undefined}
-                                  onChange={(event) => {
-                                    handleFieldChange(
-                                      'tentativeEndDate',
-                                      event.target.value,
-                                    )
-                                  }}
-                                  className="mt-3 min-h-11 w-full border border-white/12 bg-white/6 px-3.5 text-sm text-brand-100 outline-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70"
+                                  compact
+                                  onChange={handleFieldChange}
                                 />
                               </div>
                             </div>
-                            </div>
                           </div>
-                        </div>
-
-                        <div className="pointer-events-none hidden items-center justify-center text-brand-100 xl:flex">
-                          <div className="w-full max-w-[22rem]">
-                            <ProjectWorkspaceDecoration />
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </section>
 
-                  <section className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-10 2xl:px-14">
-                    <div className="rounded-[1.75rem] border border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-7 lg:p-8">
+                  <section className="mx-auto w-full max-w-[1720px] px-0 sm:px-6 lg:px-10 2xl:px-14">
+                    <div className="w-full rounded-none border-x-0 border-y border-white/8 bg-[#1B1B1D] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:rounded-[1.75rem] sm:border sm:p-7 lg:p-8">
                       <div className="space-y-7">
                         <div>
                           <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-100 sm:text-4xl">
@@ -600,9 +456,10 @@ export function RequestDetailPage() {
           </section>
         </div>
       </div>
-      {isPdfPreviewOpen && pdfPayload ? (
+      {isPdfPreviewOpen && pdfPayload
+        ? createPortal(
         <div
-          className="fixed inset-0 z-[70] bg-black/65 px-4 py-4 sm:px-6 sm:py-6"
+          className="fixed inset-0 z-[70] bg-black/65 px-0 py-4 sm:px-6 sm:py-6"
           onClick={() => {
             setIsPdfPreviewOpen(false)
           }}
@@ -614,7 +471,7 @@ export function RequestDetailPage() {
             className="flex h-full items-start justify-center"
           >
             <div
-              className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden border border-white/10 bg-[#0f0b09] shadow-[0_28px_80px_rgba(0,0,0,0.4)]"
+              className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden border-x-0 border-y border-white/10 bg-[#0f0b09] shadow-[0_28px_80px_rgba(0,0,0,0.4)] sm:border"
               onClick={(event) => {
                 event.stopPropagation()
               }}
@@ -645,7 +502,10 @@ export function RequestDetailPage() {
             </div>
           </div>
         </div>
-      ) : null}
+        ,
+        document.body,
+      )
+        : null}
       <RequestProjectFavoritesModal
         favorites={availableFavorites}
         favoriteCount={favoriteCount}

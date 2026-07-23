@@ -17,15 +17,9 @@ export function FavoritesPage() {
   return (
     <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-10 lg:pb-28 lg:pt-12">
       <section className="max-w-6xl space-y-5">
-        <div className="space-y-3">
-          <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-            Favoritos
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-            Guarda locaciones para revisarlas mas adelante o incluirlas en tus
-            proyectos.
-          </p>
-        </div>
+        <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+          Favoritos
+        </h1>
       </section>
 
       {isLoading ? (

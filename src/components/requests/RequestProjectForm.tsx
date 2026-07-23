@@ -92,7 +92,7 @@ export function RequestProjectForm({
           }}
           rows={6}
           className="w-full rounded-[1.5rem] border border-white/10 bg-white/6 px-4 py-3 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
-          placeholder="Resume el tipo de proyecto, estilo buscado o informacion general que quieras compartir."
+          placeholder="Describe brevemente tu proyecto."
           disabled={isSubmitting}
         />
       </label>
