@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 
+import { HomeAboutBenefitsSection } from '@/features/home/components/HomeAboutBenefitsSection.tsx'
+import { HomeAboutSection } from '@/features/home/components/HomeAboutSection.tsx'
 import { HomeCategoriesGrid } from '@/features/home/components/HomeCategoriesGrid.tsx'
+import { HomePublishLocationSection } from '@/features/home/components/HomePublishLocationSection.tsx'
 import { HomeSearchSection } from '@/features/home/components/HomeSearchSection.tsx'
 import { buildHomeCategoryCards } from '@/features/home/mocks/home.mock.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
@@ -81,7 +84,7 @@ export function HomePage() {
   }, [])
 
   return (
-    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black pb-10 sm:pb-12 lg:pb-14">
+    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
       <HomeSearchSection
         categories={categories}
         features={features}
@@ -126,6 +129,10 @@ export function HomePage() {
             />
           </section>
         ) : null}
+
+        <HomeAboutSection />
+        <HomeAboutBenefitsSection />
+        <HomePublishLocationSection />
       </div>
     </div>
   )

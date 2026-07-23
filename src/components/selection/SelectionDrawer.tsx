@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
@@ -12,6 +12,10 @@ import {
 } from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { RequestProjectLocation } from '@/types/request-project.ts'
+import {
+  persistSelectionActiveContext,
+  restoreSelectionActiveContext,
+} from '@/utils/selection-active-context-storage.ts'
 
 const SelectionPdfFlow = lazy(() =>
   import('@/components/selection/SelectionPdfFlow.tsx').then((module) => ({
@@ -66,23 +70,53 @@ function groupImagesByLocation(images: SelectedLocationImage[]) {
   }))
 }
 
-function DraftSaveIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-[1.05rem] w-[1.05rem] shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5.5 4.75h10.25l2.75 2.75v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4.5 18.5v-12A1.75 1.75 0 0 1 6.25 4.75Z" />
-      <path d="M8 4.75v5h7v-5" />
-      <path d="M8.25 15.25h7.5" />
-    </svg>
+function createSelectionSnapshot(selectionImages: SelectedLocationImage[]) {
+  return JSON.stringify(
+    selectionImages.map((image) => ({
+      key: image.key,
+      locationId: image.locationId,
+      locationImageId: image.locationImageId ?? null,
+      sortOrder: image.sortOrder,
+    })),
   )
+}
+
+function buildProjectFallbackImage(location: RequestProjectLocation): SelectedLocationImage {
+  const imageUrl =
+    location.location.coverImageUrl ??
+    `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675"><rect width="1200" height="675" fill="#201712"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#F3E8D2" font-family="Georgia, serif" font-size="54">${location.location.locationCode}</text></svg>`,
+    )}`
+
+  return {
+    key: `${location.location.id}:project-cover`,
+    imageUrl,
+    locationImageId: null,
+    sortOrder: location.sortOrder,
+    locationId: location.location.id,
+    locationCode: location.location.locationCode,
+    locationTitle: location.location.title,
+    categorySlug: location.location.categorySlug ?? '',
+    selectedAt: location.createdAt,
+  }
+}
+
+function buildProjectSelectionImages(location: RequestProjectLocation): SelectedLocationImage[] {
+  if (location.selectedImages.length === 0) {
+    return [buildProjectFallbackImage(location)]
+  }
+
+  return location.selectedImages.map((image) => ({
+    key: `${location.location.id}:${image.locationImageId ?? image.imageUrl}:${image.id}`,
+    imageUrl: image.imageUrl,
+    locationImageId: image.locationImageId,
+    sortOrder: image.sortOrder,
+    locationId: location.location.id,
+    locationCode: location.location.locationCode,
+    locationTitle: location.location.title,
+    categorySlug: location.location.categorySlug ?? '',
+    selectedAt: image.createdAt,
+  }))
 }
 
 function ProposalPreviewIcon() {
@@ -112,7 +146,12 @@ export function SelectionDrawer() {
     clearSelection,
     replaceSelection,
   } = useImageSelection()
-  const { draftProjects, isLoading, refreshProjects } = useRequestProjects()
+  const {
+    draftProjects,
+    hasLoadedOnce,
+    isLoading,
+    refreshProjects,
+  } = useRequestProjects()
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const drawerPanelRef = useRef<HTMLDivElement | null>(null)
   const [activeView, setActiveView] = useState<'selection' | 'pdf-flow'>('selection')
@@ -121,10 +160,23 @@ export function SelectionDrawer() {
   const [isPdfFlowDetached, setIsPdfFlowDetached] = useState(false)
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [isLoadingProjectContent, setIsLoadingProjectContent] = useState(false)
+  const [isHydratingPersistedContext, setIsHydratingPersistedContext] = useState(() => {
+    const restoredContext = restoreSelectionActiveContext()
+    return restoredContext?.mode === 'project'
+  })
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
-  const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
-  const [draftSaveError, setDraftSaveError] = useState<string | null>(null)
+  const autosaveTimeoutRef = useRef<number | null>(null)
+  const autosaveExecutionTokenRef = useRef<symbol | null>(null)
+  const autosavePromiseRef = useRef<Promise<boolean> | null>(null)
+  const autosaveRequestVersionRef = useRef(0)
+  const lastQueuedSnapshotRef = useRef<string | null>(null)
+  const lastPersistedSnapshotRef = useRef<string | null>(null)
+  const activeProjectIdRef = useRef<string | null>(null)
+  const hydrationRequestIdRef = useRef(0)
+  const activeHydrationProjectIdRef = useRef<string | null>(null)
+  const isMountedRef = useRef(true)
+  const persistedContextRef = useRef(restoreSelectionActiveContext())
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),
@@ -133,26 +185,158 @@ export function SelectionDrawer() {
   const activeProject =
     draftProjects.find((project) => project.id === activeProjectId) ?? null
 
-  function focusTriggerButton() {
+  useEffect(() => {
+    activeProjectIdRef.current = activeProjectId
+  }, [activeProjectId])
+
+  const focusTriggerButton = useCallback(() => {
     const trigger = document.getElementById(SELECTION_DRAWER_TRIGGER_ID)
 
     if (trigger instanceof HTMLButtonElement) {
       trigger.focus()
     }
-  }
+  }, [])
 
-  function resetSelectionFlow() {
+  const resetSelectionFlow = useCallback(() => {
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+
     clearSelection()
     setActiveView('selection')
     setIsPdfFlowDetached(false)
     setProjectLoadError(null)
     setDraftNotice(null)
-    setDraftSaveError(null)
-  }
+    lastQueuedSnapshotRef.current = null
+    lastPersistedSnapshotRef.current = null
+  }, [clearSelection])
+
+  const fetchProjectSelection = useCallback(async (projectId: string) => {
+    const projectLocations = await getRequestProjectLocations(projectId)
+    return projectLocations.flatMap((location) => buildProjectSelectionImages(location))
+  }, [])
+
+  const applyProjectSelection = useCallback((nextSelection: SelectedLocationImage[]) => {
+    const selectionSnapshot = createSelectionSnapshot(nextSelection)
+    lastQueuedSnapshotRef.current = selectionSnapshot
+    lastPersistedSnapshotRef.current = selectionSnapshot
+    replaceSelection(nextSelection)
+  }, [replaceSelection])
+
+  const runSelectionAutosave = useCallback((
+    projectId: string,
+    selectionImages: SelectedLocationImage[],
+    requestVersion: number,
+    showError = false,
+  ) => {
+    const selectionSnapshot = createSelectionSnapshot(selectionImages)
+    const autosaveExecutionToken = Symbol('selection-autosave')
+    const autosavePromise = (async () => {
+      try {
+        await syncRequestProjectSelection(projectId, selectionImages)
+        await refreshProjects()
+
+        const isLatestRequest =
+          autosaveRequestVersionRef.current === requestVersion &&
+          activeProjectIdRef.current === projectId
+
+        if (!isLatestRequest) {
+          return false
+        }
+
+        lastPersistedSnapshotRef.current = selectionSnapshot
+        return true
+      } catch (error) {
+        const isLatestRequest =
+          autosaveRequestVersionRef.current === requestVersion &&
+          activeProjectIdRef.current === projectId
+
+        if (isLatestRequest) {
+          lastQueuedSnapshotRef.current = lastPersistedSnapshotRef.current
+
+          if (showError) {
+            setProjectLoadError(
+              error instanceof Error
+                ? error.message
+                : 'No pudimos guardar la seleccion actual del proyecto.',
+            )
+          }
+        }
+
+        return false
+      } finally {
+        if (autosaveExecutionTokenRef.current === autosaveExecutionToken) {
+          autosaveExecutionTokenRef.current = null
+          autosavePromiseRef.current = null
+        }
+      }
+    })()
+
+    autosaveExecutionTokenRef.current = autosaveExecutionToken
+    autosavePromiseRef.current = autosavePromise
+    return autosavePromise
+  }, [refreshProjects])
+
+  const flushSelectionAutosaveBeforeProjectChange = useCallback(async () => {
+    if (!activeProjectIdRef.current) {
+      return true
+    }
+
+    const currentSelectionSnapshot = createSelectionSnapshot(images)
+    const hasUnsavedSelection =
+      currentSelectionSnapshot !== lastPersistedSnapshotRef.current
+
+    if (!hasUnsavedSelection) {
+      return true
+    }
+
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+      setProjectLoadError(null)
+
+      const requestVersion = autosaveRequestVersionRef.current + 1
+      autosaveRequestVersionRef.current = requestVersion
+
+      return runSelectionAutosave(
+        activeProjectIdRef.current,
+        images,
+        requestVersion,
+        true,
+      )
+    }
+
+    if (autosavePromiseRef.current) {
+      const didPersistCurrentSelection = await autosavePromiseRef.current
+
+      if (didPersistCurrentSelection) {
+        return true
+      }
+    }
+
+    setProjectLoadError(null)
+
+    const requestVersion = autosaveRequestVersionRef.current + 1
+    autosaveRequestVersionRef.current = requestVersion
+
+    return runSelectionAutosave(
+      activeProjectIdRef.current,
+      images,
+      requestVersion,
+      true,
+    )
+  }, [images, runSelectionAutosave])
 
   function forceCloseDrawerWithCleanup() {
+    hydrationRequestIdRef.current += 1
+    activeHydrationProjectIdRef.current = null
     resetSelectionFlow()
     setActiveProjectId(null)
+    setIsLoadingProjectContent(false)
+    setIsHydratingPersistedContext(false)
+    persistSelectionActiveContext({ mode: 'new' })
+    persistedContextRef.current = { mode: 'new' }
     setIsVisible(false)
     setIsRendered(false)
     closeDrawer()
@@ -166,7 +350,139 @@ export function SelectionDrawer() {
 
     resetSelectionFlow()
     setActiveProjectId(null)
-  }, [activeProject, activeProjectId, isPdfFlowDetached])
+    persistSelectionActiveContext({ mode: 'new' })
+    persistedContextRef.current = { mode: 'new' }
+  }, [activeProject, activeProjectId, isPdfFlowDetached, resetSelectionFlow])
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+      hydrationRequestIdRef.current += 1
+      activeHydrationProjectIdRef.current = null
+
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const persistedContext = persistedContextRef.current
+
+    if (!isHydratingPersistedContext || persistedContext?.mode !== 'project') {
+      return
+    }
+
+    if (!hasLoadedOnce || isLoading) {
+      return
+    }
+
+    const persistedProject = draftProjects.find(
+      (project) => project.id === persistedContext.projectId,
+    )
+
+    if (!persistedProject) {
+      resetSelectionFlow()
+      setActiveProjectId(null)
+      persistSelectionActiveContext({ mode: 'new' })
+      persistedContextRef.current = { mode: 'new' }
+      activeHydrationProjectIdRef.current = null
+      setIsLoadingProjectContent(false)
+      setIsHydratingPersistedContext(false)
+      return
+    }
+
+    const persistedProjectId = persistedProject.id
+
+    if (activeHydrationProjectIdRef.current === persistedProjectId) {
+      return
+    }
+
+    const requestId = hydrationRequestIdRef.current + 1
+    hydrationRequestIdRef.current = requestId
+    activeHydrationProjectIdRef.current = persistedProjectId
+
+    async function restorePersistedProjectSelection() {
+      try {
+        setIsLoadingProjectContent(true)
+        setProjectLoadError(null)
+        resetSelectionFlow()
+        setActiveProjectId(persistedProjectId)
+        const nextSelection = await fetchProjectSelection(persistedProjectId)
+
+        if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+          return
+        }
+
+        applyProjectSelection(nextSelection)
+      } catch (error) {
+        if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+          return
+        }
+
+        resetSelectionFlow()
+        setActiveProjectId(null)
+        persistSelectionActiveContext({ mode: 'new' })
+        persistedContextRef.current = { mode: 'new' }
+        setProjectLoadError(
+          error instanceof Error
+            ? error.message
+            : 'No pudimos cargar el proyecto seleccionado.',
+        )
+      } finally {
+        const isCurrentHydration =
+          isMountedRef.current && hydrationRequestIdRef.current === requestId
+
+        if (isCurrentHydration) {
+          activeHydrationProjectIdRef.current = null
+          setIsLoadingProjectContent(false)
+          setIsHydratingPersistedContext(false)
+        }
+      }
+    }
+
+    void restorePersistedProjectSelection()
+  }, [
+    applyProjectSelection,
+    draftProjects,
+    fetchProjectSelection,
+    hasLoadedOnce,
+    isHydratingPersistedContext,
+    isLoading,
+    resetSelectionFlow,
+  ])
+
+  useEffect(() => {
+    if (!activeProjectId || isLoadingProjectContent) {
+      return
+    }
+
+    const selectionSnapshot = createSelectionSnapshot(images)
+
+    if (lastQueuedSnapshotRef.current === selectionSnapshot) {
+      return
+    }
+
+    lastQueuedSnapshotRef.current = selectionSnapshot
+    setDraftNotice(null)
+
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+    }
+
+    const requestVersion = autosaveRequestVersionRef.current + 1
+    autosaveRequestVersionRef.current = requestVersion
+    const projectIdAtSchedule = activeProjectId
+    const imagesAtSchedule = images
+
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null
+
+      void runSelectionAutosave(projectIdAtSchedule, imagesAtSchedule, requestVersion)
+    }, 600)
+  }, [activeProjectId, images, isLoadingProjectContent, runSelectionAutosave])
 
   useEffect(() => {
     if (!isRendered) {
@@ -233,7 +549,7 @@ export function SelectionDrawer() {
       window.cancelAnimationFrame(frameId)
       window.cancelAnimationFrame(nestedFrameId)
     }
-  }, [isDrawerOpen, isPdfFlowDetached])
+  }, [focusTriggerButton, isDrawerOpen, isPdfFlowDetached])
 
   useEffect(() => {
     if (!isRendered || !isVisible) {
@@ -266,61 +582,18 @@ export function SelectionDrawer() {
     }
   }
 
-  function buildProjectFallbackImage(location: RequestProjectLocation): SelectedLocationImage {
-    const imageUrl =
-      location.location.coverImageUrl ??
-      `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675"><rect width="1200" height="675" fill="#201712"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#F3E8D2" font-family="Georgia, serif" font-size="54">${location.location.locationCode}</text></svg>`,
-      )}`
-
-    return {
-      key: `${location.location.id}:project-cover`,
-      imageUrl,
-      locationImageId: null,
-      sortOrder: location.sortOrder,
-      locationId: location.location.id,
-      locationCode: location.location.locationCode,
-      locationTitle: location.location.title,
-      categorySlug: location.location.categorySlug ?? '',
-      selectedAt: location.createdAt,
-    }
-  }
-
-  function buildProjectSelectionImages(location: RequestProjectLocation): SelectedLocationImage[] {
-    if (location.selectedImages.length === 0) {
-      return [buildProjectFallbackImage(location)]
-    }
-
-    return location.selectedImages.map((image) => ({
-      key: `${location.location.id}:${image.locationImageId ?? image.imageUrl}:${image.id}`,
-      imageUrl: image.imageUrl,
-      locationImageId: image.locationImageId,
-      sortOrder: image.sortOrder,
-      locationId: location.location.id,
-      locationCode: location.location.locationCode,
-      locationTitle: location.location.title,
-      categorySlug: location.location.categorySlug ?? '',
-      selectedAt: image.createdAt,
-    }))
-  }
-
-  async function loadProjectSelection(projectId: string) {
-    const projectLocations = await getRequestProjectLocations(projectId)
-
-    replaceSelection(
-      projectLocations.flatMap((location) => buildProjectSelectionImages(location)),
-    )
-  }
-
   async function handleActiveProjectChange(projectId: string | null) {
     if (projectId === activeProjectId) {
       return
     }
 
-    const hasPendingState = images.length > 0 || activeView === 'pdf-flow'
+    const isInPdfFlow = activeView === 'pdf-flow'
+    const isWorkingInNewSelection = activeProjectId === null && images.length > 0
+    const shouldConfirmDiscard =
+      isInPdfFlow || isWorkingInNewSelection
 
     if (
-      hasPendingState &&
+      shouldConfirmDiscard &&
       !window.confirm(
         'Si cambias de proyecto se descartaran la seleccion actual y los datos sin guardar. ¿Quieres continuar?',
       )
@@ -328,53 +601,75 @@ export function SelectionDrawer() {
       return
     }
 
+    if (!isInPdfFlow && activeProjectId) {
+      setIsLoadingProjectContent(true)
+      const didPersistPendingSelection = await flushSelectionAutosaveBeforeProjectChange()
+
+      if (!didPersistPendingSelection) {
+        setIsLoadingProjectContent(false)
+        return
+      }
+    }
+
     if (projectId === null) {
+      hydrationRequestIdRef.current += 1
+      activeHydrationProjectIdRef.current = null
       resetSelectionFlow()
       setActiveProjectId(null)
+      setIsLoadingProjectContent(false)
+      setIsHydratingPersistedContext(false)
+      persistSelectionActiveContext({ mode: 'new' })
+      persistedContextRef.current = { mode: 'new' }
       return
     }
 
+    const requestId = hydrationRequestIdRef.current + 1
+    hydrationRequestIdRef.current = requestId
+    activeHydrationProjectIdRef.current = projectId
+
     try {
       setIsLoadingProjectContent(true)
+      setIsHydratingPersistedContext(false)
       resetSelectionFlow()
-      await loadProjectSelection(projectId)
       setActiveProjectId(projectId)
+      const nextSelection = await fetchProjectSelection(projectId)
+
+      if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+        return
+      }
+
+      applyProjectSelection(nextSelection)
+      persistSelectionActiveContext({ mode: 'project', projectId })
+      persistedContextRef.current = { mode: 'project', projectId }
     } catch (error) {
+      if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+        return
+      }
+
       resetSelectionFlow()
       setActiveProjectId(null)
+      persistSelectionActiveContext({ mode: 'new' })
+      persistedContextRef.current = { mode: 'new' }
       setProjectLoadError(
         error instanceof Error
           ? error.message
           : 'No pudimos cargar el proyecto seleccionado.',
       )
     } finally {
-      setIsLoadingProjectContent(false)
+      const isCurrentProjectLoad =
+        isMountedRef.current && hydrationRequestIdRef.current === requestId
+
+      if (isCurrentProjectLoad) {
+        activeHydrationProjectIdRef.current = null
+        setIsLoadingProjectContent(false)
+      }
     }
   }
 
   function handlePersistedProjectChange(projectId: string) {
     setActiveProjectId(projectId)
-  }
-
-  async function handleSaveDraftSelection() {
-    if (!activeProjectId || images.length === 0) {
-      return
-    }
-
-    try {
-      setIsSavingDraft(true)
-      setDraftSaveError(null)
-      setDraftNotice(null)
-      await syncRequestProjectSelection(activeProjectId, images)
-      await refreshProjects()
-      setDraftNotice('Borrador guardado.')
-    } catch (error) {
-      setDraftSaveError(
-        error instanceof Error ? error.message : 'No pudimos guardar el borrador.',
-      )
-    } finally {
-      setIsSavingDraft(false)
-    }
+    persistSelectionActiveContext({ mode: 'project', projectId })
+    persistedContextRef.current = { mode: 'project', projectId }
   }
 
   return (
@@ -415,7 +710,7 @@ export function SelectionDrawer() {
                 </span>
                 <div className="mb-3 flex min-h-11 items-center">
                   <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                    Proyecto actual
+                    Seleccionar proyecto
                   </p>
                 </div>
                 <ActiveProjectSelect
@@ -445,18 +740,13 @@ export function SelectionDrawer() {
                   {projectLoadError}
                 </div>
               ) : null}
-              {draftSaveError ? (
-                <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  {draftSaveError}
-                </div>
-              ) : null}
               {draftNotice ? (
-                <div className="mb-4 rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                <div className="mb-4 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
                   {draftNotice}
                 </div>
               ) : null}
 
-              {isLoadingProjectContent ? (
+              {isLoadingProjectContent || isHydratingPersistedContext ? (
                 <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
                   <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
                     Cargando proyecto...
@@ -500,20 +790,7 @@ export function SelectionDrawer() {
 
             {images.length > 0 ? (
               <footer className="border-t border-white/10 px-4 py-4 sm:px-5">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {activeProjectId ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleSaveDraftSelection()
-                      }}
-                      disabled={isSavingDraft}
-                      className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                    >
-                      <DraftSaveIcon />
-                      {isSavingDraft ? 'Guardando...' : 'Guardar borrador'}
-                    </button>
-                  ) : null}
+                <div className="flex">
                   <button
                     type="button"
                     onClick={() => {

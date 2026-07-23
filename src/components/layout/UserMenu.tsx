@@ -1,17 +1,17 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
+
+import { useSignOutAction } from '@/hooks/useSignOutAction.ts'
 
 type UserMenuProps = {
   displayName: string
-  onSignOut: () => Promise<void>
 }
 
-export function UserMenu({ displayName, onSignOut }: UserMenuProps) {
-  const navigate = useNavigate()
+export function UserMenu({ displayName }: UserMenuProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const menuId = useId()
   const [isOpen, setIsOpen] = useState(false)
-  const [isSigningOut, setIsSigningOut] = useState(false)
+  const { executeSignOut, isSigningOut } = useSignOutAction()
 
   useEffect(() => {
     if (!isOpen) {
@@ -44,14 +44,8 @@ export function UserMenu({ displayName, onSignOut }: UserMenuProps) {
   }
 
   async function handleSignOut() {
-    try {
-      setIsSigningOut(true)
-      setIsOpen(false)
-      await onSignOut()
-      navigate('/', { replace: true })
-    } finally {
-      setIsSigningOut(false)
-    }
+    setIsOpen(false)
+    await executeSignOut()
   }
 
   return (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
 import { ProposalWorkspace } from '@/components/selection/ProposalWorkspace.tsx'
+import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadingModal.tsx'
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
@@ -51,6 +52,15 @@ const initialValues: SelectionPdfFormValues = {
   tentativeStartDate: '',
   tentativeEndDate: '',
 }
+
+const selectionPdfFieldOrder: (keyof SelectionPdfFormValues)[] = [
+  'product',
+  'productionCompany',
+  'locationManager',
+  'email',
+  'tentativeStartDate',
+  'tentativeEndDate',
+]
 
 function DraftSaveIcon() {
   return (
@@ -117,7 +127,11 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null)
   const [projectSavedBeforeError, setProjectSavedBeforeError] = useState(false)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
+  const [isDraftSuccessModalOpen, setIsDraftSuccessModalOpen] = useState(false)
+  const [draftSuccessProjectId, setDraftSuccessProjectId] = useState<string | null>(null)
   const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isSubmittingProposal, setIsSubmittingProposal] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
 
   const livePreviewPayload = useMemo(
@@ -126,6 +140,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   )
 
   const hasSelectedImages = images.length > 0
+  const isBusy = isSavingDraft || isSubmittingProposal || isLoadingModalOpen
 
   function resetFlowState() {
     setStep('form')
@@ -137,6 +152,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setProjectSavedBeforeError(false)
     setIsLoadingModalOpen(false)
     setIsSuccessModalOpen(false)
+    setIsDraftSuccessModalOpen(false)
+    setDraftSuccessProjectId(null)
   }
 
   function renderProjectHeader(disabled = false, compact = false) {
@@ -144,7 +161,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       <div className="min-w-0 flex-1">
         <div className={`${compact ? 'mb-0' : 'mb-3'} flex min-h-11 items-center`}>
           <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-            Proyecto actual
+            Seleccionar proyecto
           </p>
         </div>
         <div className={compact ? 'mt-3' : ''}>
@@ -152,7 +169,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
             activeProjectId={activeProjectId}
             projects={draftProjects}
             isLoading={isLoadingProjects}
-            disabled={disabled}
+            disabled={disabled || isBusy}
             compact
             onChange={onProjectSelectionChange}
           />
@@ -226,18 +243,39 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     })
   }
 
-  async function persistProposalDraft() {
-    const nextErrors = validateSelectionPdfForm(values)
+  function focusFirstInvalidField(nextErrors: SelectionPdfFormErrors) {
+    const firstInvalidField = selectionPdfFieldOrder.find((field) => nextErrors[field])
 
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors)
-      setDraftNotice(null)
-      return null
+    if (!firstInvalidField) {
+      return
     }
 
-      setErrors({})
-      setExportError(null)
+    window.requestAnimationFrame(() => {
+      const field = document.getElementById(firstInvalidField)
 
+      if (field instanceof HTMLInputElement) {
+        field.focus()
+      }
+    })
+  }
+
+  function validateProposalSubmission() {
+    const nextErrors = validateSelectionPdfForm(values)
+
+    if (Object.keys(nextErrors).length === 0) {
+      setErrors({})
+      return true
+    }
+
+    setErrors(nextErrors)
+    setDraftNotice(null)
+    setStep('form')
+    focusFirstInvalidField(nextErrors)
+    return false
+  }
+
+  async function persistProposalDraft() {
+    setExportError(null)
     const draftPayload = {
       title: values.product.trim(),
       message: buildRequestProjectMessageFromPdfForm(values),
@@ -289,22 +327,50 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   }
 
   async function handleSaveDraft() {
-    await persistProposalDraft()
+    if (isBusy) {
+      return
+    }
+
+    setIsSavingDraft(true)
+    const draftResult = await persistProposalDraft()
+
+    try {
+      if (!draftResult) {
+        return
+      }
+
+      setDraftNotice(null)
+      setDraftSuccessProjectId(draftResult.projectId)
+      setIsDraftSuccessModalOpen(true)
+    } finally {
+      setIsSavingDraft(false)
+    }
   }
 
   async function handleSubmitProposal() {
+    if (isBusy) {
+      return
+    }
+
     setExportError(null)
     setExportResult(null)
     setFailedImages([])
     setProgress(null)
 
+    if (!validateProposalSubmission() || !hasSelectedImages) {
+      return
+    }
+
+    setIsSubmittingProposal(true)
+
     try {
       const draftResult = await persistProposalDraft()
 
-      if (!draftResult || !hasSelectedImages) {
+      if (!draftResult) {
         return
       }
 
+      setDraftNotice(null)
       const payload: SelectionPdfPayload = livePreviewPayload
       setProjectSavedBeforeError(true)
       setStep('generating')
@@ -338,6 +404,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         error instanceof Error ? error.message : 'No pudimos completar la propuesta.',
       )
       setStep('error')
+    } finally {
+      setIsSubmittingProposal(false)
     }
   }
 
@@ -356,7 +424,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           sidebarHeader={renderProjectHeader()}
           sidebarBody={
             <div className="space-y-4">
-              {draftNotice ? (
+              {draftNotice && !isDraftSuccessModalOpen ? (
                 <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
                   {draftNotice}
                 </div>
@@ -370,6 +438,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
                 values={values}
                 errors={errors}
                 onChange={handleFieldChange}
+                disabled={isBusy}
                 columns={2}
               />
             </div>
@@ -381,6 +450,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
                 onClick={() => {
                   void handleSaveDraft()
                 }}
+                disabled={isBusy}
                 className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
               >
                 <DraftSaveIcon />
@@ -391,7 +461,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
                 onClick={() => {
                   void handleSubmitProposal()
                 }}
-                disabled={!hasSelectedImages}
+                disabled={!hasSelectedImages || isBusy}
                 className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
               >
                 <SubmitProposalIcon />
@@ -404,34 +474,34 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       ) : step !== 'form' ? (
           <aside className="ml-auto flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] shadow-[-16px_0_48px_rgba(0,0,0,0.32)] sm:w-[min(92vw,460px)]">
             <header className="border-b border-white/10 px-4 py-4 sm:px-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <div className="min-w-0">
                   <div className="flex min-h-11 items-center">
                     <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                      Proyecto actual
+                      Seleccionar proyecto
                     </p>
                   </div>
+                  <ActiveProjectSelect
+                    activeProjectId={activeProjectId}
+                    projects={draftProjects}
+                    isLoading={isLoadingProjects}
+                    disabled={step === 'generating' || isBusy}
+                    compact
+                    onChange={onProjectSelectionChange}
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={step === 'generating' || isSuccessModalOpen}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                  aria-label="Cerrar flujo de preparacion"
-                  autoFocus
-                >
-                  ×
-                </button>
-              </div>
-              <div className="mt-3">
-                <ActiveProjectSelect
-                  activeProjectId={activeProjectId}
-                  projects={draftProjects}
-                  isLoading={isLoadingProjects}
-                  disabled={step === 'generating'}
-                  compact
-                  onChange={onProjectSelectionChange}
-                />
+                <div className="flex items-start">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={step === 'generating' || isSuccessModalOpen || isBusy}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                    aria-label="Cerrar flujo de preparacion"
+                    autoFocus
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             </header>
 
@@ -556,48 +626,18 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           </aside>
       ) : null}
 
-      {isLoadingModalOpen ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="proposal-loading-title"
-            aria-describedby="proposal-loading-description"
-            className="w-full max-w-md rounded-[1rem] border border-white/10 bg-[#1B1B1D] p-6 text-brand-100 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:p-7"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div
-                className="flex h-14 w-14 items-center justify-center rounded-full border border-brand-300/30 bg-brand-300/10"
-                aria-hidden="true"
-              >
-                <span className="h-7 w-7 animate-spin rounded-full border-2 border-brand-300/25 border-t-brand-300" />
-              </div>
-
-              <h2
-                id="proposal-loading-title"
-                className="mt-5 font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
-              >
-                Generando propuesta...
-              </h2>
-
-              <p
-                id="proposal-loading-description"
-                className="mt-3 text-sm leading-6 text-brand-100/68 sm:text-base"
-              >
-                Estamos guardando tu proyecto y preparando el PDF.
-              </p>
-
-              <p aria-live="polite" className="mt-4 text-sm font-medium text-brand-300">
-                {progress
-                  ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
-                  : createdProjectId
-                    ? 'Proyecto guardado. Preparando el documento.'
-                    : 'Creando el proyecto y preparando el documento.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <SubmissionLoadingModal
+        isOpen={isLoadingModalOpen}
+        title="Generando propuesta..."
+        description="Estamos guardando tu proyecto y preparando el PDF."
+        statusMessage={
+          progress
+            ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
+            : createdProjectId
+              ? 'Proyecto guardado. Preparando el documento.'
+              : 'Creando el proyecto y preparando el documento.'
+        }
+      />
 
       <SubmissionResultModal
         isOpen={isSuccessModalOpen}
@@ -607,6 +647,32 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         primaryActionLabel="Ir a Mis proyectos"
         onPrimaryAction={handleSuccessModalClose}
         onClose={handleSuccessModalClose}
+      />
+
+      <SubmissionResultModal
+        isOpen={isDraftSuccessModalOpen}
+        variant="success"
+        title="Guardado con éxito"
+        description="Tu borrador se guardó correctamente."
+        primaryActionLabel="Continuar"
+        secondaryActionLabel="Ir al proyecto"
+        onPrimaryAction={() => {
+          setIsDraftSuccessModalOpen(false)
+        }}
+        onSecondaryAction={() => {
+          const projectId = draftSuccessProjectId
+          setIsDraftSuccessModalOpen(false)
+
+          if (projectId) {
+            navigate(`/requests/${projectId}`)
+            return
+          }
+
+          navigate('/requests')
+        }}
+        onClose={() => {
+          setIsDraftSuccessModalOpen(false)
+        }}
       />
     </>
   )

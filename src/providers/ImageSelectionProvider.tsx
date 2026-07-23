@@ -1,4 +1,4 @@
-import { createContext, useEffect, useMemo, useReducer } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useReducer } from 'react'
 import type { ReactNode } from 'react'
 
 import type {
@@ -126,51 +126,81 @@ export function ImageSelectionProvider({
     persistImageSelection(state.images)
   }, [state.images])
 
+  const addImage = useCallback((image: SelectedLocationImage) => {
+    dispatch({
+      type: 'add-image',
+      payload: image,
+    })
+  }, [])
+
+  const replaceSelection = useCallback((images: SelectedLocationImage[]) => {
+    dispatch({
+      type: 'replace-selection',
+      payload: images,
+    })
+  }, [])
+
+  const removeImage = useCallback((key: string) => {
+    dispatch({
+      type: 'remove-image',
+      payload: { key },
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => {
+    dispatch({
+      type: 'clear-selection',
+    })
+  }, [])
+
+  const openDrawer = useCallback(() => {
+    dispatch({
+      type: 'open-drawer',
+    })
+  }, [])
+
+  const closeDrawer = useCallback(() => {
+    dispatch({
+      type: 'close-drawer',
+    })
+  }, [])
+
+  const toggleDrawer = useCallback(() => {
+    dispatch({
+      type: 'toggle-drawer',
+    })
+  }, [])
+
+  const isSelected = useCallback(
+    (key: string) => state.images.some((image) => image.key === key),
+    [state.images],
+  )
+
   const value = useMemo<ImageSelectionContextValue>(
     () => ({
       images: state.images,
       isDrawerOpen: state.isDrawerOpen,
-      addImage: (image) => {
-        dispatch({
-          type: 'add-image',
-          payload: image,
-        })
-      },
-      replaceSelection: (images) => {
-        dispatch({
-          type: 'replace-selection',
-          payload: images,
-        })
-      },
-      removeImage: (key) => {
-        dispatch({
-          type: 'remove-image',
-          payload: { key },
-        })
-      },
-      clearSelection: () => {
-        dispatch({
-          type: 'clear-selection',
-        })
-      },
-      isSelected: (key) => state.images.some((image) => image.key === key),
-      openDrawer: () => {
-        dispatch({
-          type: 'open-drawer',
-        })
-      },
-      closeDrawer: () => {
-        dispatch({
-          type: 'close-drawer',
-        })
-      },
-      toggleDrawer: () => {
-        dispatch({
-          type: 'toggle-drawer',
-        })
-      },
+      addImage,
+      replaceSelection,
+      removeImage,
+      clearSelection,
+      isSelected,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
     }),
-    [state.images, state.isDrawerOpen],
+    [
+      addImage,
+      clearSelection,
+      closeDrawer,
+      isSelected,
+      openDrawer,
+      removeImage,
+      replaceSelection,
+      state.images,
+      state.isDrawerOpen,
+      toggleDrawer,
+    ],
   )
 
   return (

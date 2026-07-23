@@ -1,10 +1,27 @@
+import type { CSSProperties } from 'react'
+import { useLocation } from 'react-router-dom'
+
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 
 export const SELECTION_DRAWER_TRIGGER_ID = 'selection-drawer-trigger'
 
+const MOBILE_BOTTOM_NAV_HEIGHT_PX = 76
+const MOBILE_TRIGGER_GAP_PX = 12
+
 export function SelectionDrawerTrigger() {
+  const location = useLocation()
   const { images, isDrawerOpen, toggleDrawer } = useImageSelection()
   const hasImages = images.length > 0
+  const hasMobileBottomNavigation =
+    !/^\/admin(?:\/.*)?$/u.test(location.pathname) &&
+    location.pathname !== '/404'
+  const mobileBottomOffset = hasMobileBottomNavigation
+    ? `calc(env(safe-area-inset-bottom) + ${MOBILE_BOTTOM_NAV_HEIGHT_PX + MOBILE_TRIGGER_GAP_PX}px)`
+    : 'calc(env(safe-area-inset-bottom) + 1rem)'
+  const triggerStyle = {
+    '--selection-trigger-bottom': mobileBottomOffset,
+    right: 'max(1rem, calc(env(safe-area-inset-right) + 0.25rem))',
+  } as CSSProperties & Record<'--selection-trigger-bottom', string>
 
   return (
     <button
@@ -14,15 +31,12 @@ export function SelectionDrawerTrigger() {
       aria-expanded={isDrawerOpen}
       aria-controls="selection-drawer"
       aria-label="Abrir selección de imágenes"
-      className={`fixed z-30 inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] lg:min-h-16 lg:min-w-16 ${
+      className={`fixed bottom-[var(--selection-trigger-bottom)] z-30 inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] md:bottom-[calc(env(safe-area-inset-bottom)+1rem)] lg:min-h-16 lg:min-w-16 ${
         hasImages
           ? 'border-brand-300/60 bg-brand-300 text-brand-950 hover:bg-brand-100'
           : 'border-white/10 bg-[#14110f]/88 text-brand-100 hover:bg-[#201712]'
       }`}
-      style={{
-        right: 'max(1rem, calc(env(safe-area-inset-right) + 0.25rem))',
-        bottom: 'calc(env(safe-area-inset-bottom) + 1rem)',
-      }}
+      style={triggerStyle}
     >
         <svg
           aria-hidden="true"
