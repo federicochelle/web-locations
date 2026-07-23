@@ -79,12 +79,6 @@ const RequestDetailPage = lazy(() =>
     default: module.RequestDetailPage,
   })),
 )
-const AdminHomePage = lazy(() =>
-  import('@/pages/AdminHomePage.tsx').then((module) => ({
-    default: module.AdminHomePage,
-  })),
-)
-
 function withRouteSuspense(element: React.ReactNode) {
   return <Suspense fallback={<RouteLoadingFallback />}>{element}</Suspense>
 }
@@ -176,13 +170,12 @@ const router = createBrowserRouter([
             ],
           },
           {
-            element: <ProtectedRoute allowedRoles={['admin']} />,
-            children: [
-              {
-                path: 'admin',
-                element: withRouteSuspense(<AdminHomePage />),
-              },
-            ],
+            path: 'admin',
+            element: <Navigate replace to="/" />,
+          },
+          {
+            path: 'admin/*',
+            element: <Navigate replace to="/" />,
           },
           {
             path: '404',
