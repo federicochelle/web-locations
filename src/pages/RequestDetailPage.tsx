@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 
@@ -27,6 +27,43 @@ import {
   mapRequestProjectToPdfFormValues,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
+
+function DraftSaveIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.05rem] w-[1.05rem] shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5.5 4.75h10.25l2.75 2.75v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4.5 18.5v-12A1.75 1.75 0 0 1 6.25 4.75Z" />
+      <path d="M8 4.75v5h7v-5" />
+      <path d="M8.25 15.25h7.5" />
+    </svg>
+  )
+}
+
+function SubmitProposalIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.05rem] w-[1.05rem] shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.75 11.75 18.5 5.5 14 19.25l-3.15-4.35-4.1-3.15Z" />
+      <path d="m10.6 14.7 2.6-2.6" />
+    </svg>
+  )
+}
 
 export function RequestDetailPage() {
   const location = useLocation()
@@ -171,6 +208,50 @@ export function RequestDetailPage() {
 
   const isPdfPreviewDisabled = !pdfPayload || locations.length === 0
   const isPdfDownloadDisabled = isSaving || isSubmitting || locations.length === 0
+  const currentProjectMessage = buildRequestProjectMessageFromPdfForm(values)
+  const hasUnsavedChanges = useMemo(() => {
+    if (!project || !isDraft) {
+      return false
+    }
+
+    const nextTitle = values.product.trim()
+    const nextStartDate = values.tentativeStartDate || null
+    const nextEndDate = values.tentativeEndDate || null
+
+    return (
+      nextTitle !== project.title ||
+      currentProjectMessage !== (project.message ?? '') ||
+      nextStartDate !== project.tentativeStartDate ||
+      nextEndDate !== project.tentativeEndDate
+    )
+  }, [
+    currentProjectMessage,
+    isDraft,
+    project,
+    values.product,
+    values.tentativeEndDate,
+    values.tentativeStartDate,
+  ])
+
+  async function handleSaveChanges() {
+    if (!project || !isDraft || !hasUnsavedChanges) {
+      return
+    }
+
+    setValidationError(null)
+    setSuccessMessage(null)
+
+    const savedProject = await saveProject({
+      title: values.product,
+      message: currentProjectMessage,
+      tentativeStartDate: values.tentativeStartDate || null,
+      tentativeEndDate: values.tentativeEndDate || null,
+    })
+
+    if (savedProject) {
+      setSuccessMessage('Cambios guardados correctamente.')
+    }
+  }
 
   async function handleSubmitProject() {
     if (!project || !isDraft) {
@@ -188,7 +269,7 @@ export function RequestDetailPage() {
     setValidationError(null)
     setSuccessMessage(null)
 
-    const nextMessage = buildRequestProjectMessageFromPdfForm(values)
+    const nextMessage = currentProjectMessage
     const nextTentativeStartDate = values.tentativeStartDate || null
     const nextTentativeEndDate = values.tentativeEndDate || null
 
@@ -441,13 +522,27 @@ export function RequestDetailPage() {
 
                   {isDraft ? (
                     <section className="mx-auto flex w-full max-w-[1720px] justify-center px-4 pb-14 pt-2 sm:px-6 lg:px-10 lg:pb-20 2xl:px-14">
-                      <button
-                        type="submit"
-                        disabled={isSaving || isSubmitting}
-                        className="inline-flex min-h-14 min-w-[300px] items-center justify-center rounded-full border border-brand-300/30 bg-brand-300/10 px-10 text-sm font-medium text-brand-100 transition hover:bg-brand-300/15 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {isSubmitting ? 'Enviando proyecto...' : 'Enviar proyecto'}
-                      </button>
+                      <div className="flex w-full max-w-[980px] flex-col gap-3 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleSaveChanges()
+                          }}
+                          disabled={isSaving || isSubmitting || !hasUnsavedChanges}
+                          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                        >
+                          <DraftSaveIcon />
+                          {isSaving ? 'Guardando cambios...' : 'Guardar cambios'}
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSaving || isSubmitting}
+                          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                        >
+                          <SubmitProposalIcon />
+                          {isSubmitting ? 'Enviando proyecto...' : 'Enviar proyecto'}
+                        </button>
+                      </div>
                     </section>
                   ) : null}
                 </form>

@@ -76,22 +76,17 @@ export function ProfilePage() {
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
       <div className="mx-auto max-w-[1720px]">
         <section className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-3">
-              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-                Mi cuenta
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-                Actualiza tus datos personales y de contacto.
-              </p>
-            </div>
+          <div className="flex items-center justify-between gap-3 sm:gap-4">
+            <h1 className="min-w-0 flex-1 font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:flex-none sm:text-5xl">
+              Mi cuenta
+            </h1>
 
-            <div className="inline-flex min-h-12 items-center rounded-full bg-brand-300 px-5 text-sm font-semibold text-brand-950 sm:min-h-14 sm:px-6 sm:text-base">
+            <div className="inline-flex min-h-12 shrink-0 items-center whitespace-nowrap rounded-full border border-brand-300/35 bg-brand-300/18 px-5 text-sm font-semibold text-brand-300 sm:min-h-14 sm:px-6 sm:text-base">
               {plan?.name ?? 'Sin plan activo'}
             </div>
           </div>
 
-          <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
+          <section className="w-full rounded-none border-x-0 border-y border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:rounded-[1rem] sm:border sm:p-6 lg:p-7">
             <form className="space-y-6" onSubmit={handleSubmit}>
               {successMessage ? (
                 <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
@@ -195,24 +190,16 @@ export function ProfilePage() {
             </form>
           </section>
 
-          <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
-            <div className="space-y-5">
-              <h2 className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                Sesión
-              </h2>
-
-              <button
-                type="button"
-                onClick={() => {
-                  void executeSignOut()
-                }}
-                disabled={isSigningOut}
-                className="min-h-12 w-full rounded-full bg-brand-300 px-6 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isSigningOut ? 'Cerrando...' : 'Cerrar sesión'}
-              </button>
-            </div>
-          </section>
+          <button
+            type="button"
+            onClick={() => {
+              void executeSignOut()
+            }}
+            disabled={isSigningOut}
+            className="min-h-12 w-full rounded-full border border-white/12 bg-white/6 px-6 text-sm font-medium text-brand-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-70 sm:hidden"
+          >
+            {isSigningOut ? 'Cerrando...' : 'Cerrar sesión'}
+          </button>
         </section>
       </div>
     </div>
