@@ -21,21 +21,9 @@ export function RequestProjectLocationCard({
   onRemove,
 }: RequestProjectLocationCardProps) {
   const locationTitle = formatLocationCode(item.location.locationCode)
-  const departmentName =
-    item.location.departmentName && !item.location.departmentName.startsWith('Sin ')
-      ? item.location.departmentName
-      : null
-  const zoneName =
-    item.location.zoneName && !item.location.zoneName.startsWith('Sin ')
-      ? item.location.zoneName
-      : null
-  const locationSubtitle =
-    departmentName && zoneName
-      ? `${departmentName} · ${zoneName}`
-      : null
 
   return (
-    <article className="group relative overflow-hidden rounded-[0.75rem] border border-white/10 bg-[#1B1B1D]">
+    <article className="group relative overflow-hidden rounded-none border-x-0 border-y border-white/10 bg-[#1B1B1D] sm:rounded-[0.75rem] sm:border">
       <Link
         to={buildPublicLocationPath({
           categorySlug: item.location.categorySlug,
@@ -77,9 +65,6 @@ export function RequestProjectLocationCard({
               <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 transition">
                 {locationTitle}
               </p>
-              {locationSubtitle ? (
-                <p className="text-sm text-brand-100/68">{locationSubtitle}</p>
-              ) : null}
             </div>
 
             <span className="inline-flex items-center text-sm font-medium text-brand-300 transition">

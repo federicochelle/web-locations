@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 
 import {
@@ -49,7 +50,7 @@ function ProjectsSection({
           <div className="flex justify-center lg:justify-start">
             <RequestProjectsSectionIllustration variant={emptyVariant} />
           </div>
-          <div>
+          <div className="text-center lg:text-left">
             <h3 className="text-lg font-semibold text-brand-100">{emptyTitle}</h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
               {emptyDescription}
@@ -85,7 +86,7 @@ function ProjectsSection({
                     onClick={() => {
                       onDeleteDraft(project)
                     }}
-                    className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/72 text-white opacity-0 transition duration-200 hover:bg-black/86 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/72 text-white transition duration-200 hover:bg-black/86 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     aria-label={`Eliminar borrador ${project.title}`}
                   >
                     <svg
@@ -197,8 +198,18 @@ export function RequestsPage() {
       return
     }
 
-    const previousOverflow = document.body.style.overflow
+    const scrollY = window.scrollY
+    const previousBodyOverflow = document.body.style.overflow
+    const previousBodyPosition = document.body.style.position
+    const previousBodyTop = document.body.style.top
+    const previousBodyWidth = document.body.style.width
+    const previousHtmlOverflow = document.documentElement.style.overflow
+
+    document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && !isCreating) {
@@ -209,8 +220,13 @@ export function RequestsPage() {
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.body.style.overflow = previousOverflow
+      document.documentElement.style.overflow = previousHtmlOverflow
+      document.body.style.overflow = previousBodyOverflow
+      document.body.style.position = previousBodyPosition
+      document.body.style.top = previousBodyTop
+      document.body.style.width = previousBodyWidth
       window.removeEventListener('keydown', handleKeyDown)
+      window.scrollTo(0, scrollY)
     }
   }, [isCreateModalOpen, isCreating])
 
@@ -293,8 +309,8 @@ export function RequestsPage() {
       {!isLoading && !error ? (
         <section className="w-full max-w-[1720px] space-y-8 sm:space-y-10">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+            <div className="flex items-center justify-between gap-3 sm:gap-4">
+              <h1 className="min-w-0 flex-1 font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:flex-none sm:text-5xl">
                 Mis proyectos
               </h1>
 
@@ -303,7 +319,8 @@ export function RequestsPage() {
                 onClick={() => {
                   setIsCreateModalOpen(true)
                 }}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700"
+                aria-label="Nuevo proyecto"
+                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-sm font-medium text-white transition hover:bg-brand-700 sm:min-h-12 sm:w-auto sm:gap-2 sm:px-5"
               >
                 <svg
                   aria-hidden="true"
@@ -312,7 +329,7 @@ export function RequestsPage() {
                 >
                   <path d="M9 4a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4Z" />
                 </svg>
-                Nuevo proyecto
+                <span className="hidden sm:inline">Nuevo proyecto</span>
               </button>
             </div>
 
@@ -378,64 +395,86 @@ export function RequestsPage() {
       ) : null}
       </div>
 
-      {isCreateModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/68 px-4 py-4 backdrop-blur-sm transition-opacity duration-200 sm:px-6"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !isCreating) {
-              setIsCreateModalOpen(false)
-            }
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="create-project-modal-title"
-            aria-describedby="create-project-modal-description"
-            className="w-full max-w-3xl rounded-[1.25rem] border border-white/10 bg-[#1B1B1D] p-5 text-brand-100 shadow-[0_24px_80px_rgba(0,0,0,0.38)] transition-all duration-200 sm:p-6 lg:p-7"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-3">
-                <h2
-                  id="create-project-modal-title"
-                  className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
+      {isCreateModalOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[80] bg-black/72 backdrop-blur-sm transition-opacity duration-200"
+              onClick={(event) => {
+                if (event.target === event.currentTarget && !isCreating) {
+                  setIsCreateModalOpen(false)
+                }
+              }}
+              style={{
+                paddingTop: 'max(1rem, env(safe-area-inset-top))',
+                paddingRight: 'max(1rem, env(safe-area-inset-right))',
+                paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+                paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+              }}
+            >
+              <div className="flex min-h-full items-center justify-center">
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="create-project-modal-title"
+                  className="flex w-full max-w-3xl flex-col overflow-y-auto rounded-[1.25rem] border border-white/10 bg-[#1B1B1D] p-5 text-brand-100 shadow-[0_24px_80px_rgba(0,0,0,0.38)] transition-all duration-200 sm:p-6 lg:p-7"
+                  style={{
+                    maxHeight: 'calc(100vh - 2rem)',
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
                 >
-                  Nuevo proyecto
-                </h2>
-                <p
-                  id="create-project-modal-description"
-                  className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base"
-                >
-                  Crea un proyecto para organizar las locaciones que quieras consultar.
-                </p>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                    <div className="min-w-0">
+                      <h2
+                        id="create-project-modal-title"
+                        className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
+                      >
+                        Nuevo proyecto
+                      </h2>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreateModalOpen(false)
+                      }}
+                      disabled={isCreating}
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100/72 transition hover:bg-white/6 hover:text-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+                      aria-label="Cerrar modal"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M6 6L18 18" />
+                        <path d="M18 6L6 18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="mt-6">
+                    <RequestProjectForm
+                      error={error}
+                      isSubmitting={isCreating}
+                      onCancel={() => {
+                        setIsCreateModalOpen(false)
+                      }}
+                      onSubmit={handleCreateProject}
+                    />
+                  </div>
+                </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreateModalOpen(false)
-                }}
-                disabled={isCreating}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-brand-100/72 transition hover:bg-white/6 hover:text-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-                aria-label="Cerrar modal"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mt-6">
-              <RequestProjectForm
-                error={error}
-                isSubmitting={isCreating}
-                onCancel={() => {
-                  setIsCreateModalOpen(false)
-                }}
-                onSubmit={handleCreateProject}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
 
       {projectPendingDeletion ? (
         <div

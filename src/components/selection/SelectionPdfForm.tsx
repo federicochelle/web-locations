@@ -61,7 +61,7 @@ const fields: FieldConfig[] = [
   },
 ]
 
-type DateInputWithVisualShellProps = {
+export type DateInputWithVisualShellProps = {
   id: string
   name: keyof SelectionPdfFormValues
   label: string
@@ -107,7 +107,7 @@ function CalendarIcon() {
   )
 }
 
-function DateInputWithVisualShell({
+export function DateInputWithVisualShell({
   id,
   name,
   label,

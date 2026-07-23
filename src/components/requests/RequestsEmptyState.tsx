@@ -22,7 +22,7 @@ export function RequestsEmptyState() {
             Creá un proyecto para organizar las locaciones de tu próxima producción.
           </p>
 
-          <div className="flex w-full flex-col items-stretch justify-center gap-3 pt-4 sm:flex-row lg:justify-start">
+          <div className="flex w-full flex-col items-center justify-center gap-3 pt-4 sm:flex-row sm:items-stretch lg:justify-start">
             <Link
               to="/requests/new"
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 sm:flex-1 lg:flex-none"

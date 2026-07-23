@@ -86,7 +86,7 @@ export function SelectionPdfPreview({
                 </span>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3">
                 {location.images.map((image) => (
                   <div key={image.key} className="overflow-hidden border border-white/10">
                     <img
