@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 
 import logoUrl from '../../../logo.webp'
 
@@ -50,34 +49,13 @@ export function Footer() {
   return (
     <footer className="border-t border-white/10 bg-[#14110f] text-white/70">
       <div className="page-shell py-10 sm:py-12 lg:py-14">
-        <div className="grid gap-10 md:gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center">
+        <div className="grid gap-10 md:gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
           <div className="flex justify-center lg:justify-start">
             <img
               src={logoUrl}
               alt="Film Locations Uruguay"
               className="h-36 w-auto object-contain sm:h-40 lg:h-44"
             />
-          </div>
-
-          <div className="space-y-4 text-center lg:px-6">
-            <div className="space-y-3">
-              <h2 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100 sm:text-[2rem]">
-                ¿Tenes una locacion?
-              </h2>
-              <p className="mx-auto max-w-md text-sm leading-6 text-white/60 sm:text-base">
-                Compartila con nuestro equipo y forma parte de la base de
-                locaciones de Uruguay.
-              </p>
-            </div>
-
-            <div className="flex justify-center">
-              <Link
-                to="/postular-locacion"
-                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-brand-300/40 px-6 text-sm font-medium text-brand-300 transition hover:bg-brand-300/10 hover:text-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] sm:w-auto"
-              >
-                Publicá tu locación →
-              </Link>
-            </div>
           </div>
 
           <div className="flex items-center justify-center gap-4 lg:justify-end">

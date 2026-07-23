@@ -20,6 +20,7 @@ export type RequestProjectsContextValue = {
   projects: RequestProject[]
   draftProjects: RequestProject[]
   isLoading: boolean
+  hasLoadedOnce: boolean
   isCreating: boolean
   deletingProjectId: string | null
   error: string | null

@@ -6,7 +6,6 @@ import {
   type RequestProjectFormValues,
 } from '@/components/requests/RequestProjectForm.tsx'
 import { RequestProjectsSectionIllustration } from '@/components/requests/RequestProjectsSectionIllustrations.tsx'
-import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import type { RequestProject } from '@/types/request-project.ts'
@@ -17,10 +16,6 @@ function formatProjectDate(value: string) {
     month: 'short',
     day: 'numeric',
   })
-}
-
-function formatLocationCount(count: number) {
-  return `${count} locacion${count === 1 ? '' : 'es'}`
 }
 
 type ProjectsSectionProps = {
@@ -47,7 +42,7 @@ function ProjectsSection({
   return (
     <section
       key={activeSegment}
-      className="rounded-[1.5rem] border border-white/8 bg-[#171719] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.18)] transition-all duration-300 ease-out sm:p-5 lg:p-6"
+      className="transition-all duration-300 ease-out"
     >
       {projects.length === 0 ? (
         <div className="grid items-center gap-6 p-2 sm:p-3 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
@@ -116,9 +111,9 @@ function ProjectsSection({
                   to={`/requests/${project.id}`}
                   className="block overflow-hidden rounded-[0.75rem] border border-white/8 bg-[#1B1B1D] transition hover:border-white/14 hover:bg-[#212124] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black lg:flex lg:min-h-[16rem]"
                 >
-                  <div className="relative bg-sand-100 lg:w-[15.5rem] lg:shrink-0">
-                    <div className="absolute left-3 top-3 z-10">
-                      <RequestProjectStatusBadge status={project.status} />
+                  <div className="relative bg-sand-100 lg:min-h-[16rem] lg:w-1/2 lg:shrink-0">
+                    <div className="absolute left-3 top-3 z-10 inline-flex min-h-8 items-center justify-center rounded-full bg-black/55 px-3 text-sm font-medium text-white backdrop-blur-sm">
+                      {isDraft ? 'Borrador' : 'Enviada'}
                     </div>
 
                     {project.locationCount > 1 ? (
@@ -141,7 +136,7 @@ function ProjectsSection({
                     )}
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-4 p-4 sm:p-5 lg:flex-1 lg:justify-between">
+                  <div className="flex min-w-0 flex-col gap-4 p-4 sm:p-5 lg:w-1/2 lg:flex-1 lg:justify-between">
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <div className="min-w-0 font-display text-[1.55rem] font-semibold leading-none tracking-[-0.03em] text-white transition group-hover:text-brand-100">
@@ -149,11 +144,8 @@ function ProjectsSection({
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex min-h-8 items-center rounded-full border border-white/8 bg-white/5 px-3 text-sm text-brand-100/78">
-                            {formatLocationCount(project.locationCount)}
-                          </span>
-                          <span className="inline-flex min-h-8 items-center rounded-full border border-white/8 bg-white/5 px-3 text-sm text-brand-100/62">
-                            Editado {formatProjectDate(project.updatedAt)}
+                          <span className="inline-flex min-h-8 items-center text-sm text-brand-100/62">
+                            {isDraft ? 'Editado' : 'Enviado'} {formatProjectDate(project.updatedAt)}
                           </span>
                         </div>
                       </div>
@@ -324,9 +316,6 @@ export function RequestsPage() {
               </button>
             </div>
 
-            <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-              Gestiona tus proyectos y prepara las locaciones que quieras consultar.
-            </p>
           </div>
 
           <div className="inline-flex w-full max-w-[34rem] rounded-[1.35rem] border border-white/10 bg-[#171719] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">

@@ -27,6 +27,7 @@ export function RequestProjectsProvider({
   const { isAuthenticated, loading: authLoading } = useAuth()
   const [projects, setProjects] = useState<RequestProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +43,7 @@ export function RequestProjectsProvider({
       setError(getRequestProjectErrorMessage(loadError))
       setProjects([])
     } finally {
+      setHasLoadedOnce(true)
       setIsLoading(false)
     }
   }, [])
@@ -54,12 +56,14 @@ export function RequestProjectsProvider({
     if (!isAuthenticated) {
       setProjects([])
       setError(null)
+      setHasLoadedOnce(true)
       setIsLoading(false)
       setIsCreating(false)
       setDeletingProjectId(null)
       return
     }
 
+    setHasLoadedOnce(false)
     void refreshProjects()
   }, [authLoading, isAuthenticated, refreshProjects])
 
@@ -150,6 +154,7 @@ export function RequestProjectsProvider({
       projects,
       draftProjects,
       isLoading,
+      hasLoadedOnce,
       isCreating,
       deletingProjectId,
       error,
@@ -163,6 +168,7 @@ export function RequestProjectsProvider({
       deletingProjectId,
       draftProjects,
       error,
+      hasLoadedOnce,
       isCreating,
       isLoading,
       projects,

@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
+
+import { AppModal } from '@/components/ui/AppModal.tsx'
 
 type SubmissionResultModalProps = {
   isOpen: boolean
@@ -25,34 +27,6 @@ export function SubmissionResultModal({
 }: SubmissionResultModalProps) {
   const primaryActionRef = useRef<HTMLButtonElement | null>(null)
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    primaryActionRef.current?.focus()
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onClose()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, onClose])
-
-  if (!isOpen) {
-    return null
-  }
-
   const isError = variant === 'error'
   const isPartial = variant === 'partial-success'
   const accentClassName = isError
@@ -63,21 +37,17 @@ export function SubmissionResultModal({
   const icon = isError ? '!' : '✓'
 
   return (
-    <div
-      className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 px-4 pt-64 backdrop-blur-sm sm:pt-80"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose()
-        }
-      }}
+    <AppModal
+      open={isOpen}
+      onClose={onClose}
+      titleId="submission-result-title"
+      descriptionId="submission-result-description"
+      closeOnOverlayClick
+      closeOnEscape
+      initialFocusRef={primaryActionRef}
+      panelClassName="max-w-lg p-5 sm:p-6"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="submission-result-title"
-        aria-describedby="submission-result-description"
-        className="w-full max-w-lg rounded-[1rem] border border-white/10 bg-[#1B1B1D] p-5 text-brand-100 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:p-6"
-      >
+      <div>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-4">
             <div
@@ -131,9 +101,9 @@ export function SubmissionResultModal({
             >
               {secondaryActionLabel}
             </button>
-          ) : null}
+            ) : null}
         </div>
       </div>
-    </div>
+    </AppModal>
   )
 }

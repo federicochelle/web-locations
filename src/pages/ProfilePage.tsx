@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { useSignOutAction } from '@/hooks/useSignOutAction.ts'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import {
@@ -17,6 +18,7 @@ export function ProfilePage() {
   usePageTitle('Mi perfil')
 
   const { plan, profile, refreshProfile, user } = useAuth()
+  const { executeSignOut, isSigningOut } = useSignOutAction()
   const [values, setValues] = useState<ProfileFormValues>({
     fullName: '',
     companyName: '',
@@ -191,6 +193,25 @@ export function ProfilePage() {
                 </button>
               </div>
             </form>
+          </section>
+
+          <section className="rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:p-6 lg:p-7">
+            <div className="space-y-5">
+              <h2 className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
+                Sesión
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void executeSignOut()
+                }}
+                disabled={isSigningOut}
+                className="min-h-12 w-full rounded-full bg-brand-300 px-6 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSigningOut ? 'Cerrando...' : 'Cerrar sesión'}
+              </button>
+            </div>
           </section>
         </section>
       </div>

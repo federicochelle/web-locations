@@ -6,10 +6,10 @@ import logoUrl from '../../../logo.webp'
 
 export function Header() {
   const location = useLocation()
-  const { isAuthenticated, loading, profile, signOut, user } = useAuth()
+  const { isAuthenticated, loading, profile, user } = useAuth()
   const displayName = profile?.fullName?.trim() || user?.email || null
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
-    `inline-flex min-h-10 items-center justify-center border-b-2 px-1 text-sm font-medium transition ${
+    `font-display inline-flex min-h-11 items-center justify-center border-b-2 px-1 text-base font-semibold tracking-[-0.02em] transition ${
       isActive
         ? 'border-brand-300 text-brand-100'
         : 'border-transparent text-brand-300 hover:text-brand-100'
@@ -34,13 +34,13 @@ export function Header() {
         <nav className="hidden justify-center md:flex">
           <div className="flex items-center gap-7 lg:gap-9">
             <NavLink to="/" end className={navLinkClassName}>
-              Explorar
+              Inicio
             </NavLink>
             <NavLink to="/postular-locacion" className={navLinkClassName}>
               Publicá tu locación
             </NavLink>
             <span
-              className="inline-flex min-h-10 items-center justify-center border-b-2 border-transparent px-1 text-sm font-medium text-brand-300 transition"
+              className="font-display inline-flex min-h-11 items-center justify-center border-b-2 border-transparent px-1 text-base font-semibold tracking-[-0.02em] text-brand-300 transition"
               aria-disabled="true"
             >
               Nosotros
@@ -58,7 +58,7 @@ export function Header() {
             </NavLink>
           </div>
           {loading ? null : isAuthenticated && displayName ? (
-            <UserMenu displayName={displayName} onSignOut={signOut} />
+            <UserMenu displayName={displayName} />
           ) : (
             <>
               <NavLink
