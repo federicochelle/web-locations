@@ -249,7 +249,7 @@ export function HomeSearchSection({
         <HeroBackgroundMosaic />
 
         <div className="relative mx-auto flex w-full max-w-[1720px] justify-center">
-          <div className="w-full max-w-5xl space-y-8 text-center lg:space-y-10">
+          <div className="w-full max-w-5xl space-y-16 text-center sm:space-y-8 lg:space-y-10">
             <div className="mx-auto max-w-4xl space-y-4 sm:space-y-5">
               <div className="space-y-3">
                 <h1 className="mx-auto max-w-4xl font-display text-5xl font-semibold leading-[0.94] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
@@ -260,51 +260,34 @@ export function HomeSearchSection({
 
             <form
               onSubmit={handleSubmit}
-              className="mx-auto grid w-full max-w-5xl gap-3 rounded-[1.6rem] bg-black/76 p-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.26)] backdrop-blur-[10px] sm:grid-cols-2 sm:p-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] lg:gap-4 lg:rounded-[1.8rem] lg:p-5"
+              className="mx-auto flex w-full max-w-4xl items-center gap-3 rounded-full border border-white/10 bg-black/72 px-3 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.26)] backdrop-blur-[10px] sm:px-4"
             >
-              <label className="space-y-2">
-                <span className="block px-1 text-[0.68rem] font-medium uppercase tracking-[0.24em] text-brand-300/90 sm:text-[0.72rem]">
-                  Describe tu locación
-                </span>
-                <input
-                  type="search"
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  placeholder="Ingresa tu texto aqui..."
-                  className="min-h-16 w-full rounded-[1.25rem] bg-white/4 px-5 text-sm text-brand-300 outline-none transition duration-200 placeholder:text-brand-100/42 focus:bg-white/6 focus:shadow-[0_0_0_4px_rgba(215,192,162,0.1)] sm:text-[0.95rem]"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="block px-1 text-[0.68rem] font-medium uppercase tracking-[0.24em] text-brand-300/90 sm:text-[0.72rem]">
-                  Buscar por categoria
-                </span>
-                <select
-                  value={selectedCategorySlug}
-                  onChange={(event) => setSelectedCategorySlug(event.target.value)}
-                  disabled={isLoading || categories.length === 0}
-                  className="min-h-16 w-full rounded-[1.25rem] bg-white/4 px-5 text-sm text-brand-300 outline-none transition duration-200 focus:bg-white/6 focus:shadow-[0_0_0_4px_rgba(215,192,162,0.1)] disabled:cursor-not-allowed disabled:bg-white/4 disabled:text-brand-100/40 sm:text-[0.95rem]"
-                >
-                  <option value="">
-                    {isLoading
-                      ? 'Cargando categorias...'
-                      : categories.length > 0
-                      ? 'Todas las categorias'
-                      : 'No hay categorias disponibles'}
-                  </option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.slug}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <input
+                type="search"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Buscar locaciones..."
+                className="min-h-14 flex-1 bg-transparent px-3 text-base text-brand-100 outline-none transition placeholder:text-brand-100/42 sm:text-lg"
+              />
 
               <button
                 type="submit"
-                className="min-h-16 self-end rounded-[1.25rem] bg-brand-300 px-8 text-sm font-semibold text-brand-950 shadow-[0_16px_34px_rgba(155,120,88,0.24)] transition duration-200 hover:-translate-y-0.5 hover:bg-brand-100 hover:shadow-[0_20px_38px_rgba(155,120,88,0.28)] sm:px-9 sm:text-[0.95rem]"
+                aria-label="Buscar"
+                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-300 text-brand-950 shadow-[0_12px_28px_rgba(155,120,88,0.24)] transition duration-200 hover:bg-brand-100"
               >
-                Buscar
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
               </button>
             </form>
 

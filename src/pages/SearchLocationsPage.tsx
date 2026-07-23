@@ -88,59 +88,58 @@ export function SearchLocationsPage() {
   }
 
   return (
-    <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-12 lg:pb-24 lg:pt-12">
-      <section className="max-w-4xl space-y-3">
-        <p className="text-xs font-medium uppercase tracking-[0.28em] text-brand-700">
-          Resultados de busqueda
-        </p>
-        <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-          Resultados de busqueda
-        </h1>
-        {hasActiveSearch ? (
-          <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-            Busqueda: "{trimmedSearchQuery}"
-          </p>
+    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
+      <div className="mx-auto max-w-[1720px] space-y-8 px-4 pb-16 pt-8 sm:space-y-10 sm:px-6 sm:pb-20 sm:pt-10 lg:space-y-12 lg:px-10 lg:pb-24 lg:pt-12 2xl:px-14">
+        <section className="max-w-4xl space-y-3">
+          <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
+            Resultados de búsqueda
+          </h1>
+          {hasActiveSearch ? (
+            <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
+              Busqueda: "{trimmedSearchQuery}"
+            </p>
+          ) : null}
+        </section>
+
+        {isLoading ? (
+          <section className="w-full">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="aspect-[16/13] animate-pulse rounded-[0.9rem] bg-sand-200/80 lg:aspect-[16/12]"
+                />
+              ))}
+            </div>
+          </section>
         ) : null}
-      </section>
 
-      {isLoading ? (
-        <section className="w-full">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={index}
-                className="aspect-[16/13] animate-pulse rounded-[0.9rem] bg-sand-200/80 lg:aspect-[16/12]"
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
+        {!isLoading && error ? (
+          <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
+            <h2 className="text-lg font-semibold">No se pudieron cargar los resultados</h2>
+            <p className="mt-2 text-sm">{error}</p>
+          </section>
+        ) : null}
 
-      {!isLoading && error ? (
-        <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
-          <h2 className="text-lg font-semibold">No se pudieron cargar los resultados</h2>
-          <p className="mt-2 text-sm">{error}</p>
-        </section>
-      ) : null}
+        {!isLoading && !error && locations.length === 0 ? (
+          <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
+            <h2 className="text-lg font-semibold text-brand-950">No encontramos resultados</h2>
+            <p className="mt-2 text-sm text-sand-700">
+              No encontramos locaciones publicadas para esta busqueda.
+            </p>
+          </section>
+        ) : null}
 
-      {!isLoading && !error && locations.length === 0 ? (
-        <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
-          <h2 className="text-lg font-semibold text-brand-950">No encontramos resultados</h2>
-          <p className="mt-2 text-sm text-sand-700">
-            No encontramos locaciones publicadas para esta busqueda.
-          </p>
-        </section>
-      ) : null}
-
-      {!isLoading && !error && locations.length > 0 ? (
-        <section className="w-full">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {locations.map((location) => (
-              <LocationCard key={location.id} location={location} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+        {!isLoading && !error && locations.length > 0 ? (
+          <section className="w-full">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {locations.map((location) => (
+                <LocationCard key={location.id} location={location} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
     </div>
   )
 }
