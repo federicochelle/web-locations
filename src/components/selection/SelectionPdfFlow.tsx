@@ -33,6 +33,7 @@ type SelectionPdfFlowProps = {
   onClose: () => void
   onSuccessComplete: () => void
   isDetached: boolean
+  embeddedInDrawer?: boolean
   onStartProcessing: () => void
   onRestoreAfterError: () => void
   activeProjectId: string | null
@@ -42,6 +43,7 @@ type SelectionPdfFlowProps = {
   onProjectSelectionChange: (projectId: string | null) => void
   onPersistedProjectChange: (projectId: string) => void
   onProjectsRefresh: () => Promise<void>
+  onBusyStateChange?: (isBusy: boolean) => void
 }
 
 const initialValues: SelectionPdfFormValues = {
@@ -104,6 +106,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onClose,
     onSuccessComplete,
     isDetached,
+    embeddedInDrawer = false,
     onStartProcessing,
     onRestoreAfterError,
     activeProjectId,
@@ -113,6 +116,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onProjectSelectionChange,
     onPersistedProjectChange,
     onProjectsRefresh,
+    onBusyStateChange,
   } = props
   const navigate = useNavigate()
   const { images, clearSelection } = useImageSelection()
@@ -141,6 +145,14 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   const hasSelectedImages = images.length > 0
   const isBusy = isSavingDraft || isSubmittingProposal || isLoadingModalOpen
+
+  useEffect(() => {
+    onBusyStateChange?.(isBusy)
+
+    return () => {
+      onBusyStateChange?.(false)
+    }
+  }, [isBusy, onBusyStateChange])
 
   function resetFlowState() {
     setStep('form')
@@ -417,7 +429,58 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   return (
     <>
-      {!isDetached ? (
+      {!isDetached ? embeddedInDrawer ? (
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+            <div className="space-y-4">
+              {draftNotice && !isDraftSuccessModalOpen ? (
+                <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                  {draftNotice}
+                </div>
+              ) : null}
+              {exportError ? (
+                <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                  {exportError}
+                </div>
+              ) : null}
+              <SelectionPdfForm
+                values={values}
+                errors={errors}
+                onChange={handleFieldChange}
+                disabled={isBusy}
+                columns={2}
+              />
+            </div>
+          </div>
+
+          <footer className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSaveDraft()
+                }}
+                disabled={isBusy}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              >
+                <DraftSaveIcon />
+                Guardar borrador
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSubmitProposal()
+                }}
+                disabled={!hasSelectedImages || isBusy}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              >
+                <SubmitProposalIcon />
+                Enviar propuesta
+              </button>
+            </div>
+          </footer>
+        </div>
+      ) : (
         <ProposalWorkspace
           preview={<SelectionPdfPreview payload={livePreviewPayload} />}
           sidebarTitle="Datos del proyecto"
@@ -472,40 +535,36 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           onClose={onClose}
         />
       ) : step !== 'form' ? (
-          <aside className="ml-auto flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] shadow-[-16px_0_48px_rgba(0,0,0,0.32)] sm:w-[min(92vw,460px)]">
-            <header className="border-b border-white/10 px-4 py-4 sm:px-5">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                <div className="min-w-0">
-                  <div className="flex min-h-11 items-center">
-                    <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                      Seleccionar proyecto
-                    </p>
-                  </div>
-                  <ActiveProjectSelect
-                    activeProjectId={activeProjectId}
-                    projects={draftProjects}
-                    isLoading={isLoadingProjects}
-                    disabled={step === 'generating' || isBusy}
-                    compact
-                    onChange={onProjectSelectionChange}
-                  />
+          <aside className="ml-auto flex h-screen max-h-screen min-h-0 w-full max-w-[460px] flex-col overflow-hidden border-l border-white/10 bg-[#14110f] shadow-[-16px_0_48px_rgba(0,0,0,0.32)] supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] sm:w-[min(92vw,460px)]">
+            <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
+              <div className="min-w-0 flex-1">
+                <div className="mb-3 flex min-h-11 items-center">
+                  <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
+                    Seleccionar proyecto
+                  </p>
                 </div>
-                <div className="flex items-start">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={step === 'generating' || isSuccessModalOpen || isBusy}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                    aria-label="Cerrar flujo de preparacion"
-                    autoFocus
-                  >
-                    ×
-                  </button>
-                </div>
+                <ActiveProjectSelect
+                  activeProjectId={activeProjectId}
+                  projects={draftProjects}
+                  isLoading={isLoadingProjects}
+                  disabled={step === 'generating' || isBusy}
+                  compact
+                  onChange={onProjectSelectionChange}
+                />
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={step === 'generating' || isSuccessModalOpen || isBusy}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                aria-label="Cerrar flujo de preparacion"
+                autoFocus
+              >
+                ×
+              </button>
             </header>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
               {step === 'generating' ? (
                 <div className="space-y-6">
                   <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">

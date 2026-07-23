@@ -166,6 +166,7 @@ export function SelectionDrawer() {
   })
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [isPdfFlowBusy, setIsPdfFlowBusy] = useState(false)
   const autosaveTimeoutRef = useRef<number | null>(null)
   const autosaveExecutionTokenRef = useRef<symbol | null>(null)
   const autosavePromiseRef = useRef<Promise<boolean> | null>(null)
@@ -672,8 +673,46 @@ export function SelectionDrawer() {
     persistedContextRef.current = { mode: 'project', projectId }
   }
 
+  function renderDrawerHeader() {
+    return (
+      <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <span id="selection-drawer-title" className="sr-only">
+              Editor de propuesta
+            </span>
+            <div className="mb-3 flex min-h-11 items-center">
+              <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
+                Seleccionar proyecto
+              </p>
+            </div>
+            <ActiveProjectSelect
+              activeProjectId={activeProjectId}
+              projects={draftProjects}
+              isLoading={isLoading || isLoadingProjectContent}
+              disabled={activeView === 'pdf-flow' ? isPdfFlowBusy : false}
+              compact
+              onChange={(projectId) => {
+                void handleActiveProjectChange(projectId)
+              }}
+            />
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={closeDrawer}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+            aria-label="Cerrar drawer de seleccion"
+          >
+            ×
+          </button>
+        </div>
+      </header>
+    )
+  }
+
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 overscroll-none">
       {!isPdfFlowDetached ? (
         <button
           type="button"
@@ -684,7 +723,7 @@ export function SelectionDrawer() {
           onClick={closeDrawer}
         />
       ) : null}
-      {activeView === 'selection' ? (
+      {!isPdfFlowDetached ? (
         <aside
           id="selection-drawer"
           role="dialog"
@@ -698,120 +737,123 @@ export function SelectionDrawer() {
 
             handleExitComplete()
           }}
-          className={`absolute right-0 top-0 flex h-full w-full max-w-[460px] flex-col border-l border-white/10 bg-[#14110f] text-brand-100 shadow-[-16px_0_48px_rgba(0,0,0,0.32)] transition-transform duration-300 ease-out motion-reduce:duration-0 sm:w-[min(92vw,460px)] ${
+          className={`absolute right-0 top-0 flex h-screen max-h-screen min-h-0 w-full max-w-[460px] flex-col overflow-hidden border-l border-white/10 bg-[#14110f] text-brand-100 shadow-[-16px_0_48px_rgba(0,0,0,0.32)] transition-transform duration-300 ease-out motion-reduce:duration-0 supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] sm:w-[min(92vw,460px)] ${
             isVisible ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <>
-            <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
-              <div className="min-w-0 flex-1">
-                <span id="selection-drawer-title" className="sr-only">
-                  Editor de propuesta
-                </span>
-                <div className="mb-3 flex min-h-11 items-center">
-                  <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                    Seleccionar proyecto
-                  </p>
-                </div>
-                <ActiveProjectSelect
-                  activeProjectId={activeProjectId}
-                  projects={draftProjects}
-                  isLoading={isLoading || isLoadingProjectContent}
-                  compact
-                  onChange={(projectId) => {
-                    void handleActiveProjectChange(projectId)
-                  }}
-                />
+          {renderDrawerHeader()}
+
+          {activeView === 'selection' ? (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+                {projectLoadError ? (
+                  <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                    {projectLoadError}
+                  </div>
+                ) : null}
+                {draftNotice ? (
+                  <div className="mb-4 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
+                    {draftNotice}
+                  </div>
+                ) : null}
+
+                {isLoadingProjectContent || isHydratingPersistedContext ? (
+                  <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+                    <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
+                      Cargando proyecto...
+                    </div>
+                  </div>
+                ) : groupedSelections.length > 0 ? (
+                  <div className="space-y-4">
+                    {groupedSelections.map((group) => (
+                      <SelectedLocationGroup
+                        key={group.locationId}
+                        locationId={group.locationId}
+                        locationCode={group.locationCode}
+                        categorySlug={group.categorySlug}
+                        locationTitle={group.locationTitle}
+                        images={group.images}
+                        onNavigate={closeDrawer}
+                        onRemoveLocation={handleRemoveLocation}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+                    <div className="max-w-sm">
+                      <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                        Tu seleccion esta vacia
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-brand-300">
+                        Guarda imagenes desde las locaciones para revisarlas aqui mientras navegas.
+                      </p>
+                      <Link
+                        to="/#explorar"
+                        onClick={closeDrawer}
+                        className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                      >
+                        Explorar locaciones
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </div>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                onClick={closeDrawer}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                aria-label="Cerrar drawer de seleccion"
-              >
-                ×
-              </button>
-            </header>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-              {projectLoadError ? (
-                <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  {projectLoadError}
-                </div>
-              ) : null}
-              {draftNotice ? (
-                <div className="mb-4 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
-                  {draftNotice}
-                </div>
-              ) : null}
-
-              {isLoadingProjectContent || isHydratingPersistedContext ? (
-                <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-                  <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-                    Cargando proyecto...
-                  </div>
-                </div>
-              ) : groupedSelections.length > 0 ? (
-                <div className="space-y-4">
-                  {groupedSelections.map((group) => (
-                    <SelectedLocationGroup
-                      key={group.locationId}
-                      locationId={group.locationId}
-                      locationCode={group.locationCode}
-                      categorySlug={group.categorySlug}
-                      locationTitle={group.locationTitle}
-                      images={group.images}
-                      onNavigate={closeDrawer}
-                      onRemoveLocation={handleRemoveLocation}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-                  <div className="max-w-sm">
-                    <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                      Tu seleccion esta vacia
-                    </h3>
-                    <p className="mt-3 text-sm leading-6 text-brand-300">
-                      Guarda imagenes desde las locaciones para revisarlas aqui mientras navegas.
-                    </p>
-                    <Link
-                      to="/#explorar"
-                      onClick={closeDrawer}
-                      className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              {images.length > 0 ? (
+                <footer className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-5">
+                  <div className="flex">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveView('pdf-flow')
+                      }}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100"
                     >
-                      Explorar locaciones
-                    </Link>
+                      <ProposalPreviewIcon />
+                      Continuar
+                    </button>
                   </div>
-                </div>
-              )}
+                </footer>
+              ) : null}
+            </>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <Suspense
+                fallback={
+                  <div className="flex h-full min-h-0 items-center justify-center px-4 py-10">
+                    <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
+                      Cargando...
+                    </div>
+                  </div>
+                }
+              >
+                <SelectionPdfFlow
+                  onClose={closeDrawer}
+                  onSuccessComplete={forceCloseDrawerWithCleanup}
+                  isDetached={false}
+                  embeddedInDrawer
+                  onStartProcessing={() => {
+                    setIsPdfFlowDetached(true)
+                  }}
+                  onRestoreAfterError={() => {
+                    setIsPdfFlowDetached(false)
+                  }}
+                  activeProjectId={activeProjectId}
+                  activeProject={activeProject}
+                  draftProjects={draftProjects}
+                  isLoadingProjects={isLoading}
+                  onProjectSelectionChange={handleActiveProjectChange}
+                  onPersistedProjectChange={handlePersistedProjectChange}
+                  onProjectsRefresh={refreshProjects}
+                  onBusyStateChange={setIsPdfFlowBusy}
+                />
+              </Suspense>
             </div>
-
-            {images.length > 0 ? (
-              <footer className="border-t border-white/10 px-4 py-4 sm:px-5">
-                <div className="flex">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveView('pdf-flow')
-                    }}
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100"
-                  >
-                    <ProposalPreviewIcon />
-                    Continuar
-                  </button>
-                </div>
-              </footer>
-            ) : null}
-          </>
+          )}
         </aside>
       ) : (
         <div
           id="selection-drawer"
-          role={isPdfFlowDetached ? undefined : 'dialog'}
-          aria-modal={isPdfFlowDetached ? undefined : true}
-          aria-labelledby={isPdfFlowDetached ? undefined : 'selection-drawer-title'}
           ref={drawerPanelRef}
           onTransitionEnd={(event) => {
             if (event.target !== drawerPanelRef.current) {
@@ -820,19 +862,13 @@ export function SelectionDrawer() {
 
             handleExitComplete()
           }}
-          className={
-            isPdfFlowDetached
-              ? 'absolute inset-0'
-              : `absolute inset-0 transition-opacity duration-300 ease-out motion-reduce:duration-0 ${
-                  isVisible ? 'opacity-100' : 'opacity-0'
-                }`
-          }
+          className="absolute inset-0"
         >
           <Suspense
             fallback={
               <div className="flex h-full flex-col lg:flex-row">
                 <div className="hidden min-w-0 flex-1 lg:block" />
-                <div className="flex h-full w-full items-center justify-center border-l border-white/10 bg-[#14110f] px-4 py-10 lg:w-[min(100%,460px)]">
+                <div className="flex h-screen max-h-screen min-h-0 w-full items-center justify-center border-l border-white/10 bg-[#14110f] px-4 py-10 supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] lg:w-[min(100%,460px)]">
                   <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
                     Cargando...
                   </div>
@@ -857,6 +893,7 @@ export function SelectionDrawer() {
               onProjectSelectionChange={handleActiveProjectChange}
               onPersistedProjectChange={handlePersistedProjectChange}
               onProjectsRefresh={refreshProjects}
+              onBusyStateChange={setIsPdfFlowBusy}
             />
           </Suspense>
         </div>

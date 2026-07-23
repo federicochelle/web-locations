@@ -7,18 +7,19 @@ import { MobileBottomNavigation } from '@/components/navigation/MobileBottomNavi
 import { ScrollManager } from '@/components/routing/ScrollManager.tsx'
 import { SelectionDrawer } from '@/components/selection/SelectionDrawer.tsx'
 import { SelectionDrawerTrigger } from '@/components/selection/SelectionDrawerTrigger.tsx'
+import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import logoUrl from '../../logo.webp'
 
 export function PublicLayout() {
   const location = useLocation()
+  const { isAuthenticated, loading } = useAuth()
   const { closeDrawer } = useImageSelection()
-  const isAdminRoute = /^\/admin(?:\/.*)?$/u.test(location.pathname)
   const isNotFoundRoute = location.pathname === '/404'
   const isRequestDetailPage =
     /^\/requests\/[^/]+$/u.test(location.pathname) &&
     location.pathname !== '/requests/new'
-  const shouldShowHeaderOnMobile = isAdminRoute || isNotFoundRoute
+  const shouldShowHeaderOnMobile = isNotFoundRoute
 
   useEffect(() => {
     if (!isRequestDetailPage) {
@@ -54,7 +55,7 @@ export function PublicLayout() {
         <Footer />
       </div>
       <MobileBottomNavigation />
-      {!isRequestDetailPage ? <SelectionDrawerTrigger /> : null}
+      {!isRequestDetailPage && !loading && isAuthenticated ? <SelectionDrawerTrigger /> : null}
       {!isRequestDetailPage ? <SelectionDrawer /> : null}
     </div>
   )
