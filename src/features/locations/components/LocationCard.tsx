@@ -22,7 +22,7 @@ export function LocationCard({
   onToggleFavorite,
 }: LocationCardProps) {
   return (
-    <article className="group relative overflow-hidden rounded-[0.65rem] bg-brand-950 shadow-[0_20px_44px_rgba(0,0,0,0.14)] transition duration-500 hover:-translate-y-1.5 hover:shadow-[0_34px_64px_rgba(0,0,0,0.22)]">
+    <article className="group relative overflow-hidden rounded-[0.3rem] bg-brand-950 shadow-[0_20px_44px_rgba(0,0,0,0.14)] transition duration-500 hover:-translate-y-1.5 hover:shadow-[0_34px_64px_rgba(0,0,0,0.22)]">
       {onToggleFavorite ? (
         <div className="absolute right-4 top-4 z-10">
           <FavoriteButton

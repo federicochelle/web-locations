@@ -99,7 +99,7 @@ export function HomePage() {
               {Array.from({ length: 8 }).map((_, index) => (
                 <div
                   key={index}
-                  className="aspect-[5/6] animate-pulse rounded-[2rem] bg-white/8 sm:aspect-[6/5] xl:aspect-[4/5]"
+                  className="aspect-[5/6] animate-pulse rounded-[0.3rem] bg-white/8 sm:aspect-[6/5] xl:aspect-[4/5]"
                 />
               ))}
             </div>
