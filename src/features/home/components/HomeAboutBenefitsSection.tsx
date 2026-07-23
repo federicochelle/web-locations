@@ -92,8 +92,8 @@ export function HomeAboutBenefitsSection() {
                 <div className="text-brand-100">
                   <Icon />
                 </div>
-                <div className="max-w-sm space-y-2">
-                  <h3 className="text-lg leading-6 font-semibold tracking-[-0.02em] text-brand-100 sm:text-xl">
+                <div className="max-w-sm space-y-4">
+                  <h3 className="font-display text-[1.55rem] font-semibold italic leading-[1.02] tracking-[-0.03em] text-brand-100 sm:text-[1.8rem]">
                     {benefit.title}
                   </h3>
                   <p className="text-base leading-6 text-white/58">
