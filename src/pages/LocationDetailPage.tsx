@@ -282,10 +282,10 @@ export function LocationDetailPage() {
                         setLightboxIndex(index)
                         setIsLightboxOpen(true)
                       }}
-                      className="group relative overflow-hidden rounded-[1.75rem]"
+                      className="group relative overflow-hidden rounded-[0.3rem]"
                     >
                       <div
-                        className={`pointer-events-none absolute inset-0 z-0 rounded-[1.75rem] transition ${
+                        className={`pointer-events-none absolute inset-0 z-0 rounded-[0.3rem] transition ${
                           imageIsSelected
                             ? 'bg-brand-950/14 ring-2 ring-brand-300 ring-inset'
                             : 'bg-black/0 md:group-hover:bg-black/18'
@@ -325,7 +325,7 @@ export function LocationDetailPage() {
                   )
                 })
               ) : (
-                <div className="aspect-[16/13] rounded-[1.75rem] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))] lg:aspect-[16/12]" />
+                <div className="aspect-[16/13] rounded-[0.3rem] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))] lg:aspect-[16/12]" />
               )}
             </div>
           </div>

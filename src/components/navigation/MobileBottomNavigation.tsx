@@ -127,9 +127,9 @@ export function MobileBottomNavigation() {
       className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#14110f]/96 shadow-[0_-10px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm md:hidden"
     >
       <div
-        className="grid grid-cols-4 items-stretch px-1 pt-2"
+        className="grid grid-cols-4 items-stretch px-0.5 pt-0"
         style={{
-          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
+          paddingBottom: 'calc(0.2rem + env(safe-area-inset-bottom))',
         }}
       >
         {mobileNavigationItems.map(({ label, to, Icon, matches, usesLogo }) => {
@@ -147,7 +147,7 @@ export function MobileBottomNavigation() {
                   event.preventDefault()
                 }
               }}
-              className={`group inline-flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
+              className={`group inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-1 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
                 isActive
                   ? 'text-brand-100'
                   : 'text-brand-300/72 hover:text-brand-100'
