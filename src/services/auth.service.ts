@@ -81,11 +81,11 @@ function mapAuthErrorMessage(message: string) {
   const normalizedMessage = message.toLowerCase()
 
   if (normalizedMessage.includes('invalid login credentials')) {
-    return 'El email o la contrasena no son correctos.'
+    return 'El correo electrónico o la contraseña no son correctos.'
   }
 
   if (normalizedMessage.includes('email not confirmed')) {
-    return 'Debes confirmar tu email antes de iniciar sesion.'
+    return 'Debés confirmar tu correo electrónico antes de iniciar sesión.'
   }
 
   if (normalizedMessage.includes('user already registered')) {
@@ -96,22 +96,22 @@ function mapAuthErrorMessage(message: string) {
     normalizedMessage.includes('password should be at least') ||
     normalizedMessage.includes('password is too short')
   ) {
-    return `La contrasena debe tener al menos ${AUTH_MIN_PASSWORD_LENGTH} caracteres.`
+    return `La contraseña debe tener al menos ${AUTH_MIN_PASSWORD_LENGTH} caracteres.`
   }
 
   if (
     normalizedMessage.includes('for security purposes') &&
     normalizedMessage.includes('reset')
   ) {
-    return 'Ya se solicito un cambio de contrasena recientemente. Intenta de nuevo en unos minutos.'
+    return 'Ya se solicitó un cambio de contraseña recientemente. Intentá de nuevo en unos minutos.'
   }
 
   if (normalizedMessage.includes('expired')) {
-    return 'El enlace ya expiro. Solicita uno nuevo.'
+    return 'El enlace ya expiró. Solicitá uno nuevo.'
   }
 
   if (normalizedMessage.includes('invalid') && normalizedMessage.includes('token')) {
-    return 'El enlace no es valido o ya fue utilizado.'
+    return 'El enlace no es válido o ya fue utilizado.'
   }
 
   return 'Ocurrio un error al procesar tu solicitud. Intenta nuevamente.'

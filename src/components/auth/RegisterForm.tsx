@@ -25,13 +25,13 @@ function validateForm(values: RegisterFormValues) {
   const errors: RegisterFormErrors = {}
 
   if (!values.fullName.trim()) {
-    errors.fullName = 'Ingresa tu nombre completo.'
+    errors.fullName = 'Ingresá tu nombre completo.'
   }
 
   if (!values.email.trim()) {
-    errors.email = 'Ingresa tu email.'
+    errors.email = 'Ingresá tu correo electrónico.'
   } else if (!isValidEmail(values.email)) {
-    errors.email = 'Ingresa un email válido.'
+    errors.email = 'Ingresá un correo electrónico válido.'
   }
 
   const passwordError = getMinPasswordError(
@@ -107,7 +107,7 @@ export function RegisterForm() {
       })
 
       setSuccessMessage(
-        'Tu cuenta fue creada. Revisá tu email para confirmar el registro antes de iniciar sesión.',
+        'Tu cuenta fue creada. Revisá tu correo electrónico para confirmar el registro antes de iniciar sesión.',
       )
       setValues({
         fullName: '',
@@ -125,13 +125,27 @@ export function RegisterForm() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       {successMessage ? (
-        <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-          {successMessage}
+        <div
+          role="status"
+          aria-live="polite"
+          className="space-y-3 rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
+        >
+          <p>{successMessage}</p>
+          <Link
+            to="/login"
+            state={location.state}
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-emerald-300/25 px-4 text-sm font-medium text-emerald-50 transition hover:bg-emerald-500/10"
+          >
+            Iniciar sesión
+          </Link>
         </div>
       ) : null}
 
       {submitError ? (
-        <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+        <div
+          role="alert"
+          className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+        >
           {submitError}
         </div>
       ) : null}

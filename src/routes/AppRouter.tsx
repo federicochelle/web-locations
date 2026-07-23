@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 
+import { AuthLayout } from '@/layouts/AuthLayout.tsx'
 import { PublicLayout } from '@/layouts/PublicLayout.tsx'
 import { HomePage } from '@/pages/HomePage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage.tsx'
@@ -91,98 +92,107 @@ function withRouteSuspense(element: React.ReactNode) {
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <PublicLayout />,
     children: [
       {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        element: <PublicOnlyRoute />,
+        element: <AuthLayout />,
         children: [
           {
-            path: 'login',
-            element: withRouteSuspense(<LoginPage />),
+            element: <PublicOnlyRoute />,
+            children: [
+              {
+                path: 'login',
+                element: withRouteSuspense(<LoginPage />),
+              },
+              {
+                path: 'register',
+                element: withRouteSuspense(<RegisterPage />),
+              },
+            ],
           },
           {
-            path: 'register',
-            element: withRouteSuspense(<RegisterPage />),
+            path: 'forgot-password',
+            element: withRouteSuspense(<ForgotPasswordPage />),
+          },
+          {
+            path: 'reset-password',
+            element: withRouteSuspense(<ResetPasswordPage />),
           },
         ],
       },
       {
-        path: 'forgot-password',
-        element: withRouteSuspense(<ForgotPasswordPage />),
-      },
-      {
-        path: 'reset-password',
-        element: withRouteSuspense(<ResetPasswordPage />),
-      },
-      {
-        path: 'busqueda',
-        element: withRouteSuspense(<SearchLocationsPage />),
-      },
-      {
-        path: 'categorias/:slug',
-        element: withRouteSuspense(<CategoryLocationsPage />),
-      },
-      {
-        path: 'categorias/:categorySlug/:locationCode',
-        element: withRouteSuspense(<LocationDetailPage />),
-      },
-      {
-        path: 'locations/:slug',
-        element: withRouteSuspense(<LocationDetailPage />),
-      },
-      {
-        path: 'postular-locacion',
-        element: withRouteSuspense(<LocationSubmissionPage />),
-      },
-      {
-        element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
+        element: <PublicLayout />,
         children: [
           {
-            path: 'dashboard',
-            element: withRouteSuspense(<DashboardPage />),
+            index: true,
+            element: <HomePage />,
           },
           {
-            path: 'profile',
-            element: withRouteSuspense(<ProfilePage />),
+            path: 'busqueda',
+            element: withRouteSuspense(<SearchLocationsPage />),
           },
           {
-            path: 'favorites',
-            element: withRouteSuspense(<FavoritesPage />),
+            path: 'categorias/:slug',
+            element: withRouteSuspense(<CategoryLocationsPage />),
           },
           {
-            path: 'requests',
-            element: withRouteSuspense(<RequestsPage />),
+            path: 'categorias/:categorySlug/:locationCode',
+            element: withRouteSuspense(<LocationDetailPage />),
           },
           {
-            path: 'requests/new',
-            element: withRouteSuspense(<NewRequestProjectPage />),
+            path: 'locations/:slug',
+            element: withRouteSuspense(<LocationDetailPage />),
           },
           {
-            path: 'requests/:id',
-            element: withRouteSuspense(<RequestDetailPage />),
+            path: 'postular-locacion',
+            element: withRouteSuspense(<LocationSubmissionPage />),
+          },
+          {
+            element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
+            children: [
+              {
+                path: 'dashboard',
+                element: withRouteSuspense(<DashboardPage />),
+              },
+              {
+                path: 'profile',
+                element: withRouteSuspense(<ProfilePage />),
+              },
+              {
+                path: 'favorites',
+                element: withRouteSuspense(<FavoritesPage />),
+              },
+              {
+                path: 'requests',
+                element: withRouteSuspense(<RequestsPage />),
+              },
+              {
+                path: 'requests/new',
+                element: withRouteSuspense(<NewRequestProjectPage />),
+              },
+              {
+                path: 'requests/:id',
+                element: withRouteSuspense(<RequestDetailPage />),
+              },
+            ],
+          },
+          {
+            element: <ProtectedRoute allowedRoles={['admin']} />,
+            children: [
+              {
+                path: 'admin',
+                element: withRouteSuspense(<AdminHomePage />),
+              },
+            ],
+          },
+          {
+            path: '404',
+            element: <NotFoundPage />,
+          },
+          {
+            path: '*',
+            element: <Navigate replace to="/404" />,
           },
         ],
-      },
-      {
-        element: <ProtectedRoute allowedRoles={['admin']} />,
-        children: [
-          {
-            path: 'admin',
-            element: withRouteSuspense(<AdminHomePage />),
-          },
-        ],
-      },
-      {
-        path: '404',
-        element: <NotFoundPage />,
-      },
-      {
-        path: '*',
-        element: <Navigate replace to="/404" />,
       },
     ],
   },

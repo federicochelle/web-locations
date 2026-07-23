@@ -4,11 +4,11 @@ export function isValidEmail(email: string) {
 
 export function getMinPasswordError(password: string, minLength: number) {
   if (!password) {
-    return 'Ingresa una contrasena.'
+    return 'Ingresá una contraseña.'
   }
 
   if (password.length < minLength) {
-    return `La contrasena debe tener al menos ${minLength} caracteres.`
+    return `La contraseña debe tener al menos ${minLength} caracteres.`
   }
 
   return null
@@ -19,11 +19,11 @@ export function getPasswordConfirmationError(
   confirmPassword: string,
 ) {
   if (!confirmPassword) {
-    return 'Confirma tu contrasena.'
+    return 'Confirmá tu contraseña.'
   }
 
   if (password !== confirmPassword) {
-    return 'Las contrasenas no coinciden.'
+    return 'Las contraseñas no coinciden.'
   }
 
   return null
