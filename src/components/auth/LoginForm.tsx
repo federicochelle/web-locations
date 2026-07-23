@@ -4,7 +4,6 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { getAuthErrorMessage, signIn } from '@/services/auth.service.ts'
 import { isValidEmail } from '@/utils/auth-validation.ts'
-import { getDefaultRouteByRole } from '@/utils/auth-routing.ts'
 
 type LoginFormValues = {
   email: string
@@ -48,13 +47,13 @@ function validateForm(values: LoginFormValues) {
   const errors: LoginFormErrors = {}
 
   if (!values.email.trim()) {
-    errors.email = 'Ingresa tu email.'
+    errors.email = 'Ingresá tu correo electrónico.'
   } else if (!isValidEmail(values.email)) {
-    errors.email = 'Ingresa un email válido.'
+    errors.email = 'Ingresá un correo electrónico válido.'
   }
 
   if (!values.password) {
-    errors.password = 'Ingresa tu contraseña.'
+    errors.password = 'Ingresá tu contraseña.'
   }
 
   return errors
@@ -75,7 +74,7 @@ export function LoginForm() {
 
   const notice = useMemo(() => {
     if (searchParams.get('confirmed') === '1') {
-      return 'Tu email fue confirmado. Ya puedes iniciar sesión.'
+      return 'Tu correo electrónico fue confirmado. Ya podés iniciar sesión.'
     }
 
     if (searchParams.get('reset') === 'success') {
@@ -114,7 +113,7 @@ export function LoginForm() {
       return
     }
 
-    window.location.replace(returnTo ?? getDefaultRouteByRole(role))
+    window.location.replace(returnTo ?? '/')
   }, [isAuthenticated, isAwaitingAuthResolution, loading, profile, returnTo, role])
 
   function handleChange<Field extends keyof LoginFormValues>(
@@ -163,13 +162,20 @@ export function LoginForm() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       {notice ? (
-        <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
+        >
           {notice}
         </div>
       ) : null}
 
       {submitError ? (
-        <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+        <div
+          role="alert"
+          className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+        >
           {submitError}
         </div>
       ) : null}
@@ -199,7 +205,7 @@ export function LoginForm() {
           value={values.password}
           onChange={(event) => handleChange('password', event.target.value)}
           className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
-          placeholder="Ingresa tu contraseña"
+          placeholder="Ingresá tu contraseña"
           autoComplete="current-password"
           disabled={isSubmitting}
         />
@@ -213,7 +219,7 @@ export function LoginForm() {
           to="/forgot-password"
           className="text-sm font-medium text-brand-100/68 transition hover:text-brand-300"
         >
-          Olvidé mi contraseña
+          ¿Olvidaste tu contraseña?
         </Link>
       </div>
 
