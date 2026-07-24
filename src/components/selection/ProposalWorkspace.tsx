@@ -4,8 +4,9 @@ type ProposalWorkspaceProps = {
   preview: ReactNode
   sidebarTitle: string
   sidebarBody: ReactNode
-  sidebarFooter: ReactNode
+  sidebarFooter?: ReactNode
   onClose?: () => void
+  closeDisabled?: boolean
   sidebarHeader?: ReactNode
 }
 
@@ -15,6 +16,7 @@ export function ProposalWorkspace({
   sidebarBody,
   sidebarFooter,
   onClose,
+  closeDisabled = false,
   sidebarHeader,
 }: ProposalWorkspaceProps) {
   return (
@@ -50,7 +52,8 @@ export function ProposalWorkspace({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              disabled={closeDisabled}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
               aria-label="Cerrar flujo de preparacion"
             >
               ×
@@ -64,9 +67,11 @@ export function ProposalWorkspace({
           </div>
         </div>
 
-        <footer className="border-t border-white/10 px-4 py-4 sm:px-5">
-          {sidebarFooter}
-        </footer>
+        {sidebarFooter ? (
+          <footer className="border-t border-white/10 px-4 py-4 sm:px-5">
+            {sidebarFooter}
+          </footer>
+        ) : null}
       </aside>
     </div>
   )

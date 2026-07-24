@@ -19,6 +19,14 @@ export type RequestProject = {
     title: string
     coverImageUrl: string | null
   } | null
+  officialPdf: {
+    bucket: string
+    path: string
+    fileName: string
+    generatedAt: string
+    uploadedAt: string
+    sizeBytes: number
+  } | null
 }
 
 export type RequestProjectLocation = {

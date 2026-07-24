@@ -10,8 +10,8 @@ import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
+  submitRequestProjectWithOfficialPdf,
   syncRequestProjectSelection,
-  submitRequestProject,
 } from '@/services/request-projects.service.ts'
 import type { RequestProject } from '@/types/request-project.ts'
 import type {
@@ -28,6 +28,7 @@ import {
   buildSelectionPdfPayloadFromImages,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
+import { downloadSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
 
 type SelectionPdfFlowProps = {
   onClose: () => void
@@ -389,22 +390,24 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       setIsLoadingModalOpen(true)
       onStartProcessing()
 
-      const {
-        createSelectionPdf,
-        downloadSelectionPdf,
-      } = await import('@/utils/selection-pdf-exporter.ts')
-
-      const result = await createSelectionPdf(payload, {
+      const submissionResult = await submitRequestProjectWithOfficialPdf({
+        projectId: draftResult.projectId,
+        payload,
         onProgress: (nextProgress) => {
           setProgress(nextProgress)
         },
+        onPdfReady: (nextExportResult) => {
+          setExportResult(nextExportResult)
+        },
       })
 
-      downloadSelectionPdf(result.blob, result.fileName)
-      await submitRequestProject(draftResult.projectId)
+      downloadSelectionPdf(
+        submissionResult.exportResult.blob,
+        submissionResult.exportResult.fileName,
+      )
       await onProjectsRefresh()
-      setExportResult(result)
-      setFailedImages(result.failedImages)
+      setExportResult(submissionResult.exportResult)
+      setFailedImages(submissionResult.exportResult.failedImages)
       clearSelection()
       setIsLoadingModalOpen(false)
       setStep('success')
@@ -427,57 +430,202 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     navigate('/requests')
   }
 
+  function renderDetachedPreview() {
+    return <SelectionPdfPreview payload={livePreviewPayload} />
+  }
+
+  function renderDetachedStatusBody() {
+    if (step === 'generating') {
+      return (
+        <div className="space-y-6">
+          <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
+            <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+              Guardando proyecto y generando PDF...
+            </h3>
+            <p aria-live="polite" className="mt-3 text-sm leading-6 text-brand-300">
+              {progress
+                ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
+                : createdProjectId
+                  ? 'Proyecto guardado. Preparando el documento.'
+                  : 'Creando el proyecto y preparando el documento.'}
+            </p>
+          </div>
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
+              <div
+                className="h-full rounded-full bg-brand-300 transition-[width]"
+                style={{
+                  width: progress
+                    ? `${Math.max(8, Math.round((progress.current / progress.total) * 100))}%`
+                    : '8%',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (step === 'success') {
+      return (
+        <div className="space-y-6">
+          <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
+            <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+              El proyecto y el PDF oficial se guardaron correctamente
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-brand-300">
+              {failedImages.length > 0
+                ? 'La solicitud se envio, pero detectamos imagenes omitidas.'
+                : 'La propuesta se envio y el documento oficial se guardo con todas las imagenes disponibles.'}
+            </p>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
+            <p className="text-sm text-brand-300">Resumen</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-[1rem] bg-white/6 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
+                  Imagenes incluidas
+                </p>
+                <p className="mt-2 font-display text-3xl text-brand-100">
+                  {exportResult?.includedImages ?? 0}
+                </p>
+              </div>
+              <div className="rounded-[1rem] bg-white/6 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
+                  Imagenes omitidas
+                </p>
+                <p className="mt-2 font-display text-3xl text-brand-100">
+                  {failedImages.length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {failedImages.length > 0 ? (
+            <div className="rounded-[1.5rem] border border-amber-300/30 bg-amber-200/10 p-4">
+              <p className="text-sm font-medium text-amber-100">
+                Algunas imagenes no pudieron incluirse.
+              </p>
+              <ul className="mt-3 space-y-2 text-sm text-amber-50/90">
+                {failedImages.slice(0, 5).map((failedImage) => (
+                  <li key={failedImage.key}>
+                    {failedImage.locationCode}: {failedImage.message}
+                  </li>
+                ))}
+              </ul>
+              {failedImages.length > 5 ? (
+                <p className="mt-3 text-sm text-amber-50/80">
+                  Y {failedImages.length - 5} imagenes mas.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="rounded-[1.5rem] border border-red-300/30 bg-red-200/10 p-5">
+          <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+            No pudimos completar la propuesta
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-red-100">
+            {projectSavedBeforeError
+              ? `El proyecto sigue guardado como borrador, pero no pudimos oficializar el PDF.${exportError ? ` ${exportError}` : ''}`
+              : exportError ?? 'Ocurrio un problema durante la generacion.'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  function renderDetachedFooter() {
+    if (step === 'success' || step === 'error') {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            setStep('form')
+          }}
+          className={`inline-flex min-h-12 w-full items-center justify-center rounded-full px-5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
+            step === 'success'
+              ? 'border border-white/12 text-brand-100 hover:bg-white/6'
+              : 'bg-brand-300 text-brand-950 hover:bg-brand-100'
+          }`}
+        >
+          {step === 'success' ? 'Volver al formulario' : 'Editar datos'}
+        </button>
+      )
+    }
+
+    return null
+  }
+
+  function renderFormSidebarBody() {
+    return (
+      <div className="space-y-4">
+        {draftNotice && !isDraftSuccessModalOpen ? (
+          <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            {draftNotice}
+          </div>
+        ) : null}
+        {exportError ? (
+          <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+            {exportError}
+          </div>
+        ) : null}
+        <SelectionPdfForm
+          values={values}
+          errors={errors}
+          onChange={handleFieldChange}
+          disabled={isBusy}
+          columns={2}
+        />
+      </div>
+    )
+  }
+
+  function renderFormSidebarFooter() {
+    return (
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => {
+            void handleSaveDraft()
+          }}
+          disabled={isBusy}
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+        >
+          <DraftSaveIcon />
+          Guardar borrador
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void handleSubmitProposal()
+          }}
+          disabled={!hasSelectedImages || isBusy}
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+        >
+          <SubmitProposalIcon />
+          Enviar propuesta
+        </button>
+      </div>
+    )
+  }
+
   return (
     <>
       {!isDetached ? embeddedInDrawer ? (
         <div className="flex h-full min-h-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-            <div className="space-y-4">
-              {draftNotice && !isDraftSuccessModalOpen ? (
-                <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                  {draftNotice}
-                </div>
-              ) : null}
-              {exportError ? (
-                <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  {exportError}
-                </div>
-              ) : null}
-              <SelectionPdfForm
-                values={values}
-                errors={errors}
-                onChange={handleFieldChange}
-                disabled={isBusy}
-                columns={2}
-              />
-            </div>
+            {renderFormSidebarBody()}
           </div>
 
           <footer className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-5">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSaveDraft()
-                }}
-                disabled={isBusy}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                <DraftSaveIcon />
-                Guardar borrador
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSubmitProposal()
-                }}
-                disabled={!hasSelectedImages || isBusy}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                <SubmitProposalIcon />
-                Enviar propuesta
-              </button>
-            </div>
+            {renderFormSidebarFooter()}
           </footer>
         </div>
       ) : (
@@ -485,205 +633,22 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           preview={<SelectionPdfPreview payload={livePreviewPayload} />}
           sidebarTitle="Datos del proyecto"
           sidebarHeader={renderProjectHeader()}
-          sidebarBody={
-            <div className="space-y-4">
-              {draftNotice && !isDraftSuccessModalOpen ? (
-                <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                  {draftNotice}
-                </div>
-              ) : null}
-              {exportError ? (
-                <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  {exportError}
-                </div>
-              ) : null}
-              <SelectionPdfForm
-                values={values}
-                errors={errors}
-                onChange={handleFieldChange}
-                disabled={isBusy}
-                columns={2}
-              />
-            </div>
-          }
-          sidebarFooter={
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSaveDraft()
-                }}
-                disabled={isBusy}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                <DraftSaveIcon />
-                Guardar borrador
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSubmitProposal()
-                }}
-                disabled={!hasSelectedImages || isBusy}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                <SubmitProposalIcon />
-                Enviar propuesta
-              </button>
-            </div>
-          }
+          sidebarBody={renderFormSidebarBody()}
+          sidebarFooter={renderFormSidebarFooter()}
+          closeDisabled={isBusy}
           onClose={onClose}
         />
-      ) : step !== 'form' ? (
-          <aside className="ml-auto flex h-screen max-h-screen min-h-0 w-full max-w-[460px] flex-col overflow-hidden border-l border-white/10 bg-[#14110f] shadow-[-16px_0_48px_rgba(0,0,0,0.32)] supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] sm:w-[min(92vw,460px)]">
-            <header className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-5">
-              <div className="min-w-0 flex-1">
-                <div className="mb-3 flex min-h-11 items-center">
-                  <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                    Seleccionar proyecto
-                  </p>
-                </div>
-                <ActiveProjectSelect
-                  activeProjectId={activeProjectId}
-                  projects={draftProjects}
-                  isLoading={isLoadingProjects}
-                  disabled={step === 'generating' || isBusy}
-                  compact
-                  onChange={onProjectSelectionChange}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={step === 'generating' || isSuccessModalOpen || isBusy}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                aria-label="Cerrar flujo de preparacion"
-                autoFocus
-              >
-                ×
-              </button>
-            </header>
-
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-              {step === 'generating' ? (
-                <div className="space-y-6">
-                  <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
-                    <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                      Guardando proyecto y generando PDF...
-                    </h3>
-                    <p aria-live="polite" className="mt-3 text-sm leading-6 text-brand-300">
-                      {progress
-                        ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
-                        : createdProjectId
-                          ? 'Proyecto guardado. Preparando el documento.'
-                          : 'Creando el proyecto y preparando el documento.'}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
-                      <div
-                        className="h-full rounded-full bg-brand-300 transition-[width]"
-                        style={{
-                          width: progress
-                            ? `${Math.max(8, Math.round((progress.current / progress.total) * 100))}%`
-                            : '8%',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : step === 'success' ? (
-                <div className="space-y-6">
-                  <div className="rounded-[1.5rem] border border-brand-300/25 bg-brand-300/10 p-5">
-                    <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                      El proyecto y el PDF se generaron correctamente
-                    </h3>
-                    <p className="mt-3 text-sm leading-6 text-brand-300">
-                      {failedImages.length > 0
-                        ? 'El proyecto se guardo y el PDF se genero, pero algunas imagenes no pudieron incluirse.'
-                        : 'La propuesta se guardo y el documento se genero con todas las imagenes disponibles.'}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
-                    <p className="text-sm text-brand-300">Resumen</p>
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-[1rem] bg-white/6 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
-                          Imagenes incluidas
-                        </p>
-                        <p className="mt-2 font-display text-3xl text-brand-100">
-                          {exportResult?.includedImages ?? 0}
-                        </p>
-                      </div>
-                      <div className="rounded-[1rem] bg-white/6 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
-                          Imagenes omitidas
-                        </p>
-                        <p className="mt-2 font-display text-3xl text-brand-100">
-                          {failedImages.length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {failedImages.length > 0 ? (
-                    <div className="rounded-[1.5rem] border border-amber-300/30 bg-amber-200/10 p-4">
-                      <p className="text-sm font-medium text-amber-100">
-                        Algunas imagenes no pudieron incluirse.
-                      </p>
-                      <ul className="mt-3 space-y-2 text-sm text-amber-50/90">
-                        {failedImages.slice(0, 5).map((failedImage) => (
-                          <li key={failedImage.key}>
-                            {failedImage.locationCode}: {failedImage.message}
-                          </li>
-                        ))}
-                      </ul>
-                      {failedImages.length > 5 ? (
-                        <p className="mt-3 text-sm text-amber-50/80">
-                          Y {failedImages.length - 5} imagenes mas.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep('form')
-                    }}
-                    className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/12 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                  >
-                    Volver al formulario
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="rounded-[1.5rem] border border-red-300/30 bg-red-200/10 p-5">
-                    <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                      No pudimos completar la propuesta
-                    </h3>
-                    <p className="mt-3 text-sm leading-6 text-red-100">
-                      {projectSavedBeforeError
-                        ? `El proyecto se guardo correctamente, pero no pudimos descargar el PDF.${exportError ? ` ${exportError}` : ''}`
-                        : exportError ?? 'Ocurrio un problema durante la generacion.'}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep('form')
-                    }}
-                    className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                  >
-                    Editar datos
-                  </button>
-                </div>
-              )}
-            </div>
-          </aside>
-      ) : null}
+      ) : (
+        <ProposalWorkspace
+          preview={renderDetachedPreview()}
+          sidebarTitle="Datos del proyecto"
+          sidebarHeader={renderProjectHeader(step === 'generating' || isBusy, true)}
+          sidebarBody={step === 'form' ? renderFormSidebarBody() : renderDetachedStatusBody()}
+          sidebarFooter={step === 'form' ? renderFormSidebarFooter() : renderDetachedFooter()}
+          closeDisabled={step === 'generating' || isSuccessModalOpen || isBusy}
+          onClose={onClose}
+        />
+      )}
 
       <SubmissionLoadingModal
         isOpen={isLoadingModalOpen}
@@ -702,7 +667,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         isOpen={isSuccessModalOpen}
         variant="success"
         title="Proyecto creado correctamente"
-        description="El proyecto fue guardado y el PDF se descargó correctamente."
+        description="La solicitud fue enviada y el PDF oficial se descargó correctamente."
         primaryActionLabel="Ir a Mis proyectos"
         onPrimaryAction={handleSuccessModalClose}
         onClose={handleSuccessModalClose}
