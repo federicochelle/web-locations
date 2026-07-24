@@ -7,6 +7,11 @@ export type PreparedPdfImage = {
   height: number
 }
 
+type PrepareImageForPdfOptions = {
+  mimeType?: 'image/jpeg' | 'image/png'
+  quality?: number
+}
+
 function buildImageErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
     return error.message
@@ -69,7 +74,10 @@ function cleanupDecodedImage(image: ImageBitmap | HTMLImageElement) {
   }
 }
 
-export async function prepareImageForPdf(imageUrl: string): Promise<PreparedPdfImage> {
+export async function prepareImageForPdf(
+  imageUrl: string,
+  options: PrepareImageForPdfOptions = {},
+): Promise<PreparedPdfImage> {
   let decodedImage: ImageBitmap | HTMLImageElement | null = null
   let canvas: HTMLCanvasElement | null = null
 
@@ -112,7 +120,12 @@ export async function prepareImageForPdf(imageUrl: string): Promise<PreparedPdfI
 
     context.drawImage(decodedImage, 0, 0, targetWidth, targetHeight)
 
-    const dataUrl = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY)
+    const mimeType = options.mimeType ?? 'image/jpeg'
+    const quality = options.quality ?? PDF_IMAGE_JPEG_QUALITY
+    const dataUrl =
+      mimeType === 'image/png'
+        ? canvas.toDataURL('image/png')
+        : canvas.toDataURL('image/jpeg', quality)
 
     return {
       dataUrl,
