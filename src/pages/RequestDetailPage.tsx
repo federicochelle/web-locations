@@ -11,11 +11,13 @@ import { RequestProjectFavoritesModal } from '@/components/requests/RequestProje
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
-import { syncRequestProjectPdfPayloadSnapshot } from '@/services/request-projects.service.ts'
+import {
+  downloadOfficialRequestProjectPdf,
+  submitRequestProjectWithOfficialPdf,
+} from '@/services/request-projects.service.ts'
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
-  SelectionPdfPayload,
 } from '@/types/selection-pdf.ts'
 import {
   createSelectionPdf,
@@ -76,7 +78,6 @@ export function RequestDetailPage() {
     isLoading,
     isLoadingLocations,
     isSaving,
-    isSubmitting,
     isMutatingLocations,
     isLoadingAvailableFavorites,
     removingLocationIds,
@@ -84,8 +85,8 @@ export function RequestDetailPage() {
     notFound,
     addLocations,
     removeLocation,
+    refreshProject,
     saveProject,
-    sendProject,
   } = useRequestProjectDetail(id)
   const [values, setValues] = useState<SelectionPdfFormValues>({
     product: '',
@@ -100,48 +101,17 @@ export function RequestDetailPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
-  const [pdfPayload, setPdfPayload] = useState<SelectionPdfPayload | null>(null)
+  const [isSubmittingOfficial, setIsSubmittingOfficial] = useState(false)
 
   usePageTitle(project?.title ?? 'Detalle de proyecto')
 
   useEffect(() => {
     if (!project) {
-      setPdfPayload(null)
       return
     }
 
     setValues(mapRequestProjectToPdfFormValues(project))
   }, [project])
-
-  useEffect(() => {
-    if (!id || !project) {
-      setPdfPayload(null)
-      return
-    }
-
-    const projectId = id
-    let isCancelled = false
-
-    async function loadPdfPayload() {
-      try {
-        const nextPayload = await buildSelectionPdfPayloadFromProject(projectId)
-
-        if (!isCancelled) {
-          setPdfPayload(nextPayload)
-        }
-      } catch {
-        if (!isCancelled) {
-          setPdfPayload(null)
-        }
-      }
-    }
-
-    void loadPdfPayload()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [id, project, locations])
 
   useEffect(() => {
     const notice =
@@ -179,10 +149,6 @@ export function RequestDetailPage() {
     }
   }, [isPdfPreviewOpen])
 
-  if (notFound) {
-    return <Navigate replace to="/404" />
-  }
-
   const isDraft = project?.status === 'draft'
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
@@ -206,7 +172,12 @@ export function RequestDetailPage() {
     })
   }
 
-  const isPdfPreviewDisabled = !pdfPayload || locations.length === 0
+  const currentPdfPayload = useMemo(
+    () => buildSelectionPdfPayloadFromProject(values, locations, new Date().toISOString()),
+    [locations, values],
+  )
+  const isSubmitting = isSubmittingOfficial
+  const isPdfPreviewDisabled = locations.length === 0
   const isPdfDownloadDisabled = isSaving || isSubmitting || locations.length === 0
   const currentProjectMessage = buildRequestProjectMessageFromPdfForm(values)
   const hasUnsavedChanges = useMemo(() => {
@@ -232,6 +203,10 @@ export function RequestDetailPage() {
     values.tentativeEndDate,
     values.tentativeStartDate,
   ])
+
+  if (notFound) {
+    return <Navigate replace to="/404" />
+  }
 
   async function handleSaveChanges() {
     if (!project || !isDraft || !hasUnsavedChanges) {
@@ -291,15 +266,37 @@ export function RequestDetailPage() {
       }
     }
 
-    const submittedProject = await sendProject()
+    if (locations.length === 0) {
+      setValidationError('Agrega al menos una locacion antes de enviar el proyecto.')
+      return
+    }
 
-    if (submittedProject) {
+    try {
+      setIsSubmittingOfficial(true)
+      const submissionResult = await submitRequestProjectWithOfficialPdf({
+        projectId: project.id,
+        payload: currentPdfPayload,
+      })
+
+      downloadSelectionPdf(
+        submissionResult.exportResult.blob,
+        submissionResult.exportResult.fileName,
+      )
+      await refreshProject()
       setSuccessMessage('Tu proyecto fue enviado correctamente.')
+    } catch (submitError) {
+      setValidationError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'No pudimos enviar el proyecto.',
+      )
+    } finally {
+      setIsSubmittingOfficial(false)
     }
   }
 
   async function handleDownloadPdf() {
-    if (!project || !pdfPayload || locations.length === 0) {
+    if (!project || locations.length === 0) {
       setValidationError(
         locations.length === 0
           ? 'Agrega al menos una locacion antes de descargar el PDF.'
@@ -321,8 +318,14 @@ export function RequestDetailPage() {
     setSuccessMessage(null)
 
     try {
-      await syncRequestProjectPdfPayloadSnapshot(project.id, pdfPayload)
-      const result = await createSelectionPdf(pdfPayload)
+      if (project.status !== 'draft') {
+        const storedPdf = await downloadOfficialRequestProjectPdf(project)
+        downloadSelectionPdf(storedPdf.blob, storedPdf.fileName)
+        setSuccessMessage('El PDF oficial se descargo correctamente.')
+        return
+      }
+
+      const result = await createSelectionPdf(currentPdfPayload)
       downloadSelectionPdf(result.blob, result.fileName)
       setSuccessMessage('El PDF se descargo correctamente.')
     } catch (downloadError) {
@@ -551,7 +554,7 @@ export function RequestDetailPage() {
           </section>
         </div>
       </div>
-      {isPdfPreviewOpen && pdfPayload
+      {isPdfPreviewOpen
         ? createPortal(
         <div
           className="fixed inset-0 z-[70] bg-black/65 px-0 py-4 sm:px-6 sm:py-6"
@@ -592,7 +595,7 @@ export function RequestDetailPage() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-                <SelectionPdfPreview payload={pdfPayload} />
+                <SelectionPdfPreview payload={currentPdfPayload} />
               </div>
             </div>
           </div>

@@ -8,7 +8,6 @@ import {
   getRequestProjectErrorMessage,
   getRequestProjectLocations,
   removeLocationFromRequestProject,
-  submitRequestProject,
   updateRequestProject,
 } from '@/services/request-projects.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
@@ -27,7 +26,6 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [isMutatingLocations, setIsMutatingLocations] = useState(false)
   const [isLoadingAvailableFavorites, setIsLoadingAvailableFavorites] = useState(false)
   const [locations, setLocations] = useState<RequestProjectLocation[]>([])
@@ -157,26 +155,6 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     [projectId],
   )
 
-  const sendProject = useCallback(async () => {
-    if (!projectId) {
-      return null
-    }
-
-    try {
-      setIsSubmitting(true)
-      setError(null)
-
-      const nextProject = await submitRequestProject(projectId)
-      setProject(nextProject)
-      return nextProject
-    } catch (submitError) {
-      setError(getRequestProjectErrorMessage(submitError))
-      return null
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [projectId])
-
   const addLocation = useCallback(
     async (locationId: string) => {
       if (!projectId) {
@@ -265,7 +243,6 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     isLoading,
     isLoadingLocations,
     isSaving,
-    isSubmitting,
     isMutatingLocations,
     isLoadingAvailableFavorites,
     removingLocationIds,
@@ -275,7 +252,6 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     refreshLocations,
     loadAvailableFavorites,
     saveProject,
-    sendProject,
     addLocation,
     addLocations,
     removeLocation,

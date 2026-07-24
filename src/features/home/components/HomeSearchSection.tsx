@@ -182,7 +182,7 @@ function buildCleanSearchQuery(
 export function HomeSearchSection({
   categories,
   features,
-  isLoading,
+  isLoading: _isLoading,
   error,
 }: HomeSearchSectionProps) {
   const navigate = useNavigate()

@@ -6,8 +6,13 @@ import type {
   RequestProjectLocation,
   RequestProjectStatus,
 } from '@/types/request-project.ts'
-import type { SelectionPdfPayload } from '@/types/selection-pdf.ts'
+import type {
+  SelectionPdfExportResult,
+  SelectionPdfPayload,
+  SelectionPdfProgress,
+} from '@/types/selection-pdf.ts'
 import { mapPublicLocationCard } from '@/utils/location-public.ts'
+import { createSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
 
 type RequestProjectLocationRow = {
   id?: string | null
@@ -31,7 +36,24 @@ type RequestProjectRow = {
   tentative_end_date?: string | null
   created_at?: string | null
   updated_at?: string | null
+  official_pdf_bucket?: string | null
+  official_pdf_path?: string | null
+  official_pdf_file_name?: string | null
+  official_pdf_generated_at?: string | null
+  official_pdf_uploaded_at?: string | null
+  official_pdf_size_bytes?: number | string | null
   request_project_locations?: RequestProjectLocationRow[] | null
+}
+
+type FinalizeRequestProjectSubmissionRow = {
+  id?: string | null
+  status?: string | null
+  official_pdf_bucket?: string | null
+  official_pdf_path?: string | null
+  official_pdf_file_name?: string | null
+  official_pdf_generated_at?: string | null
+  official_pdf_uploaded_at?: string | null
+  official_pdf_size_bytes?: number | string | null
 }
 
 type RelatedNameRow =
@@ -101,7 +123,31 @@ type UpdateRequestProjectInput = {
   tentativeEndDate: string | null
 }
 
+type SubmitRequestProjectWithOfficialPdfInput = {
+  projectId: string
+  payload: SelectionPdfPayload
+  onProgress?: (progress: SelectionPdfProgress) => void
+  onPdfReady?: (exportResult: SelectionPdfExportResult) => void
+}
+
+type FinalizeRequestProjectSubmissionInput = {
+  projectId: string
+  bucket: string
+  path: string
+  fileName: string
+  generatedAt: string
+  uploadedAt: string
+  sizeBytes: number
+}
+
+export type SubmitRequestProjectWithOfficialPdfResult = {
+  project: RequestProject
+  exportResult: SelectionPdfExportResult
+}
+
 type AddLocationToRequestProjectResult = 'added' | 'exists'
+
+const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 
 const REQUEST_PROJECT_SELECT = `
   id,
@@ -112,6 +158,12 @@ const REQUEST_PROJECT_SELECT = `
   tentative_end_date,
   created_at,
   updated_at,
+  official_pdf_bucket,
+  official_pdf_path,
+  official_pdf_file_name,
+  official_pdf_generated_at,
+  official_pdf_uploaded_at,
+  official_pdf_size_bytes,
   request_project_locations (
     id,
     location_id,
@@ -266,6 +318,7 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
         features: [],
       })
     : null
+  const officialPdfSizeBytes = parseOptionalSizeBytes(row.official_pdf_size_bytes)
 
   return {
     id: row.id,
@@ -283,7 +336,56 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
           coverImageUrl: firstLocationCard.coverImageUrl,
         }
       : null,
+    officialPdf:
+      row.official_pdf_bucket?.trim() &&
+      row.official_pdf_path?.trim() &&
+      row.official_pdf_file_name?.trim() &&
+      row.official_pdf_generated_at &&
+      row.official_pdf_uploaded_at &&
+      officialPdfSizeBytes !== null
+        ? {
+            bucket: row.official_pdf_bucket.trim(),
+            path: row.official_pdf_path.trim(),
+            fileName: row.official_pdf_file_name.trim(),
+            generatedAt: row.official_pdf_generated_at,
+            uploadedAt: row.official_pdf_uploaded_at,
+            sizeBytes: officialPdfSizeBytes,
+          }
+        : null,
   }
+}
+
+function getOfficialRequestProjectPdfPath(projectId: string) {
+  return `request-projects/${projectId}/official.pdf`
+}
+
+function parseOptionalSizeBytes(value: number | string | null | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsedValue = Number(value)
+
+    if (Number.isFinite(parsedValue)) {
+      return parsedValue
+    }
+  }
+
+  return null
+}
+
+function getOfficialRequestProjectPdfFileName(
+  exportResult: SelectionPdfExportResult,
+  projectId: string,
+) {
+  const normalizedFileName = exportResult.fileName.trim()
+
+  if (normalizedFileName) {
+    return normalizedFileName
+  }
+
+  return `solicitud-${projectId}.pdf`
 }
 
 function mapRequestProjectLocation(
@@ -500,6 +602,131 @@ export async function submitRequestProject(id: string) {
   }
 
   return mapRequestProject(data as RequestProjectRow)
+}
+
+async function uploadOfficialRequestProjectPdf(
+  projectId: string,
+  exportResult: SelectionPdfExportResult,
+) {
+  const path = getOfficialRequestProjectPdfPath(projectId)
+  const fileName = getOfficialRequestProjectPdfFileName(exportResult, projectId)
+  const uploadedAt = new Date().toISOString()
+  const { error } = await supabase.storage
+    .from(REQUEST_PROJECT_OFFICIAL_PDF_BUCKET)
+    .upload(path, exportResult.blob, {
+      contentType: 'application/pdf',
+      upsert: true,
+    })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return {
+    bucket: REQUEST_PROJECT_OFFICIAL_PDF_BUCKET,
+    path,
+    fileName,
+    uploadedAt,
+    sizeBytes: exportResult.blob.size,
+  }
+}
+
+async function finalizeRequestProjectSubmission({
+  projectId,
+  bucket,
+  path,
+  fileName,
+  generatedAt,
+  uploadedAt,
+  sizeBytes,
+}: FinalizeRequestProjectSubmissionInput) {
+  const { data, error } = await supabase.rpc('finalize_request_project_submission', {
+    p_request_project_id: projectId,
+    p_official_pdf_bucket: bucket,
+    p_official_pdf_path: path,
+    p_official_pdf_file_name: fileName,
+    p_official_pdf_generated_at: generatedAt,
+    p_official_pdf_uploaded_at: uploadedAt,
+    p_official_pdf_size_bytes: sizeBytes,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | FinalizeRequestProjectSubmissionRow
+    | null
+
+  if (!row?.id) {
+    throw new Error('No pudimos confirmar el envio de la solicitud.')
+  }
+
+  const project = await getRequestProjectById(row.id)
+
+  if (!project) {
+    throw new Error('No pudimos confirmar la solicitud enviada.')
+  }
+
+  return project
+}
+
+export async function submitRequestProjectWithOfficialPdf({
+  projectId,
+  payload,
+  onProgress,
+  onPdfReady,
+}: SubmitRequestProjectWithOfficialPdfInput): Promise<SubmitRequestProjectWithOfficialPdfResult> {
+  const exportResult = await createSelectionPdf(payload, {
+    onProgress,
+  })
+
+  if (exportResult.failedImages.length > 0) {
+    throw new Error(
+      'No pudimos generar el PDF completo porque una o mas imagenes fallaron. Revisa la seleccion e intenta nuevamente.',
+    )
+  }
+
+  onPdfReady?.(exportResult)
+
+  await syncRequestProjectPdfPayloadSnapshot(projectId, payload)
+
+  const uploadResult = await uploadOfficialRequestProjectPdf(projectId, exportResult)
+  const project = await finalizeRequestProjectSubmission({
+    projectId,
+    bucket: uploadResult.bucket,
+    path: uploadResult.path,
+    fileName: uploadResult.fileName,
+    generatedAt: payload.generatedAt,
+    uploadedAt: uploadResult.uploadedAt,
+    sizeBytes: uploadResult.sizeBytes,
+  })
+
+  return {
+    project,
+    exportResult,
+  }
+}
+
+export async function downloadOfficialRequestProjectPdf(project: RequestProject) {
+  const officialPdf = project.officialPdf
+
+  if (!officialPdf) {
+    throw new Error('La solicitud no tiene un PDF oficial disponible.')
+  }
+
+  const { data, error } = await supabase.storage
+    .from(officialPdf.bucket)
+    .download(officialPdf.path)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return {
+    blob: data,
+    fileName: officialPdf.fileName,
+  }
 }
 
 export async function deleteRequestProject(id: string) {
