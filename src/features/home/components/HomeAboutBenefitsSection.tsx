@@ -1,4 +1,4 @@
-import { ScrollReveal } from '@/components/ui/ScrollReveal.tsx'
+import { useEffect, useRef, useState } from 'react'
 
 const aboutBenefits = [
   {
@@ -74,9 +74,52 @@ function FolderIcon() {
 const aboutBenefitIcons = [VerifiedIcon, TeamIcon, FolderIcon] as const
 
 export function HomeAboutBenefitsSection() {
+  const [isVisible, setIsVisible] = useState(false)
+  const sectionRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+    if (mediaQuery.matches) {
+      setIsVisible(true)
+      return
+    }
+
+    const currentSection = sectionRef.current
+
+    if (!currentSection) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) {
+          return
+        }
+
+        setIsVisible(true)
+        observer.disconnect()
+      },
+      {
+        threshold: 0.18,
+        rootMargin: '0px 0px -10% 0px',
+      },
+    )
+
+    observer.observe(currentSection)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
   return (
-    <ScrollReveal
-      as="section"
+    <section
+      ref={sectionRef}
       className="relative left-1/2 w-screen -translate-x-1/2 bg-black/18"
     >
       <div className="grid sm:grid-cols-2 xl:grid-cols-3">
@@ -86,17 +129,24 @@ export function HomeAboutBenefitsSection() {
           return (
             <article
               key={benefit.title}
-              className="min-h-[16rem] px-5 py-6 transition-colors duration-200 hover:bg-black/24 sm:min-h-[17rem] sm:px-6 sm:py-7 lg:min-h-[18rem] lg:px-8 lg:py-8"
+              className={`min-h-[16rem] px-5 py-6 transition-[transform,opacity,background-color] duration-700 ease-out hover:bg-black/24 motion-reduce:transition-none sm:min-h-[17rem] sm:px-6 sm:py-7 lg:min-h-[18rem] lg:px-8 lg:py-8 ${
+                isVisible
+                  ? 'translate-x-0 opacity-100'
+                  : 'translate-x-8 opacity-0 motion-reduce:translate-x-0 motion-reduce:opacity-100'
+              }`}
+              style={{
+                transitionDelay: isVisible ? `${index * 260}ms` : '0ms',
+              }}
             >
               <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
-                <div className="text-brand-100">
+                <div className="text-white">
                   <Icon />
                 </div>
                 <div className="max-w-sm space-y-4">
-                  <h3 className="font-display text-[1.55rem] font-semibold italic leading-[1.02] tracking-[-0.03em] text-brand-100 sm:text-[1.8rem]">
+                  <h3 className="font-display text-[1.55rem] font-semibold italic leading-[1.02] tracking-[-0.03em] text-white sm:text-[1.8rem]">
                     {benefit.title}
                   </h3>
-                  <p className="text-base leading-6 text-white/58">
+                  <p className="text-base leading-6 text-white/80">
                     {benefit.description}
                   </p>
                 </div>
@@ -105,6 +155,6 @@ export function HomeAboutBenefitsSection() {
           )
         })}
       </div>
-    </ScrollReveal>
+    </section>
   )
 }

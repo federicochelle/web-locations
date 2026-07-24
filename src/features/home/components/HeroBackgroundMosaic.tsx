@@ -138,9 +138,9 @@ export function HeroBackgroundMosaic() {
         ))}
       </div>
 
-      <div className="absolute inset-0 bg-black/54" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.4),rgba(5,4,4,0.48)_38%,rgba(5,4,4,0.58))]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(215,192,162,0.14),transparent_24%),radial-gradient(circle_at_82%_22%,rgba(255,255,255,0.08),transparent_22%),radial-gradient(circle_at_50%_50%,transparent_54%,rgba(0,0,0,0.12)_100%)]" />
+      <div className="absolute inset-0 bg-black/46" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.32),rgba(5,4,4,0.4)_38%,rgba(5,4,4,0.5))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(215,192,162,0.16),transparent_26%),radial-gradient(circle_at_82%_22%,rgba(255,255,255,0.1),transparent_24%),radial-gradient(circle_at_50%_50%,transparent_58%,rgba(0,0,0,0.08)_100%)]" />
     </div>
   )
 }

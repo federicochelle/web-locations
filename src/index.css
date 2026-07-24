@@ -80,6 +80,11 @@
   .hero-mosaic-sequence {
     min-width: max-content;
   }
+
+  .cinematic-bg-motion {
+    animation: cinematic-bg-drift var(--bg-motion-duration, 24s) ease-in-out infinite alternate;
+    will-change: transform;
+  }
 }
 
 @keyframes hero-mosaic-left {
@@ -102,10 +107,26 @@
   }
 }
 
+@keyframes cinematic-bg-drift {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: scale(1.12) translate3d(1.25%, -1.5%, 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-mosaic-track {
     animation: none;
     transform: translate3d(0, 0, 0);
+    will-change: auto;
+  }
+
+  .cinematic-bg-motion {
+    animation: none;
+    transform: scale(1.04) translate3d(0, 0, 0);
     will-change: auto;
   }
 }

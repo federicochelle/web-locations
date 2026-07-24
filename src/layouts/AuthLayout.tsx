@@ -8,13 +8,13 @@ export function AuthLayout() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#0b0908]" />
         <div
-          className="absolute inset-0 bg-center bg-no-repeat opacity-[0.07]"
+          className="absolute inset-0 bg-center bg-no-repeat opacity-[0.1]"
           style={{
             backgroundImage: `url(${logoUrl})`,
             backgroundSize: 'min(72vw, 760px)',
           }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.07),transparent_38%),linear-gradient(180deg,rgba(10,8,7,0.78),rgba(10,8,7,0.66)_24%,rgba(10,8,7,0.72)_72%,rgba(10,8,7,0.84))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(10,8,7,0.7),rgba(10,8,7,0.56)_24%,rgba(10,8,7,0.62)_72%,rgba(10,8,7,0.76))]" />
       </div>
 
       <div
