@@ -646,6 +646,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           sidebarBody={step === 'form' ? renderFormSidebarBody() : renderDetachedStatusBody()}
           sidebarFooter={step === 'form' ? renderFormSidebarFooter() : renderDetachedFooter()}
           closeDisabled={step === 'generating' || isSuccessModalOpen || isBusy}
+          hidePreviewOnMobile
           onClose={onClose}
         />
       )}
