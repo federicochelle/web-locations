@@ -34,6 +34,11 @@ const SearchLocationsPage = lazy(() =>
     default: module.SearchLocationsPage,
   })),
 )
+const SearchLabPage = lazy(() =>
+  import('@/pages/SearchLabPage.tsx').then((module) => ({
+    default: module.SearchLabPage,
+  })),
+)
 const CategoryLocationsPage = lazy(() =>
   import('@/pages/CategoryLocationsPage.tsx').then((module) => ({
     default: module.CategoryLocationsPage,
@@ -123,6 +128,10 @@ const router = createBrowserRouter([
           {
             path: 'busqueda',
             element: withRouteSuspense(<SearchLocationsPage />),
+          },
+          {
+            path: 'search-lab',
+            element: withRouteSuspense(<SearchLabPage />),
           },
           {
             path: 'categorias/:slug',
