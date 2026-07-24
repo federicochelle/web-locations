@@ -1,3 +1,4 @@
+import logoUrl from '../../../logo.webp'
 import type { SelectionPdfPayload } from '@/types/selection-pdf.ts'
 
 type SelectionPdfPreviewProps = {
@@ -22,81 +23,108 @@ function getPreviewValue(value: string) {
   return value.trim().length > 0 ? value : '—'
 }
 
+function chunkLocationImages(images: SelectionPdfPayload['locations'][number]['images']) {
+  const chunks: typeof images[] = []
+
+  for (let index = 0; index < images.length; index += 2) {
+    chunks.push(images.slice(index, index + 2))
+  }
+
+  return chunks
+}
+
 export function SelectionPdfPreview({
   payload,
 }: SelectionPdfPreviewProps) {
-  const previewTitle = payload.project.product.trim()
+  const coverDetails = [
+    ['Producto', payload.project.product],
+    ['Productora', payload.project.productionCompany],
+    ['Jefe de locaciones', payload.project.locationManager],
+    ['Fecha', formatPreviewDate(payload.generatedAt)],
+    ['Total de locaciones', String(payload.totalLocations)],
+    ['Total de imagenes', String(payload.totalImages)],
+  ] as const
+
+  const locationPages = payload.locations.flatMap((location) =>
+    chunkLocationImages(location.images).map((imagesChunk) => ({
+      location,
+      images: imagesChunk,
+    })),
+  )
 
   return (
     <div className="space-y-6">
-      <section>
-        <h3 className="mt-2 min-h-[3rem] font-display text-3xl font-semibold tracking-[-0.03em] text-brand-100">
-          {previewTitle}
-        </h3>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Productora</p>
-            <p className="mt-2 text-sm text-brand-100">
-              {getPreviewValue(payload.project.productionCompany)}
-            </p>
+      <section className="mx-auto aspect-[210/297] w-full max-w-[900px] border border-[#e2dcd3]/55 bg-[#080808] px-[11.4%] py-[6.1%] text-[#f8f4ee] shadow-[0_28px_80px_rgba(0,0,0,0.28)]">
+        <div className="flex h-full flex-col">
+          <div className="flex justify-center">
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="h-auto max-h-[18rem] w-full max-w-[32rem] object-contain"
+            />
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">
-              Jefe de locaciones
-            </p>
-            <p className="mt-2 text-sm text-brand-100">
-              {getPreviewValue(payload.project.locationManager)}
-            </p>
+
+          <div className="mt-12 space-y-4">
+            {coverDetails.map(([label, value]) => (
+              <div key={label} className="text-center">
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#d7c0a2]">
+                  {label}
+                </p>
+                <p className="mt-2 text-[1.35rem] leading-[1.35] text-[#d7c0a2] sm:text-[1.55rem]">
+                  {getPreviewValue(value)}
+                </p>
+              </div>
+            ))}
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Email</p>
-            <p className="mt-2 text-sm text-brand-100">
-              {getPreviewValue(payload.project.email)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-brand-300">Fecha</p>
-            <p className="mt-2 text-sm text-brand-100">
-              {formatPreviewDate(payload.generatedAt)}
-            </p>
-          </div>
+
+          <div className="mt-auto pt-6 text-center text-sm text-[#d7c0a2]">1</div>
         </div>
       </section>
 
-      <div className="space-y-4">
-        {payload.locations.map((location) => {
+      <div className="space-y-6">
+        {locationPages.map(({ location, images }, locationPageIndex) => {
           const showTitle =
             location.locationTitle.trim().length > 0 &&
             location.locationTitle !== location.locationCode
 
           return (
-            <section key={location.locationId} className="border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
-              <div className="flex items-start justify-between gap-3">
+            <section
+              key={`${location.locationId}-${locationPageIndex}`}
+              className="mx-auto aspect-[210/297] w-full max-w-[900px] border border-[#e2dcd3]/55 bg-[#080808] px-[7.6%] py-[5.4%] text-[#f8f4ee] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
+            >
+              <div className="flex h-full flex-col">
                 <div>
-                  <h4 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                  <h4 className="font-display text-[1.65rem] font-semibold tracking-[-0.03em] text-[#d7c0a2] sm:text-[1.8rem]">
                     {location.locationCode}
                   </h4>
                   {showTitle ? (
-                    <p className="mt-2 text-sm text-brand-300">{location.locationTitle}</p>
+                    <p className="mt-2 text-[0.95rem] text-[#d7c0a2]">{location.locationTitle}</p>
                   ) : null}
                 </div>
-                <span className="rounded-full bg-white/6 px-3 py-1.5 text-sm text-brand-100">
-                  {location.images.length}{' '}
-                  {location.images.length === 1 ? 'imagen' : 'imagenes'}
-                </span>
-              </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3">
-                {location.images.map((image) => (
-                  <div key={image.key} className="overflow-hidden border border-white/10">
-                    <img
-                      src={image.imageUrl}
-                      alt={`Imagen seleccionada de ${location.locationCode}`}
-                      loading="lazy"
-                      className="aspect-[4/3] h-full w-full object-cover"
-                    />
-                  </div>
-                ))}
+                <div className="mt-6 flex flex-1 flex-col gap-4">
+                  {images.map((image) => (
+                    <div
+                      key={image.key}
+                      className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/20 p-3"
+                    >
+                      <img
+                        src={image.imageUrl}
+                        alt={`Imagen seleccionada de ${location.locationCode}`}
+                        loading="lazy"
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  ))}
+
+                  {images.length === 1 ? (
+                    <div className="flex min-h-0 flex-1 bg-black/20" />
+                  ) : null}
+                </div>
+
+                <div className="mt-4 pt-2 text-center text-sm text-[#d7c0a2]">
+                  {locationPageIndex + 2}
+                </div>
               </div>
             </section>
           )

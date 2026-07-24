@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 
+import logoUrl from '../../logo.webp'
 import { prepareImageForPdf } from '@/utils/selection-pdf-images.ts'
 import type {
   SelectionPdfExportResult,
@@ -11,6 +12,31 @@ import type {
 
 type CreateSelectionPdfOptions = {
   onProgress?: (progress: SelectionPdfProgress) => void
+}
+
+const PDF_BACKGROUND = [8, 8, 8] as const
+const PDF_TEXT_GOLD = [215, 192, 162] as const
+function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
+  doc.setTextColor(color[0], color[1], color[2])
+}
+
+function paintPageBackground(doc: jsPDF) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  doc.setFillColor(PDF_BACKGROUND[0], PDF_BACKGROUND[1], PDF_BACKGROUND[2])
+  doc.rect(0, 0, pageWidth, pageHeight, 'F')
+}
+
+function addPageNumber(doc: jsPDF, pageNumber: number) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  setTextColor(doc, PDF_TEXT_GOLD)
+  doc.text(String(pageNumber), pageWidth / 2, pageHeight - 10, {
+    align: 'center',
+  })
 }
 
 function formatDateForDisplay(value: string) {
@@ -60,30 +86,72 @@ function buildPdfFileName(payload: SelectionPdfPayload) {
   return `seleccion-locaciones-${dateSegment}.pdf`
 }
 
-function addCoverPage(doc: jsPDF, payload: SelectionPdfPayload) {
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(24)
-  doc.text('Seleccion de locaciones', 20, 28)
+function addCoverPage(
+  doc: jsPDF,
+  payload: SelectionPdfPayload,
+  logo: {
+    dataUrl: string
+    width: number
+    height: number
+    format: 'JPEG' | 'PNG'
+  } | null,
+) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  let topCardY = 66
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(12)
+  paintPageBackground(doc)
 
-  const lines = [
-    `Producto: ${payload.project.product}`,
-    `Productora: ${payload.project.productionCompany}`,
-    `Jefe de locaciones: ${payload.project.locationManager}`,
-    `Email: ${payload.project.email}`,
-    `Fecha: ${formatDateForDisplay(payload.generatedAt)}`,
-    `Total de locaciones: ${payload.totalLocations}`,
-    `Total de imagenes: ${payload.totalImages}`,
-  ]
+  if (logo) {
+    const maxLogoWidth = 180
+    const maxLogoHeight = 110
+    const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
+    const renderWidth = logo.width * scale
+    const renderHeight = logo.height * scale
+    const renderX = (pageWidth - renderWidth) / 2
+    const renderY = 18
+    topCardY = renderY + renderHeight + 14
 
-  let currentY = 48
-
-  for (const line of lines) {
-    doc.text(line, 20, currentY)
-    currentY += 10
+    doc.addImage(
+      logo.dataUrl,
+      logo.format,
+      renderX,
+      renderY,
+      renderWidth,
+      renderHeight,
+      undefined,
+      'FAST',
+    )
   }
+
+  const maxTextWidth = pageWidth - 48
+  const details = [
+    ['Producto', payload.project.product],
+    ['Productora', payload.project.productionCompany],
+    ['Jefe de locaciones', payload.project.locationManager],
+    ['Fecha', formatDateForDisplay(payload.generatedAt)],
+    ['Total de locaciones', String(payload.totalLocations)],
+    ['Total de imagenes', String(payload.totalImages)],
+  ] as const
+
+  let currentY = topCardY
+  details.forEach(([label, value]) => {
+    setTextColor(doc, PDF_TEXT_GOLD)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text(label.toUpperCase(), pageWidth / 2, currentY, {
+      align: 'center',
+    })
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(17)
+    const lines = doc.splitTextToSize(value || '—', maxTextWidth)
+    doc.text(lines, pageWidth / 2, currentY + 8, {
+      align: 'center',
+    })
+    currentY += 8 + lines.length * 8 + 8
+  })
+
+  addPageNumber(doc, 1)
 }
 
 function addLocationPage(
@@ -98,7 +166,6 @@ function addLocationPage(
   doc.addPage()
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 16
   const contentWidth = pageWidth - margin * 2
   const imageAreaHeight = 116
@@ -108,11 +175,15 @@ function addLocationPage(
     location.locationTitle.trim().length > 0 &&
     location.locationTitle !== location.locationCode
 
+  paintPageBackground(doc)
+
+  setTextColor(doc, PDF_TEXT_GOLD)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.text(location.locationCode, margin, 22)
 
   if (showTitle) {
+    setTextColor(doc, PDF_TEXT_GOLD)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
     doc.text(location.locationTitle, margin, 30)
@@ -138,18 +209,9 @@ function addLocationPage(
       undefined,
       'FAST',
     )
-
-    doc.setDrawColor(226, 220, 211)
-    doc.roundedRect(margin, slotY, contentWidth, imageAreaHeight, 3, 3)
   })
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(
-    `Pagina generada el ${formatDateForDisplay(new Date().toISOString())}`,
-    margin,
-    pageHeight - 10,
-  )
+  addPageNumber(doc, doc.getNumberOfPages())
 }
 
 export async function createSelectionPdf(
@@ -168,7 +230,26 @@ export async function createSelectionPdf(
   let includedImages = 0
   let processedImages = 0
 
-  addCoverPage(doc, payload)
+  let logo: {
+    dataUrl: string
+    width: number
+    height: number
+    format: 'JPEG' | 'PNG'
+  } | null = null
+
+  try {
+    const preparedLogo = await prepareImageForPdf(logoUrl, {
+      mimeType: 'image/png',
+    })
+    logo = {
+      ...preparedLogo,
+      format: 'PNG',
+    }
+  } catch {
+    logo = null
+  }
+
+  addCoverPage(doc, payload, logo)
 
   for (const location of payload.locations) {
     let pageImages: Array<{
