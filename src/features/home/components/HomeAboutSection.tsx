@@ -1,4 +1,4 @@
-import aboutBackgroundUrl from '@/assets/home-mosaic/foto4-hero-opt.jpg'
+import aboutBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.40 PM.webp'
 import { ScrollReveal } from '@/components/ui/ScrollReveal.tsx'
 
 const aboutBackgroundImage = {
