@@ -245,7 +245,7 @@ export function HomeSearchSection({
 
   return (
     <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden bg-transparent">
-      <div className="relative flex min-h-[560px] items-center px-4 py-8 sm:px-6 sm:py-10 lg:min-h-[620px] lg:px-10 lg:py-12 2xl:px-14">
+      <div className="relative flex min-h-[100dvh] items-center px-4 py-8 sm:px-6 sm:py-10 md:min-h-[calc(100dvh-96px)] lg:px-10 lg:py-12 2xl:px-14">
         <HeroBackgroundMosaic />
 
         <div className="relative mx-auto flex w-full max-w-[1720px] justify-center">

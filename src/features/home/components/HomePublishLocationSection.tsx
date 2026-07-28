@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { ScrollReveal } from '@/components/ui/ScrollReveal.tsx'
-import publishBackgroundUrl from '@/assets/home-mosaic/publica.webp'
+import publishBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (3).webp'
 
 const publishBackgroundImage = {
   src: publishBackgroundUrl,
