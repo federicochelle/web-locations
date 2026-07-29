@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { getAlgoliaSearchClient, getAlgoliaSearchConfig } from '@/features/search/algolia/algolia.client.ts'
 import { mapAlgoliaHitToPublicLocationCard } from '@/features/search/algolia/algolia.mapper.ts'
+import { supabase } from '@/lib/supabase.ts'
 import type { AlgoliaLocationHit } from '@/features/search/algolia/algolia.types.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
@@ -42,6 +43,36 @@ function buildSearchRequestKey(params: {
   query: string
 }) {
   return JSON.stringify(params)
+}
+
+async function filterPublishedAlgoliaHits(hits: AlgoliaLocationHit[]) {
+  const locationIds = [...new Set(
+    hits
+      .map((hit) => hit.objectID?.trim())
+      .filter((locationId): locationId is string => locationId.length > 0),
+  )]
+
+  if (locationIds.length === 0) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('locations')
+    .select('id')
+    .in('id', locationIds)
+    .eq('published', true)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const publishedIds = new Set(
+    (data ?? [])
+      .map((row) => row.id?.trim())
+      .filter((locationId): locationId is string => Boolean(locationId)),
+  )
+
+  return hits.filter((hit) => publishedIds.has(hit.objectID))
 }
 
 async function searchAlgoliaLocations(params: {
@@ -99,7 +130,7 @@ async function searchAlgoliaLocations(params: {
           totalPages: 0,
         }
       : {
-          hits: firstResult.hits.map((hit: AlgoliaLocationHit) =>
+          hits: (await filterPublishedAlgoliaHits(firstResult.hits)).map((hit: AlgoliaLocationHit) =>
             mapAlgoliaHitToPublicLocationCard(hit),
           ),
           searchTimeMs: firstResult.processingTimeMS ?? null,
