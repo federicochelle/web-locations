@@ -8,13 +8,11 @@ import { HomeSearchSection } from '@/features/home/components/HomeSearchSection.
 import { buildHomeCategoryCards } from '@/features/home/mocks/home.mock.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getCategories } from '@/services/categories.service.ts'
-import { getFeatures } from '@/services/features.service.ts'
-import type { Category, Feature } from '@/types/location.ts'
+import type { Category } from '@/types/location.ts'
 
 export function HomePage() {
   usePageTitle('Home')
   const [categories, setCategories] = useState<Category[]>([])
-  const [features, setFeatures] = useState<Feature[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,40 +55,9 @@ export function HomePage() {
     }
   }, [])
 
-  useEffect(() => {
-    let isMounted = true
-
-    async function loadFeatures() {
-      try {
-        const nextFeatures = await getFeatures()
-
-        if (!isMounted) {
-          return
-        }
-
-        setFeatures(nextFeatures)
-      } catch {
-        if (isMounted) {
-          setFeatures([])
-        }
-      }
-    }
-
-    void loadFeatures()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
-      <HomeSearchSection
-        categories={categories}
-        features={features}
-        isLoading={isLoading}
-        error={error}
-      />
+      <HomeSearchSection />
 
       <div className="mx-auto max-w-[1720px] space-y-12 px-4 pt-12 sm:space-y-14 sm:px-6 sm:pt-14 lg:space-y-18 lg:px-10 lg:pt-16 2xl:px-14">
         {isLoading ? (

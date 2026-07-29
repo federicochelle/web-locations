@@ -21,7 +21,7 @@ export function mapAlgoliaHitToPublicLocationCard(
     departmentName: hit.department_name?.trim() || 'Sin departamento',
     zoneName: 'Sin zona',
     coverImageUrl: hit.cover_url?.trim() || null,
-    coverImageAlt: hit.cover_alt_text?.trim() || 'Imagen de locacion',
+    coverImageAlt: 'Imagen de locacion',
     features: hit.features?.filter((feature): feature is string => feature.trim().length > 0) ?? [],
     matchedFeatureCount: undefined,
     selectedFeatureCount: undefined,
