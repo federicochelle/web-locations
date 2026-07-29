@@ -1,246 +1,21 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { HeroBackgroundMosaic } from '@/features/home/components/HeroBackgroundMosaic.tsx'
-import type { Category, Feature } from '@/types/location.ts'
-
-type HomeSearchSectionProps = {
-  categories: Category[]
-  features: Feature[]
-  isLoading: boolean
-  error: string | null
-}
-
-type DetectedFeatureMatch = {
-  slug: string
-  matchedCandidates: string[]
-}
-
-type DetectedCategoryMatch = {
-  slug: string
-  matchedCandidate: string
-}
-
-const SEARCH_STOPWORDS = new Set([
-  'con',
-  'de',
-  'del',
-  'la',
-  'el',
-  'los',
-  'las',
-  'un',
-  'una',
-  'y',
-  'en',
-  'para',
-  'por',
-])
-
-function normalizeSearchValue(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function hasFeatureMatch(text: string, candidate: string) {
-  if (!candidate) {
-    return false
-  }
-
-  const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(candidate)}([^a-z0-9]|$)`)
-  return pattern.test(text)
-}
-
-function getNormalizedFeatureCandidates(feature: Feature) {
-  return [...new Set([
-    normalizeSearchValue(feature.slug),
-    normalizeSearchValue(feature.slug).replaceAll('-', ' '),
-    normalizeSearchValue(feature.name),
-    ...(feature.aliases ?? []).map((alias) => normalizeSearchValue(alias)),
-  ].filter((candidate) => candidate.length > 0))]
-}
-
-function detectFeatureMatches(
-  searchText: string,
-  features: Feature[],
-): DetectedFeatureMatch[] {
-  const normalizedText = normalizeSearchValue(searchText)
-
-  if (!normalizedText) {
-    return []
-  }
-
-  return features
-    .map((feature) => {
-      const matchedCandidates = getNormalizedFeatureCandidates(feature).filter(
-        (candidate) => hasFeatureMatch(normalizedText, candidate),
-      )
-
-      if (matchedCandidates.length === 0) {
-        return null
-      }
-
-      return {
-        slug: feature.slug,
-        matchedCandidates,
-      } satisfies DetectedFeatureMatch
-    })
-    .filter((featureMatch): featureMatch is DetectedFeatureMatch => Boolean(featureMatch))
-}
-
-function getSingularCandidate(candidate: string) {
-  if (candidate.endsWith('es') && candidate.length > 4) {
-    return candidate.slice(0, -2)
-  }
-
-  if (candidate.endsWith('s') && candidate.length > 3) {
-    return candidate.slice(0, -1)
-  }
-
-  return ''
-}
-
-function getNormalizedCategoryCandidates(category: Category) {
-  const baseCandidates = [
-    normalizeSearchValue(category.name),
-    normalizeSearchValue(category.slug),
-    normalizeSearchValue(category.slug.replaceAll('-', ' ')),
-  ].filter((candidate) => candidate.length > 0)
-
-  return [...new Set([
-    ...baseCandidates,
-    ...baseCandidates.map((candidate) => getSingularCandidate(candidate)),
-  ].filter((candidate) => candidate.length > 0))]
-}
-
-function detectCategoryMatch(
-  searchText: string,
-  categories: Category[],
-): DetectedCategoryMatch | null {
-  const normalizedText = normalizeSearchValue(searchText)
-
-  if (!normalizedText) {
-    return null
-  }
-
-  const matches = categories
-    .flatMap((category) =>
-      getNormalizedCategoryCandidates(category)
-        .filter((candidate) => hasFeatureMatch(normalizedText, candidate))
-        .map((candidate) => ({
-          slug: category.slug,
-          matchedCandidate: candidate,
-          matchIndex: normalizedText.indexOf(candidate),
-        })),
-    )
-    .sort((left, right) => {
-      if (left.matchIndex !== right.matchIndex) {
-        return left.matchIndex - right.matchIndex
-      }
-
-      return right.matchedCandidate.length - left.matchedCandidate.length
-    })
-
-  return matches[0] ?? null
-}
-
-function buildCleanSearchQuery(
-  searchText: string,
-  removableCandidates: string[],
-) {
-  let normalizedText = normalizeSearchValue(searchText)
-
-  const matchedCandidates = [...new Set(removableCandidates)]
-    .filter((candidate) => candidate.length > 0)
-    .sort((left, right) => right.length - left.length)
-
-  for (const candidate of matchedCandidates) {
-    const pattern = new RegExp(
-      `(^|[^a-z0-9])${escapeRegExp(candidate)}([^a-z0-9]|$)`,
-      'g',
-    )
-
-    normalizedText = normalizedText.replace(pattern, ' ')
-  }
-
-  return normalizedText
-    .split(/[^a-z0-9]+/g)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0 && !SEARCH_STOPWORDS.has(token))
-    .join(' ')
-}
-
-export function HomeSearchSection({
-  categories,
-  features,
-  isLoading: _isLoading,
-  error,
-}: HomeSearchSectionProps) {
+export function HomeSearchSection() {
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState('')
-
-  useEffect(() => {
-    if (!selectedCategorySlug) {
-      return
-    }
-
-    const categoryStillExists = categories.some(
-      (category) => category.slug === selectedCategorySlug,
-    )
-
-    if (!categoryStillExists) {
-      setSelectedCategorySlug('')
-    }
-  }, [categories, selectedCategorySlug])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const trimmedSearchText = searchText.trim()
-    const nextSearchParams = new URLSearchParams()
-    const detectedCategoryMatch = selectedCategorySlug
-      ? null
-      : detectCategoryMatch(trimmedSearchText, categories)
-    const nextCategorySlug = selectedCategorySlug || detectedCategoryMatch?.slug || ''
 
-    const detectedFeatureMatches = detectFeatureMatches(trimmedSearchText, features)
-    const detectedFeatureSlugs = detectedFeatureMatches.map(
-      (featureMatch) => featureMatch.slug,
-    )
-    const cleanSearchQuery = buildCleanSearchQuery(trimmedSearchText, [
-      detectedCategoryMatch?.matchedCandidate ?? '',
-      ...detectedFeatureMatches.flatMap((featureMatch) => featureMatch.matchedCandidates),
-    ])
-
-    if (nextCategorySlug) {
-      nextSearchParams.set('category', nextCategorySlug)
-    }
-
-    if (cleanSearchQuery) {
-      nextSearchParams.set('q', cleanSearchQuery)
-    }
-
-    if (detectedFeatureSlugs.length > 0) {
-      nextSearchParams.set('features', detectedFeatureSlugs.join(','))
-    }
-
-    const nextQueryString = nextSearchParams.toString()
-
-    if (!nextQueryString) {
+    if (!trimmedSearchText) {
       return
     }
 
-    navigate(`/busqueda?${nextQueryString}`)
+    navigate(`/busqueda?q=${encodeURIComponent(trimmedSearchText)}`)
   }
 
   return (
@@ -290,13 +65,6 @@ export function HomeSearchSection({
                 </svg>
               </button>
             </form>
-
-            {error ? (
-              <p className="mx-auto max-w-3xl px-1 text-center text-sm text-brand-100/82">
-                No pudimos cargar las categorias para el selector. Igual puedes explorar
-                todas las locaciones.
-              </p>
-            ) : null}
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import type { AlgoliaLocationHit } from '@/features/search/algolia/algolia.types
 import type { PublicLocationCard } from '@/types/location.ts'
 
 type UseAlgoliaLocationSearchOptions = {
+  enabled?: boolean
   initialPage?: number
   initialQuery?: string
   debounceMs?: number
@@ -75,18 +76,16 @@ async function searchAlgoliaLocations(params: {
             'objectID',
             'location_code',
             'slug',
-            'category_name',
             'category_slug',
+            'category_name',
+            'category_aliases',
             'department_name',
             'features',
+            'feature_aliases',
+            'tags',
+            'short_description',
+            'description',
             'cover_url',
-            'cover_alt_text',
-            'premium',
-            'featured',
-            'visibility_level',
-            'address_public',
-            'created_at',
-            'updated_at',
           ],
         },
       ],
@@ -124,6 +123,7 @@ export function useAlgoliaLocationSearch(
   options: UseAlgoliaLocationSearchOptions = {},
 ): UseAlgoliaLocationSearchResult {
   const {
+    enabled = true,
     initialPage = 1,
     initialQuery = '',
     debounceMs = 350,
@@ -164,6 +164,16 @@ export function useAlgoliaLocationSearch(
   }, [debounceMs, query])
 
   useEffect(() => {
+    if (!enabled) {
+      latestRequestKeyRef.current = null
+      setHits([])
+      setSearchTimeMs(null)
+      setTotalPages(0)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     let isCancelled = false
 
     async function runSearch() {
@@ -217,7 +227,7 @@ export function useAlgoliaLocationSearch(
     return () => {
       isCancelled = true
     }
-  }, [debouncedQuery, hitsPerPage, page])
+  }, [debouncedQuery, enabled, hitsPerPage, page])
 
   function setQuery(nextQuery: string) {
     if (nextQuery === query) {
