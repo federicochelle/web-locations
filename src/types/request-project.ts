@@ -8,6 +8,7 @@ export type RequestProjectStatus =
 export type RequestProject = {
   id: string
   title: string
+  productionCompany: string | null
   message: string | null
   status: RequestProjectStatus
   tentativeStartDate: string | null

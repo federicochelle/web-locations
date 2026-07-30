@@ -30,6 +30,7 @@ type RequestProjectLocationRow = {
 type RequestProjectRow = {
   id: string
   title?: string | null
+  production_company?: string | null
   message?: string | null
   status?: RequestProjectStatus | null
   tentative_start_date?: string | null
@@ -111,6 +112,7 @@ type RequestProjectLocationRelationRow = {
 
 type CreateRequestProjectInput = {
   title: string
+  productionCompany?: string | null
   message: string | null
   tentativeStartDate?: string | null
   tentativeEndDate?: string | null
@@ -118,6 +120,7 @@ type CreateRequestProjectInput = {
 
 type UpdateRequestProjectInput = {
   title: string
+  productionCompany?: string | null
   message: string | null
   tentativeStartDate: string | null
   tentativeEndDate: string | null
@@ -152,6 +155,7 @@ const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 const REQUEST_PROJECT_SELECT = `
   id,
   title,
+  production_company,
   message,
   status,
   tentative_start_date,
@@ -323,6 +327,7 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
   return {
     id: row.id,
     title: row.title?.trim() || 'Solicitud sin titulo',
+    productionCompany: row.production_company?.trim() || null,
     message: row.message?.trim() || null,
     status: row.status ?? 'draft',
     tentativeStartDate: row.tentative_start_date ?? null,
@@ -534,6 +539,7 @@ export async function getRequestProjectById(id: string) {
 
 export async function createRequestProject({
   title,
+  productionCompany = null,
   message,
   tentativeStartDate = null,
   tentativeEndDate = null,
@@ -545,6 +551,7 @@ export async function createRequestProject({
     .insert({
       user_id: userId,
       title: title.trim(),
+      production_company: productionCompany?.trim() || null,
       message: message?.trim() || null,
       tentative_start_date: tentativeStartDate,
       tentative_end_date: tentativeEndDate,
@@ -563,6 +570,7 @@ export async function updateRequestProject(
   id: string,
   {
     title,
+    productionCompany = null,
     message,
     tentativeStartDate,
     tentativeEndDate,
@@ -572,6 +580,7 @@ export async function updateRequestProject(
     .from('request_projects')
     .update({
       title: title.trim(),
+      production_company: productionCompany?.trim() || null,
       message: message?.trim() || null,
       tentative_start_date: tentativeStartDate,
       tentative_end_date: tentativeEndDate,

@@ -18,7 +18,7 @@ type SelectionPdfFormProps = {
 type FieldConfig = {
   name: keyof SelectionPdfFormValues
   label: string
-  type?: 'text' | 'email' | 'date'
+  type?: 'text' | 'date' | 'textarea'
   autoComplete?: string
   placeholder?: string
 }
@@ -37,19 +37,6 @@ const fields: FieldConfig[] = [
     placeholder: 'Nombre de la empresa',
   },
   {
-    name: 'locationManager',
-    label: 'Jefe de locaciones',
-    autoComplete: 'name',
-    placeholder: 'Nombre y apellido',
-  },
-  {
-    name: 'email',
-    label: 'Email',
-    type: 'email',
-    autoComplete: 'email',
-    placeholder: 'nombre@empresa.com',
-  },
-  {
     name: 'tentativeStartDate',
     label: 'Fecha desde',
     type: 'date',
@@ -58,6 +45,12 @@ const fields: FieldConfig[] = [
     name: 'tentativeEndDate',
     label: 'Fecha hasta',
     type: 'date',
+  },
+  {
+    name: 'message',
+    label: 'Mensaje',
+    type: 'textarea',
+    placeholder: 'Cuentanos sobre tu proyecto, presupuesto estimado o lo que necesites...',
   },
 ]
 
@@ -138,8 +131,12 @@ export function DateInputWithVisualShell({
     input.focus()
 
     if (typeof input.showPicker === 'function') {
-      input.showPicker()
-      return
+      try {
+        input.showPicker()
+        return
+      } catch {
+        // Fall back to click when the browser blocks showPicker.
+      }
     }
 
     input.click()
@@ -155,7 +152,7 @@ export function DateInputWithVisualShell({
           type="button"
           onClick={openPicker}
           disabled={disabled}
-          className={`${compact ? 'min-h-11 rounded-xl px-3.5' : 'min-h-12 rounded-2xl px-4'} flex w-full items-center border bg-white/6 pr-11 text-left text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70 ${
+          className={`${compact ? 'min-h-11 rounded-xl px-3.5' : 'min-h-12 rounded-2xl px-4'} relative z-10 flex w-full items-center border bg-white/6 pr-11 text-left text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70 ${
             hasError
               ? 'border-red-300 focus-visible:ring-red-300'
               : 'border-white/12 hover:bg-white/8'
@@ -181,7 +178,8 @@ export function DateInputWithVisualShell({
           }}
           aria-invalid={hasError}
           aria-describedby={hasError ? errorId : hintId}
-          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+          tabIndex={-1}
         />
         <span
           aria-hidden="true"
@@ -238,13 +236,17 @@ export function SelectionPdfForm({
         const errorId = `${field.name}-error`
         const hasError = Boolean(errors[field.name])
         const isDateField = field.type === 'date'
+        const isTextareaField = field.type === 'textarea'
         const min =
           field.name === 'tentativeEndDate' && values.tentativeStartDate
             ? values.tentativeStartDate
             : undefined
 
         return (
-          <div key={field.name}>
+          <div
+            key={field.name}
+            className={isTextareaField && useTwoColumns ? 'sm:col-span-2' : undefined}
+          >
             {isDateField ? (
               <DateInputWithVisualShell
                 id={field.name}
@@ -257,6 +259,33 @@ export function SelectionPdfForm({
                 compact={isCompact}
                 onChange={onChange}
               />
+            ) : isTextareaField ? (
+              <>
+                <label
+                  htmlFor={field.name}
+                  className="mb-2 block text-sm font-medium text-brand-100"
+                >
+                  {field.label}
+                </label>
+                <textarea
+                  id={field.name}
+                  name={field.name}
+                  value={values[field.name]}
+                  placeholder={field.placeholder}
+                  disabled={disabled}
+                  rows={isCompact ? 5 : 6}
+                  onChange={(event) => {
+                    onChange(field.name, event.target.value)
+                  }}
+                  aria-invalid={hasError}
+                  aria-describedby={hasError ? errorId : undefined}
+                  className={`${isCompact ? 'rounded-xl px-3.5 py-3' : 'rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+                    hasError
+                      ? 'border-red-300 focus-visible:ring-red-300'
+                      : 'border-white/12'
+                  }`}
+                />
+              </>
             ) : (
               <>
                 <label

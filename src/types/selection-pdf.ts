@@ -1,10 +1,9 @@
 export type SelectionPdfProject = {
   product: string
   productionCompany: string
-  locationManager: string
-  email: string
   tentativeStartDate: string
   tentativeEndDate: string
+  message: string
 }
 
 export type SelectionPdfLocationImage = {
@@ -59,10 +58,9 @@ export type SelectionPdfExportResult = {
 export type SelectionPdfFormValues = {
   product: string
   productionCompany: string
-  locationManager: string
-  email: string
   tentativeStartDate: string
   tentativeEndDate: string
+  message: string
 }
 
 export type SelectionPdfFormErrors = Partial<

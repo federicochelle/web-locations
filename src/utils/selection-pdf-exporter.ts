@@ -39,20 +39,6 @@ function addPageNumber(doc: jsPDF, pageNumber: number) {
   })
 }
 
-function formatDateForDisplay(value: string) {
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('es-UY', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
-}
-
 function formatDateForFileName(value: string) {
   const date = new Date(value)
 
@@ -127,10 +113,6 @@ function addCoverPage(
   const details = [
     ['Producto', payload.project.product],
     ['Productora', payload.project.productionCompany],
-    ['Jefe de locaciones', payload.project.locationManager],
-    ['Fecha', formatDateForDisplay(payload.generatedAt)],
-    ['Total de locaciones', String(payload.totalLocations)],
-    ['Total de imagenes', String(payload.totalImages)],
   ] as const
 
   let currentY = topCardY

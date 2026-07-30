@@ -4,6 +4,7 @@ import type { RequestProject } from '@/types/request-project.ts'
 
 export type CreateRequestProjectValues = {
   title: string
+  productionCompany?: string | null
   message: string | null
   tentativeStartDate?: string | null
   tentativeEndDate?: string | null
@@ -11,6 +12,7 @@ export type CreateRequestProjectValues = {
 
 export type UpdateRequestProjectValues = {
   title: string
+  productionCompany?: string | null
   message: string | null
   tentativeStartDate: string | null
   tentativeEndDate: string | null

@@ -5,20 +5,6 @@ type SelectionPdfPreviewProps = {
   payload: SelectionPdfPayload
 }
 
-function formatPreviewDate(value: string) {
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('es-UY', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
-}
-
 function getPreviewValue(value: string) {
   return value.trim().length > 0 ? value : '—'
 }
@@ -39,10 +25,6 @@ export function SelectionPdfPreview({
   const coverDetails = [
     ['Producto', payload.project.product],
     ['Productora', payload.project.productionCompany],
-    ['Jefe de locaciones', payload.project.locationManager],
-    ['Fecha', formatPreviewDate(payload.generatedAt)],
-    ['Total de locaciones', String(payload.totalLocations)],
-    ['Total de imagenes', String(payload.totalImages)],
   ] as const
 
   const locationPages = payload.locations.flatMap((location) =>
@@ -60,7 +42,7 @@ export function SelectionPdfPreview({
             <img
               src={logoUrl}
               alt="Logo"
-              className="h-auto max-h-[18rem] w-full max-w-[32rem] object-contain"
+              className="h-auto max-h-[24rem] w-full max-w-[40rem] object-contain"
             />
           </div>
 
