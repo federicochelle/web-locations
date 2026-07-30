@@ -18,10 +18,6 @@ function normalizeValue(value: string) {
   return value.trim()
 }
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value)
-}
-
 function sortSelectedImages(images: SelectedLocationImage[]) {
   return [...images].sort((left, right) => {
     const leftSortOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
@@ -42,10 +38,9 @@ export function validateSelectionPdfForm(
   const normalizedValues = {
     product: normalizeValue(values.product),
     productionCompany: normalizeValue(values.productionCompany),
-    locationManager: normalizeValue(values.locationManager),
-    email: normalizeValue(values.email),
     tentativeStartDate: normalizeValue(values.tentativeStartDate),
     tentativeEndDate: normalizeValue(values.tentativeEndDate),
+    message: normalizeValue(values.message),
   }
 
   if (!normalizedValues.product) {
@@ -56,14 +51,12 @@ export function validateSelectionPdfForm(
     nextErrors.productionCompany = 'Ingresa la productora.'
   }
 
-  if (!normalizedValues.locationManager) {
-    nextErrors.locationManager = 'Ingresa el jefe de locaciones.'
-  }
-
-  if (!normalizedValues.email) {
-    nextErrors.email = 'Ingresa un email.'
-  } else if (!isValidEmail(normalizedValues.email)) {
-    nextErrors.email = 'Ingresa un email valido.'
+  if (!normalizedValues.message) {
+    nextErrors.message = 'Escribe un mensaje.'
+  } else if (normalizedValues.message.length < 10) {
+    nextErrors.message = 'El mensaje debe tener al menos 10 caracteres.'
+  } else if (normalizedValues.message.length > 1000) {
+    nextErrors.message = 'El mensaje no puede superar los 1000 caracteres.'
   }
 
   if (
@@ -78,46 +71,15 @@ export function validateSelectionPdfForm(
   return nextErrors
 }
 
-export function buildRequestProjectMessageFromPdfForm(
-  values: SelectionPdfFormValues,
-) {
-  return [
-    `Empresa: ${normalizeValue(values.productionCompany)}`,
-    `Location manager: ${normalizeValue(values.locationManager)}`,
-    `Email: ${normalizeValue(values.email)}`,
-  ].join('\n')
-}
-
 export function mapRequestProjectToPdfFormValues(
   project: RequestProject,
 ): SelectionPdfFormValues {
   const values: SelectionPdfFormValues = {
     product: project.title,
-    productionCompany: '',
-    locationManager: '',
-    email: '',
+    productionCompany: project.productionCompany ?? '',
     tentativeStartDate: project.tentativeStartDate ?? '',
     tentativeEndDate: project.tentativeEndDate ?? '',
-  }
-
-  const message = project.message ?? ''
-
-  for (const rawLine of message.split('\n')) {
-    const line = rawLine.trim()
-
-    if (line.startsWith('Empresa:')) {
-      values.productionCompany = line.slice('Empresa:'.length).trim()
-      continue
-    }
-
-    if (line.startsWith('Location manager:')) {
-      values.locationManager = line.slice('Location manager:'.length).trim()
-      continue
-    }
-
-    if (line.startsWith('Email:')) {
-      values.email = line.slice('Email:'.length).trim()
-    }
+    message: project.message ?? '',
   }
 
   return values
@@ -163,10 +125,9 @@ export function buildSelectionPdfPayloadFromImages(
     project: {
       product: normalizeValue(values.product),
       productionCompany: normalizeValue(values.productionCompany),
-      locationManager: normalizeValue(values.locationManager),
-      email: normalizeValue(values.email),
       tentativeStartDate: normalizeValue(values.tentativeStartDate),
       tentativeEndDate: normalizeValue(values.tentativeEndDate),
+      message: normalizeValue(values.message),
     },
     generatedAt: new Date().toISOString(),
     totalImages: images.length,
@@ -243,10 +204,9 @@ export function buildSelectionPdfPayloadFromProject(
     project: {
       product: normalizeValue(projectIdOrValues.product),
       productionCompany: normalizeValue(projectIdOrValues.productionCompany),
-      locationManager: normalizeValue(projectIdOrValues.locationManager),
-      email: normalizeValue(projectIdOrValues.email),
       tentativeStartDate: normalizeValue(projectIdOrValues.tentativeStartDate),
       tentativeEndDate: normalizeValue(projectIdOrValues.tentativeEndDate),
+      message: normalizeValue(projectIdOrValues.message),
     },
     generatedAt,
     totalImages,

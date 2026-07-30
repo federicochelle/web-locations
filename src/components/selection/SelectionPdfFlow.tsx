@@ -24,7 +24,6 @@ import type {
   SelectionPdfProgress,
 } from '@/types/selection-pdf.ts'
 import {
-  buildRequestProjectMessageFromPdfForm,
   buildSelectionPdfPayloadFromImages,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
@@ -50,19 +49,17 @@ type SelectionPdfFlowProps = {
 const initialValues: SelectionPdfFormValues = {
   product: '',
   productionCompany: '',
-  locationManager: '',
-  email: '',
   tentativeStartDate: '',
   tentativeEndDate: '',
+  message: '',
 }
 
 const selectionPdfFieldOrder: (keyof SelectionPdfFormValues)[] = [
   'product',
   'productionCompany',
-  'locationManager',
-  'email',
   'tentativeStartDate',
   'tentativeEndDate',
+  'message',
 ]
 
 function DraftSaveIcon() {
@@ -202,28 +199,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     const mappedValues = {
       ...initialValues,
       product: project.title,
+      productionCompany: project.productionCompany ?? '',
       tentativeStartDate: project.tentativeStartDate ?? '',
       tentativeEndDate: project.tentativeEndDate ?? '',
-    }
-
-    const message = project.message ?? ''
-
-    for (const rawLine of message.split('\n')) {
-      const line = rawLine.trim()
-
-      if (line.startsWith('Empresa:')) {
-        mappedValues.productionCompany = line.slice('Empresa:'.length).trim()
-        continue
-      }
-
-      if (line.startsWith('Location manager:')) {
-        mappedValues.locationManager = line.slice('Location manager:'.length).trim()
-        continue
-      }
-
-      if (line.startsWith('Email:')) {
-        mappedValues.email = line.slice('Email:'.length).trim()
-      }
+      message: project.message ?? '',
     }
 
     setValues(mappedValues)
@@ -266,7 +245,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     window.requestAnimationFrame(() => {
       const field = document.getElementById(firstInvalidField)
 
-      if (field instanceof HTMLInputElement) {
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
         field.focus()
       }
     })
@@ -291,7 +270,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setExportError(null)
     const draftPayload = {
       title: values.product.trim(),
-      message: buildRequestProjectMessageFromPdfForm(values),
+      productionCompany: values.productionCompany.trim() || null,
+      message: values.message.trim() || null,
       tentativeStartDate: values.tentativeStartDate.trim() || null,
       tentativeEndDate: values.tentativeEndDate.trim() || null,
     }

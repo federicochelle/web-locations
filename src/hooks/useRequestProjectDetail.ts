@@ -15,6 +15,7 @@ import type { RequestProject, RequestProjectLocation } from '@/types/request-pro
 
 type UpdateProjectValues = {
   title: string
+  productionCompany: string
   message: string
   tentativeStartDate: string | null
   tentativeEndDate: string | null
@@ -124,6 +125,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const saveProject = useCallback(
     async ({
       title,
+      productionCompany,
       message,
       tentativeStartDate,
       tentativeEndDate,
@@ -138,6 +140,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
 
         const nextProject = await updateRequestProject(projectId, {
           title,
+          productionCompany: productionCompany.trim() || null,
           message: message.trim() || null,
           tentativeStartDate,
           tentativeEndDate,

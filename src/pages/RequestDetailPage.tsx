@@ -25,7 +25,6 @@ import {
 } from '@/utils/selection-pdf-exporter.ts'
 import {
   buildSelectionPdfPayloadFromProject,
-  buildRequestProjectMessageFromPdfForm,
   mapRequestProjectToPdfFormValues,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
@@ -91,10 +90,9 @@ export function RequestDetailPage() {
   const [values, setValues] = useState<SelectionPdfFormValues>({
     product: '',
     productionCompany: '',
-    locationManager: '',
-    email: '',
     tentativeStartDate: '',
     tentativeEndDate: '',
+    message: '',
   })
   const [formErrors, setFormErrors] = useState<SelectionPdfFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -179,7 +177,7 @@ export function RequestDetailPage() {
   const isSubmitting = isSubmittingOfficial
   const isPdfPreviewDisabled = locations.length === 0
   const isPdfDownloadDisabled = isSaving || isSubmitting || locations.length === 0
-  const currentProjectMessage = buildRequestProjectMessageFromPdfForm(values)
+  const currentProjectMessage = values.message.trim()
   const hasUnsavedChanges = useMemo(() => {
     if (!project || !isDraft) {
       return false
@@ -191,6 +189,7 @@ export function RequestDetailPage() {
 
     return (
       nextTitle !== project.title ||
+      values.productionCompany.trim() !== (project.productionCompany ?? '') ||
       currentProjectMessage !== (project.message ?? '') ||
       nextStartDate !== project.tentativeStartDate ||
       nextEndDate !== project.tentativeEndDate
@@ -200,6 +199,7 @@ export function RequestDetailPage() {
     isDraft,
     project,
     values.product,
+    values.productionCompany,
     values.tentativeEndDate,
     values.tentativeStartDate,
   ])
@@ -218,6 +218,7 @@ export function RequestDetailPage() {
 
     const savedProject = await saveProject({
       title: values.product,
+      productionCompany: values.productionCompany,
       message: currentProjectMessage,
       tentativeStartDate: values.tentativeStartDate || null,
       tentativeEndDate: values.tentativeEndDate || null,
@@ -250,12 +251,14 @@ export function RequestDetailPage() {
 
     if (
       values.product !== project.title ||
+      values.productionCompany.trim() !== (project.productionCompany ?? '') ||
       nextMessage !== (project.message ?? '') ||
       nextTentativeStartDate !== project.tentativeStartDate ||
       nextTentativeEndDate !== project.tentativeEndDate
     ) {
       const savedProject = await saveProject({
         title: values.product,
+        productionCompany: values.productionCompany,
         message: nextMessage,
         tentativeStartDate: nextTentativeStartDate,
         tentativeEndDate: nextTentativeEndDate,

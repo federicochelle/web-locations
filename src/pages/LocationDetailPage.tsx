@@ -245,11 +245,6 @@ export function LocationDetailPage() {
                     </svg>
                   </button>
                 </div>
-                {location.description ? (
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-brand-100/78 sm:text-base">
-                    {location.description}
-                  </p>
-                ) : null}
               </div>
               {location.approxLat !== null && location.approxLng !== null ? (
                 <div className="w-full lg:w-[28rem] lg:flex-none">
