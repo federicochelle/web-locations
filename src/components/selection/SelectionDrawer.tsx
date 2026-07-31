@@ -64,10 +64,17 @@ function groupImagesByLocation(images: SelectedLocationImage[]) {
     })
   }
 
-  return [...groupedSelections.values()].map((group) => ({
-    ...group,
-    images: sortGroupImages(group.images),
-  }))
+  return [...groupedSelections.values()]
+    .map((group) => ({
+      ...group,
+      images: sortGroupImages(group.images),
+    }))
+    .sort((left, right) =>
+      left.locationCode.localeCompare(right.locationCode, 'es', {
+        numeric: true,
+        sensitivity: 'base',
+      }),
+    )
 }
 
 function createSelectionSnapshot(selectionImages: SelectedLocationImage[]) {

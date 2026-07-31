@@ -17,7 +17,7 @@ function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
 }
 
-const MAX_SELECTED_IMAGES = 30
+const MAX_SELECTED_IMAGES = 80
 
 export function LocationDetailPage() {
   const locationState = useLocation()
@@ -153,7 +153,7 @@ export function LocationDetailPage() {
     }
 
     if (images.length >= MAX_SELECTED_IMAGES) {
-      setSelectionLimitMessage('Llegaste al maximo de 30 imagenes.')
+      setSelectionLimitMessage('Llegaste al maximo de 80 imagenes.')
       return
     }
 

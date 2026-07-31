@@ -29,7 +29,7 @@ type ImageSelectionProviderProps = {
   children: ReactNode
 }
 
-const MAX_SELECTED_IMAGES = 30
+const MAX_SELECTED_IMAGES = 80
 
 const initialState: ImageSelectionState = {
   images: [],

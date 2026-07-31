@@ -31,6 +31,15 @@ function sortSelectedImages(images: SelectedLocationImage[]) {
   })
 }
 
+function sortLocationsByCode<T extends { locationCode: string }>(locations: T[]) {
+  return [...locations].sort((left, right) =>
+    left.locationCode.localeCompare(right.locationCode, 'es', {
+      numeric: true,
+      sensitivity: 'base',
+    }),
+  )
+}
+
 export function validateSelectionPdfForm(
   values: SelectionPdfFormValues,
 ): SelectionPdfFormErrors {
@@ -119,7 +128,7 @@ export function buildSelectionPdfPayloadFromImages(
     })
   }
 
-  const locations = [...groupedSelections.values()]
+  const locations = sortLocationsByCode([...groupedSelections.values()])
 
   return {
     project: {
@@ -172,28 +181,30 @@ export function buildSelectionPdfPayloadFromProject(
     throw new Error('Faltan datos para reconstruir el PDF del proyecto.')
   }
 
-  const pdfLocations: SelectionPdfLocation[] = locations.map((location) => ({
-    locationId: location.location.id,
-    locationCode: location.location.locationCode,
-    locationTitle: location.location.title,
-    categorySlug: location.location.categorySlug ?? '',
-    images:
-      location.selectedImages.length > 0
-        ? location.selectedImages.map((image) => ({
-            key: `${location.location.id}:${image.id}`,
-            imageUrl: image.imageUrl,
-            sortOrder: image.sortOrder,
-          }))
-        : location.location.coverImageUrl
-          ? [
-              {
-                key: `${location.location.id}:cover`,
-                imageUrl: location.location.coverImageUrl,
-                sortOrder: location.sortOrder,
-              },
-            ]
-          : [],
-  }))
+  const pdfLocations: SelectionPdfLocation[] = sortLocationsByCode(
+    locations.map((location) => ({
+      locationId: location.location.id,
+      locationCode: location.location.locationCode,
+      locationTitle: location.location.title,
+      categorySlug: location.location.categorySlug ?? '',
+      images:
+        location.selectedImages.length > 0
+          ? location.selectedImages.map((image) => ({
+              key: `${location.location.id}:${image.id}`,
+              imageUrl: image.imageUrl,
+              sortOrder: image.sortOrder,
+            }))
+          : location.location.coverImageUrl
+            ? [
+                {
+                  key: `${location.location.id}:cover`,
+                  imageUrl: location.location.coverImageUrl,
+                  sortOrder: location.sortOrder,
+                },
+              ]
+            : [],
+    })),
+  )
 
   const totalImages = pdfLocations.reduce(
     (count, location) => count + location.images.length,
