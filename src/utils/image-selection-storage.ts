@@ -2,7 +2,7 @@ import type { SelectedLocationImage } from '@/types/image-selection.ts'
 
 export const IMAGE_SELECTION_STORAGE_KEY = 'public-image-selection:v1'
 
-const MAX_SELECTED_IMAGES = 30
+const MAX_SELECTED_IMAGES = 80
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
