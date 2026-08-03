@@ -11,6 +11,7 @@ import { RequestProjectFavoritesModal } from '@/components/requests/RequestProje
 import { RequestProjectLocationsList } from '@/components/requests/RequestProjectLocationsList.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
+import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
   downloadOfficialRequestProjectPdf,
   submitRequestProjectWithOfficialPdf,
@@ -69,6 +70,7 @@ function SubmitProposalIcon() {
 export function RequestDetailPage() {
   const location = useLocation()
   const { id } = useParams()
+  const { refreshProjects } = useRequestProjects()
   const {
     project,
     locations,
@@ -148,6 +150,7 @@ export function RequestDetailPage() {
   }, [isPdfPreviewOpen])
 
   const isDraft = project?.status === 'draft'
+  const isEditableProject = project ? project.status !== 'closed' : false
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
     value: string,
@@ -179,7 +182,7 @@ export function RequestDetailPage() {
   const isPdfDownloadDisabled = isSaving || isSubmitting || locations.length === 0
   const currentProjectMessage = values.message.trim()
   const hasUnsavedChanges = useMemo(() => {
-    if (!project || !isDraft) {
+    if (!project) {
       return false
     }
 
@@ -203,13 +206,17 @@ export function RequestDetailPage() {
     values.tentativeEndDate,
     values.tentativeStartDate,
   ])
+  const canSubmitCurrentProject = Boolean(
+    project &&
+      (isDraft || project.hasUnsubmittedChanges || hasUnsavedChanges),
+  )
 
   if (notFound) {
     return <Navigate replace to="/404" />
   }
 
   async function handleSaveChanges() {
-    if (!project || !isDraft || !hasUnsavedChanges) {
+    if (!project || !isEditableProject || !hasUnsavedChanges) {
       return
     }
 
@@ -225,12 +232,13 @@ export function RequestDetailPage() {
     })
 
     if (savedProject) {
+      await refreshProjects()
       setSuccessMessage('Cambios guardados correctamente.')
     }
   }
 
   async function handleSubmitProject() {
-    if (!project || !isDraft) {
+    if (!project || !isEditableProject) {
       return
     }
 
@@ -286,7 +294,12 @@ export function RequestDetailPage() {
         submissionResult.exportResult.fileName,
       )
       await refreshProject()
-      setSuccessMessage('Tu proyecto fue enviado correctamente.')
+      await refreshProjects()
+      setSuccessMessage(
+        isDraft
+          ? 'Tu proyecto fue enviado correctamente.'
+          : 'La nueva versión del proyecto se envió correctamente.',
+      )
     } catch (submitError) {
       setValidationError(
         submitError instanceof Error
@@ -437,8 +450,15 @@ export function RequestDetailPage() {
                                   Descargar PDF
                                 </div>
                               </div>
+
                             </div>
                           </div>
+
+                          {!isDraft && project.hasUnsubmittedChanges ? (
+                            <div className="rounded-[0.875rem] border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+                              Este proyecto tiene cambios guardados que todavía no fueron enviados como una nueva version.
+                            </div>
+                          ) : null}
 
                           {successMessage ? (
                             <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
@@ -457,7 +477,7 @@ export function RequestDetailPage() {
                               values={values}
                               errors={formErrors}
                               onChange={handleFieldChange}
-                              disabled={!isDraft || isSaving || isSubmitting}
+                              disabled={!isEditableProject || isSaving || isSubmitting}
                               variant="compact"
                               columns={2}
                               showTentativeDates={false}
@@ -477,7 +497,7 @@ export function RequestDetailPage() {
                                   label="Inicio"
                                   value={values.tentativeStartDate}
                                   error={formErrors.tentativeStartDate}
-                                  disabled={!isDraft || isSaving || isSubmitting}
+                                  disabled={!isEditableProject || isSaving || isSubmitting}
                                   compact
                                   onChange={handleFieldChange}
                                 />
@@ -488,7 +508,7 @@ export function RequestDetailPage() {
                                   label="Fin"
                                   value={values.tentativeEndDate}
                                   error={formErrors.tentativeEndDate}
-                                  disabled={!isDraft || isSaving || isSubmitting}
+                                  disabled={!isEditableProject || isSaving || isSubmitting}
                                   min={values.tentativeStartDate || undefined}
                                   compact
                                   onChange={handleFieldChange}
@@ -512,21 +532,27 @@ export function RequestDetailPage() {
                         <RequestProjectLocationsList
                           locations={locations}
                           isLoading={isLoadingLocations}
-                          canRemove={isDraft}
+                          canRemove={isEditableProject}
                           removingLocationIds={removingLocationIds}
                           onRemove={(locationId) => {
                             if (isMutatingLocations) {
                               return
                             }
 
-                            void removeLocation(locationId)
+                            void (async () => {
+                              const removed = await removeLocation(locationId)
+
+                              if (removed) {
+                                await refreshProjects()
+                              }
+                            })()
                           }}
                         />
                       </div>
                     </div>
                   </section>
 
-                  {isDraft ? (
+                  {isEditableProject ? (
                     <section className="mx-auto flex w-full max-w-[1720px] justify-center px-4 pb-14 pt-2 sm:px-6 lg:px-10 lg:pb-20 2xl:px-14">
                       <div className="flex w-full max-w-[980px] flex-col gap-3 sm:flex-row">
                         <button
@@ -542,11 +568,17 @@ export function RequestDetailPage() {
                         </button>
                         <button
                           type="submit"
-                          disabled={isSaving || isSubmitting}
+                          disabled={isSaving || isSubmitting || !canSubmitCurrentProject}
                           className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
                         >
                           <SubmitProposalIcon />
-                          {isSubmitting ? 'Enviando proyecto...' : 'Enviar proyecto'}
+                          {isSubmitting
+                            ? isDraft
+                              ? 'Enviando proyecto...'
+                              : 'Enviando nueva version...'
+                            : isDraft
+                              ? 'Enviar proyecto'
+                              : 'Enviar nueva version'}
                         </button>
                       </div>
                     </section>
@@ -624,6 +656,7 @@ export function RequestDetailPage() {
           const addedCount = await addLocations(locationIds)
 
           if (addedCount > 0) {
+            await refreshProjects()
             setSuccessMessage(
               `${addedCount} locacion${addedCount === 1 ? '' : 'es'} agregada${addedCount === 1 ? '' : 's'} al proyecto.`,
             )

@@ -11,6 +11,8 @@ export type RequestProject = {
   productionCompany: string | null
   message: string | null
   status: RequestProjectStatus
+  hasUnsubmittedChanges: boolean
+  latestVersionNumber: number
   tentativeStartDate: string | null
   tentativeEndDate: string | null
   createdAt: string

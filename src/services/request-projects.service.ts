@@ -33,6 +33,8 @@ type RequestProjectRow = {
   production_company?: string | null
   message?: string | null
   status?: RequestProjectStatus | null
+  has_unsubmitted_changes?: boolean | null
+  latest_version_number?: number | string | null
   tentative_start_date?: string | null
   tentative_end_date?: string | null
   created_at?: string | null
@@ -49,12 +51,20 @@ type RequestProjectRow = {
 type FinalizeRequestProjectSubmissionRow = {
   id?: string | null
   status?: string | null
+  latest_version_number?: number | string | null
   official_pdf_bucket?: string | null
   official_pdf_path?: string | null
   official_pdf_file_name?: string | null
   official_pdf_generated_at?: string | null
   official_pdf_uploaded_at?: string | null
   official_pdf_size_bytes?: number | string | null
+  has_unsubmitted_changes?: boolean | null
+}
+
+type EnsureInitialRequestProjectVersionRow = {
+  created?: boolean | null
+  version_id?: string | null
+  version_number?: number | string | null
 }
 
 type RelatedNameRow =
@@ -138,6 +148,7 @@ type FinalizeRequestProjectSubmissionInput = {
   bucket: string
   path: string
   fileName: string
+  payload: SelectionPdfPayload
   generatedAt: string
   uploadedAt: string
   sizeBytes: number
@@ -146,6 +157,12 @@ type FinalizeRequestProjectSubmissionInput = {
 export type SubmitRequestProjectWithOfficialPdfResult = {
   project: RequestProject
   exportResult: SelectionPdfExportResult
+}
+
+export type EnsureInitialRequestProjectVersionResult = {
+  created: boolean
+  versionId: string | null
+  versionNumber: number
 }
 
 type AddLocationToRequestProjectResult = 'added' | 'exists'
@@ -158,6 +175,8 @@ const REQUEST_PROJECT_SELECT = `
   production_company,
   message,
   status,
+  has_unsubmitted_changes,
+  latest_version_number,
   tentative_start_date,
   tentative_end_date,
   created_at,
@@ -323,6 +342,7 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
       })
     : null
   const officialPdfSizeBytes = parseOptionalSizeBytes(row.official_pdf_size_bytes)
+  const latestVersionNumber = parseOptionalSizeBytes(row.latest_version_number) ?? 0
 
   return {
     id: row.id,
@@ -330,6 +350,8 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
     productionCompany: row.production_company?.trim() || null,
     message: row.message?.trim() || null,
     status: row.status ?? 'draft',
+    hasUnsubmittedChanges: row.has_unsubmitted_changes ?? false,
+    latestVersionNumber,
     tentativeStartDate: row.tentative_start_date ?? null,
     tentativeEndDate: row.tentative_end_date ?? null,
     createdAt: row.created_at ?? new Date(0).toISOString(),
@@ -360,8 +382,22 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
   }
 }
 
-function getOfficialRequestProjectPdfPath(projectId: string) {
-  return `request-projects/${projectId}/official.pdf`
+function buildOfficialRequestProjectPdfVersionKey(generatedAt: string) {
+  const normalizedGeneratedAt = generatedAt.trim()
+
+  if (normalizedGeneratedAt) {
+    return normalizedGeneratedAt.replaceAll(':', '-').replaceAll('.', '-')
+  }
+
+  return new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')
+}
+
+function getOfficialRequestProjectPdfPath(projectId: string, generatedAt: string) {
+  const versionKey = buildOfficialRequestProjectPdfVersionKey(generatedAt)
+  const uniqueSuffix =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e6)}`
+
+  return `request-projects/${projectId}/versions/${versionKey}-${uniqueSuffix}/official.pdf`
 }
 
 function parseOptionalSizeBytes(value: number | string | null | undefined) {
@@ -593,7 +629,13 @@ export async function updateRequestProject(
     throw new Error(error.message)
   }
 
-  return mapRequestProject(data as RequestProjectRow)
+  const nextProject = mapRequestProject(data as RequestProjectRow)
+
+  if (nextProject.status !== 'draft') {
+    return markRequestProjectAsChanged(id)
+  }
+
+  return nextProject
 }
 
 export async function submitRequestProject(id: string) {
@@ -616,8 +658,9 @@ export async function submitRequestProject(id: string) {
 async function uploadOfficialRequestProjectPdf(
   projectId: string,
   exportResult: SelectionPdfExportResult,
+  generatedAt: string,
 ) {
-  const path = getOfficialRequestProjectPdfPath(projectId)
+  const path = getOfficialRequestProjectPdfPath(projectId, generatedAt)
   const fileName = getOfficialRequestProjectPdfFileName(exportResult, projectId)
   const uploadedAt = new Date().toISOString()
   const { error } = await supabase.storage
@@ -645,12 +688,19 @@ async function finalizeRequestProjectSubmission({
   bucket,
   path,
   fileName,
+  payload,
   generatedAt,
   uploadedAt,
   sizeBytes,
 }: FinalizeRequestProjectSubmissionInput) {
-  const { data, error } = await supabase.rpc('finalize_request_project_submission', {
+  const { data, error } = await supabase.rpc('finalize_request_project_submission_versioned', {
     p_request_project_id: projectId,
+    p_title: payload.project.product,
+    p_production_company: payload.project.productionCompany || null,
+    p_message: payload.project.message || null,
+    p_tentative_start_date: payload.project.tentativeStartDate || null,
+    p_tentative_end_date: payload.project.tentativeEndDate || null,
+    p_snapshot_payload: payload,
     p_official_pdf_bucket: bucket,
     p_official_pdf_path: path,
     p_official_pdf_file_name: fileName,
@@ -700,12 +750,17 @@ export async function submitRequestProjectWithOfficialPdf({
 
   await syncRequestProjectPdfPayloadSnapshot(projectId, payload)
 
-  const uploadResult = await uploadOfficialRequestProjectPdf(projectId, exportResult)
+  const uploadResult = await uploadOfficialRequestProjectPdf(
+    projectId,
+    exportResult,
+    payload.generatedAt,
+  )
   const project = await finalizeRequestProjectSubmission({
     projectId,
     bucket: uploadResult.bucket,
     path: uploadResult.path,
     fileName: uploadResult.fileName,
+    payload,
     generatedAt: payload.generatedAt,
     uploadedAt: uploadResult.uploadedAt,
     sizeBytes: uploadResult.sizeBytes,
@@ -735,6 +790,67 @@ export async function downloadOfficialRequestProjectPdf(project: RequestProject)
   return {
     blob: data,
     fileName: officialPdf.fileName,
+  }
+}
+
+async function markRequestProjectAsChanged(projectId: string) {
+  const { data, error } = await supabase
+    .from('request_projects')
+    .update({
+      has_unsubmitted_changes: true,
+    })
+    .eq('id', projectId)
+    .select(REQUEST_PROJECT_SELECT)
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return mapRequestProject(data as RequestProjectRow)
+}
+
+export async function ensureInitialRequestProjectVersion(
+  project: RequestProject,
+  payload: SelectionPdfPayload,
+): Promise<EnsureInitialRequestProjectVersionResult> {
+  if (project.status === 'draft' || project.latestVersionNumber > 0) {
+    return {
+      created: false,
+      versionId: null,
+      versionNumber: project.latestVersionNumber,
+    }
+  }
+
+  const { data, error } = await supabase.rpc('ensure_request_project_initial_version', {
+    p_request_project_id: project.id,
+    p_status: project.status,
+    p_title: payload.project.product,
+    p_production_company: payload.project.productionCompany || null,
+    p_message: payload.project.message || null,
+    p_tentative_start_date: payload.project.tentativeStartDate || null,
+    p_tentative_end_date: payload.project.tentativeEndDate || null,
+    p_snapshot_payload: payload,
+    p_official_pdf_bucket: project.officialPdf?.bucket ?? null,
+    p_official_pdf_path: project.officialPdf?.path ?? null,
+    p_official_pdf_file_name: project.officialPdf?.fileName ?? null,
+    p_official_pdf_generated_at: project.officialPdf?.generatedAt ?? null,
+    p_official_pdf_uploaded_at: project.officialPdf?.uploadedAt ?? null,
+    p_official_pdf_size_bytes: project.officialPdf?.sizeBytes ?? null,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | EnsureInitialRequestProjectVersionRow
+    | null
+
+  return {
+    created: row?.created ?? false,
+    versionId: row?.version_id ?? null,
+    versionNumber: parseOptionalSizeBytes(row?.version_number) ?? project.latestVersionNumber,
   }
 }
 
@@ -814,6 +930,7 @@ export async function addLocationToRequestProject(
   projectId: string,
   locationId: string,
 ): Promise<AddLocationToRequestProjectResult> {
+  const project = await getRequestProjectById(projectId)
   const { error } = await supabase.from('request_project_locations').insert({
     request_project_id: projectId,
     location_id: locationId,
@@ -825,6 +942,10 @@ export async function addLocationToRequestProject(
     }
 
     throw new Error(error.message)
+  }
+
+  if (project?.status !== 'draft') {
+    await markRequestProjectAsChanged(projectId)
   }
 
   return 'added'
@@ -880,6 +1001,7 @@ export async function syncRequestProjectSelection(
   images: SelectedLocationImage[],
 ) {
   await getCurrentUserId()
+  const project = await getRequestProjectById(projectId)
 
   const groupedLocations = groupSelectionImagesByLocation(images)
   const selectedLocationIds = groupedLocations.map((location) => location.locationId)
@@ -999,6 +1121,10 @@ export async function syncRequestProjectSelection(
   if (insertImagesError) {
     throw new Error(insertImagesError.message)
   }
+
+  if (project?.status !== 'draft') {
+    await markRequestProjectAsChanged(projectId)
+  }
 }
 
 export async function syncRequestProjectPdfPayloadSnapshot(
@@ -1078,6 +1204,7 @@ export async function removeLocationFromRequestProject(
   projectId: string,
   locationId: string,
 ) {
+  const project = await getRequestProjectById(projectId)
   const { error } = await supabase
     .from('request_project_locations')
     .delete()
@@ -1086,5 +1213,9 @@ export async function removeLocationFromRequestProject(
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  if (project?.status !== 'draft') {
+    await markRequestProjectAsChanged(projectId)
   }
 }

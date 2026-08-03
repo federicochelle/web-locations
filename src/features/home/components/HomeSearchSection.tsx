@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { HeroBackgroundMosaic } from '@/features/home/components/HeroBackgroundMosaic.tsx'
+
 export function HomeSearchSection() {
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')

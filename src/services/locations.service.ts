@@ -67,6 +67,7 @@ type SearchPublicLocationsRow = {
   features?: string[] | null
   matched_feature_count?: number | null
   selected_feature_count?: number | null
+  total_count?: number | null
 }
 
 export type ActiveCategory = {
@@ -78,13 +79,27 @@ export type GetLocationsResult = {
   locations: PublicLocationCard[]
   activeCategory: ActiveCategory | null
   categoryExists: boolean
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
 }
 
 type GetLocationsFilters = {
   categorySlug?: string | null
+  departmentSlug?: string | null
+  page?: number
+  pageSize?: number
   search?: string | null
   featureSlugs?: string[]
 }
+
+type GetLocationsFromRpcResult = {
+  locations: PublicLocationCard[]
+  totalCount: number
+}
+
+const DEFAULT_LOCATIONS_PAGE_SIZE = 20
 
 function sortImages(images: LocationImageRow[] | null | undefined) {
   return [...(images ?? [])].sort(
@@ -208,22 +223,25 @@ async function enrichLocationsWithCategorySlugs(
 
 async function getLocationsFromRpc({
   categorySlug,
+  departmentSlug,
+  limit,
+  offset,
   query,
   featureSlugs,
   tagSlugs,
-  limit,
-  offset,
 }: {
   categorySlug: string | null
+  departmentSlug: string | null
+  limit: number
+  offset: number
   query: string | null
   featureSlugs: string[]
   tagSlugs: string[]
-  limit: number
-  offset: number
-}) {
+}): Promise<GetLocationsFromRpcResult> {
   const { data, error } = await supabase.rpc('search_public_locations_v2', {
     p_query: query,
     p_category_slug: categorySlug,
+    p_department_slug: departmentSlug,
     p_feature_slugs: featureSlugs,
     p_tag_slugs: tagSlugs,
     p_limit: limit,
@@ -239,17 +257,24 @@ async function getLocationsFromRpc({
     categorySlug,
   )
 
-  return rowsWithCategorySlugs.map((row) =>
-    mapSearchPublicLocationsRow(row),
-  )
+  return {
+    locations: rowsWithCategorySlugs.map((row) =>
+      mapSearchPublicLocationsRow(row),
+    ),
+    totalCount: rowsWithCategorySlugs[0]?.total_count ?? 0,
+  }
 }
 
 export async function getLocations(
   filters: GetLocationsFilters = {},
 ): Promise<GetLocationsResult> {
   const categorySlug = filters.categorySlug?.trim() ?? null
+  const departmentSlug = filters.departmentSlug?.trim() ?? null
+  const page = Math.max(1, Math.trunc(filters.page ?? 1))
+  const pageSize = Math.max(1, Math.trunc(filters.pageSize ?? DEFAULT_LOCATIONS_PAGE_SIZE))
   const normalizedSearch = filters.search?.trim() ?? ''
   const normalizedFeatureSlugs = normalizeFeatureSlugs(filters.featureSlugs)
+  const offset = (page - 1) * pageSize
   let activeCategory: ActiveCategory | null = null
 
   if (categorySlug) {
@@ -265,6 +290,10 @@ export async function getLocations(
           locations: [],
           activeCategory: null,
           categoryExists: false,
+          page,
+          pageSize,
+          totalCount: 0,
+          totalPages: 0,
         }
       }
 
@@ -278,19 +307,27 @@ export async function getLocations(
     }
   }
 
-  const locations = await getLocationsFromRpc({
+  const rpcResult = await getLocationsFromRpc({
     categorySlug,
+    departmentSlug,
+    limit: pageSize,
+    offset,
     query: normalizedSearch || null,
     featureSlugs: normalizedFeatureSlugs,
     tagSlugs: [],
-    limit: 24,
-    offset: 0,
   })
 
   return {
-    locations,
+    locations: rpcResult.locations,
     activeCategory,
     categoryExists: true,
+    page,
+    pageSize,
+    totalCount: rpcResult.totalCount,
+    totalPages:
+      rpcResult.totalCount > 0
+        ? Math.ceil(rpcResult.totalCount / pageSize)
+        : 0,
   }
 }
 

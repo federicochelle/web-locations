@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth.ts'
 import { getFavorites } from '@/services/favorites.service.ts'
 import {
   addLocationToRequestProject,
+  ensureInitialRequestProjectVersion,
   getRequestProjectById,
   getRequestProjectErrorMessage,
   getRequestProjectLocations,
@@ -12,6 +13,10 @@ import {
 } from '@/services/request-projects.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 import type { RequestProject, RequestProjectLocation } from '@/types/request-project.ts'
+import {
+  buildSelectionPdfPayloadFromProject,
+  mapRequestProjectToPdfFormValues,
+} from '@/utils/selection-pdf-workspace.ts'
 
 type UpdateProjectValues = {
   title: string
@@ -35,6 +40,34 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const [removingLocationIds, setRemovingLocationIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+
+  const ensureVersioningBaseline = useCallback(async () => {
+    if (!project || project.status === 'draft' || project.latestVersionNumber > 0) {
+      return
+    }
+
+    const payload = buildSelectionPdfPayloadFromProject(
+      mapRequestProjectToPdfFormValues(project),
+      locations,
+      project.updatedAt || project.createdAt,
+    )
+
+    const result = await ensureInitialRequestProjectVersion(project, payload)
+
+    if (result.versionNumber > 0) {
+      setProject((currentProject) =>
+        currentProject
+          ? {
+              ...currentProject,
+              latestVersionNumber: Math.max(
+                currentProject.latestVersionNumber,
+                result.versionNumber,
+              ),
+            }
+          : currentProject,
+      )
+    }
+  }, [locations, project])
 
   const refreshLocations = useCallback(async () => {
     if (!projectId) {
@@ -137,6 +170,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       try {
         setIsSaving(true)
         setError(null)
+        await ensureVersioningBaseline()
 
         const nextProject = await updateRequestProject(projectId, {
           title,
@@ -155,7 +189,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setIsSaving(false)
       }
     },
-    [projectId],
+    [ensureVersioningBaseline, projectId],
   )
 
   const addLocation = useCallback(
@@ -167,6 +201,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       try {
         setIsMutatingLocations(true)
         setError(null)
+        await ensureVersioningBaseline()
 
         await addLocationToRequestProject(projectId, locationId)
         await Promise.all([refreshProject(), refreshLocations()])
@@ -178,7 +213,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setIsMutatingLocations(false)
       }
     },
-    [projectId, refreshLocations, refreshProject],
+    [ensureVersioningBaseline, projectId, refreshLocations, refreshProject],
   )
 
   const addLocations = useCallback(
@@ -192,6 +227,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       try {
         setIsMutatingLocations(true)
         setError(null)
+        await ensureVersioningBaseline()
 
         for (const locationId of locationIds) {
           const result = await addLocationToRequestProject(projectId, locationId)
@@ -210,7 +246,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setIsMutatingLocations(false)
       }
     },
-    [projectId, refreshLocations, refreshProject],
+    [ensureVersioningBaseline, projectId, refreshLocations, refreshProject],
   )
 
   const removeLocation = useCallback(
@@ -222,6 +258,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       try {
         setRemovingLocationIds((currentIds) => [...currentIds, locationId])
         setError(null)
+        await ensureVersioningBaseline()
 
         await removeLocationFromRequestProject(projectId, locationId)
         await Promise.all([refreshProject(), refreshLocations()])
@@ -235,7 +272,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         )
       }
     },
-    [projectId, refreshLocations, refreshProject],
+    [ensureVersioningBaseline, projectId, refreshLocations, refreshProject],
   )
 
   return {

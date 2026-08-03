@@ -26,10 +26,24 @@ export function CategoryLocationsPage() {
         .filter((featureSlug) => featureSlug.length > 0),
     [featuresQuery],
   )
+  const fallbackCategoryName = useMemo(() => {
+    const normalizedSlug = slug?.trim() ?? ''
+
+    if (!normalizedSlug) {
+      return 'Locaciones'
+    }
+
+    return normalizedSlug
+      .split('-')
+      .filter((part) => part.length > 0)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ')
+  }, [slug])
   const hasActiveSearch = trimmedSearchQuery.length > 0
+  const headingTitle = activeCategoryName ?? fallbackCategoryName
 
   const activeHeadingParts = [
-    activeCategoryName ? `Categoria: ${activeCategoryName}` : null,
+    `Categoria: ${headingTitle}`,
     hasActiveSearch ? `Busqueda: "${trimmedSearchQuery}"` : null,
   ].filter((part): part is string => Boolean(part))
 
@@ -97,7 +111,7 @@ export function CategoryLocationsPage() {
     <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-12 lg:pb-24 lg:pt-12">
       <section className="max-w-4xl">
         <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-          {activeCategoryName ?? 'Locaciones'}
+          {headingTitle}
         </h1>
       </section>
 
