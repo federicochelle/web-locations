@@ -7,6 +7,7 @@ import type { AlgoliaLocationHit } from '@/features/search/algolia/algolia.types
 import type { PublicLocationCard } from '@/types/location.ts'
 
 type UseAlgoliaLocationSearchOptions = {
+  departmentSlug?: string
   enabled?: boolean
   initialPage?: number
   initialQuery?: string
@@ -25,12 +26,14 @@ type UseAlgoliaLocationSearchResult = {
   searchTimeMs: number | null
   setPage: (page: number) => void
   setQuery: (query: string) => void
+  totalHits: number
   totalPages: number
 }
 
 type AlgoliaLocationSearchSnapshot = {
   hits: PublicLocationCard[]
   searchTimeMs: number | null
+  totalHits: number
   totalPages: number
 }
 
@@ -38,6 +41,7 @@ const algoliaSearchCache = new Map<string, AlgoliaLocationSearchSnapshot>()
 const algoliaSearchInFlight = new Map<string, Promise<AlgoliaLocationSearchSnapshot>>()
 
 function buildSearchRequestKey(params: {
+  departmentSlug: string
   hitsPerPage: number
   page: number
   query: string
@@ -76,6 +80,7 @@ async function filterPublishedAlgoliaHits(hits: AlgoliaLocationHit[]) {
 }
 
 async function searchAlgoliaLocations(params: {
+  departmentSlug: string
   hitsPerPage: number
   page: number
   query: string
@@ -101,6 +106,9 @@ async function searchAlgoliaLocations(params: {
         {
           indexName,
           query: params.query,
+          ...(params.departmentSlug
+            ? { filters: `department_slug:${JSON.stringify(params.departmentSlug)}` }
+            : {}),
           page: Math.max(0, params.page - 1),
           hitsPerPage: params.hitsPerPage,
           attributesToRetrieve: [
@@ -110,6 +118,7 @@ async function searchAlgoliaLocations(params: {
             'category_slug',
             'category_name',
             'category_aliases',
+            'department_slug',
             'department_name',
             'features',
             'feature_aliases',
@@ -127,6 +136,7 @@ async function searchAlgoliaLocations(params: {
       ? {
           hits: [],
           searchTimeMs: null,
+          totalHits: 0,
           totalPages: 0,
         }
       : {
@@ -134,6 +144,7 @@ async function searchAlgoliaLocations(params: {
             mapAlgoliaHitToPublicLocationCard(hit),
           ),
           searchTimeMs: firstResult.processingTimeMS ?? null,
+          totalHits: firstResult.nbHits ?? 0,
           totalPages: firstResult.nbPages ?? 0,
         }
 
@@ -154,11 +165,12 @@ export function useAlgoliaLocationSearch(
   options: UseAlgoliaLocationSearchOptions = {},
 ): UseAlgoliaLocationSearchResult {
   const {
+    departmentSlug = '',
     enabled = true,
     initialPage = 1,
     initialQuery = '',
     debounceMs = 350,
-    hitsPerPage = 24,
+    hitsPerPage = 20,
   } = options
 
   const [query, setQueryState] = useState(initialQuery)
@@ -167,6 +179,7 @@ export function useAlgoliaLocationSearch(
   const [hits, setHits] = useState<PublicLocationCard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [totalHits, setTotalHits] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTimeMs, setSearchTimeMs] = useState<number | null>(null)
   const latestRequestKeyRef = useRef<string | null>(null)
@@ -199,6 +212,7 @@ export function useAlgoliaLocationSearch(
       latestRequestKeyRef.current = null
       setHits([])
       setSearchTimeMs(null)
+      setTotalHits(0)
       setTotalPages(0)
       setError(null)
       setLoading(false)
@@ -209,6 +223,7 @@ export function useAlgoliaLocationSearch(
 
     async function runSearch() {
       const requestKey = buildSearchRequestKey({
+        departmentSlug,
         hitsPerPage,
         page,
         query: debouncedQuery,
@@ -221,6 +236,7 @@ export function useAlgoliaLocationSearch(
         setError(null)
 
         const snapshot = await searchAlgoliaLocations({
+          departmentSlug,
           hitsPerPage,
           page,
           query: debouncedQuery,
@@ -232,6 +248,7 @@ export function useAlgoliaLocationSearch(
 
         setHits(snapshot.hits)
         setTotalPages(snapshot.totalPages)
+        setTotalHits(snapshot.totalHits)
         setSearchTimeMs(snapshot.searchTimeMs)
       } catch (searchError) {
         if (isCancelled || latestRequestKeyRef.current !== requestKey) {
@@ -240,6 +257,7 @@ export function useAlgoliaLocationSearch(
 
         setHits([])
         setSearchTimeMs(null)
+        setTotalHits(0)
         setTotalPages(0)
         setError(
           searchError instanceof Error
@@ -258,7 +276,7 @@ export function useAlgoliaLocationSearch(
     return () => {
       isCancelled = true
     }
-  }, [debouncedQuery, enabled, hitsPerPage, page])
+  }, [debouncedQuery, departmentSlug, enabled, hitsPerPage, page])
 
   function setQuery(nextQuery: string) {
     if (nextQuery === query) {
@@ -297,6 +315,7 @@ export function useAlgoliaLocationSearch(
     searchTimeMs,
     setPage,
     setQuery,
+    totalHits,
     totalPages,
   }
 }

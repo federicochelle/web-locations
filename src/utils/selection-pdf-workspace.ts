@@ -145,6 +145,24 @@ export function buildSelectionPdfPayloadFromImages(
   }
 }
 
+export function mapSelectionPdfPayloadToSelectedImages(
+  payload: SelectionPdfPayload,
+): SelectedLocationImage[] {
+  return payload.locations.flatMap((location) =>
+    location.images.map((image, index) => ({
+      key: image.key,
+      imageUrl: image.imageUrl,
+      locationImageId: null,
+      sortOrder: image.sortOrder ?? index,
+      locationId: location.locationId,
+      locationCode: location.locationCode,
+      locationTitle: location.locationTitle,
+      categorySlug: location.categorySlug,
+      selectedAt: payload.generatedAt,
+    })),
+  )
+}
+
 export function buildSelectionPdfPayloadFromProject(
   projectId: string,
 ): Promise<SelectionPdfPayload>

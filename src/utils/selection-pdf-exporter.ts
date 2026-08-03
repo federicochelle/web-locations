@@ -72,6 +72,10 @@ function buildPdfFileName(payload: SelectionPdfPayload) {
   return `seleccion-locaciones-${dateSegment}.pdf`
 }
 
+function formatLocationCode(value: string) {
+  return value.replace(/-/g, ' ')
+}
+
 function addCoverPage(
   doc: jsPDF,
   payload: SelectionPdfPayload,
@@ -144,6 +148,7 @@ function addLocationPage(
     width: number
     height: number
   }>,
+  isFirstPage: boolean,
 ) {
   doc.addPage()
 
@@ -159,20 +164,27 @@ function addLocationPage(
 
   paintPageBackground(doc)
 
-  setTextColor(doc, PDF_TEXT_GOLD)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text(location.locationCode, margin, 22)
-
-  if (showTitle) {
+  if (isFirstPage) {
     setTextColor(doc, PDF_TEXT_GOLD)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11)
-    doc.text(location.locationTitle, margin, 30)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(30)
+    doc.text(formatLocationCode(location.locationCode), pageWidth / 2, 24, {
+      align: 'center',
+    })
+
+    if (showTitle) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(12)
+      doc.text(location.locationTitle, pageWidth / 2, 34, {
+        align: 'center',
+      })
+    }
   }
 
+  const imageStartY = isFirstPage ? 48 : topImageY
+
   pageImages.forEach((image, index) => {
-    const slotY = topImageY + index * (imageAreaHeight + slotGap)
+    const slotY = imageStartY + index * (imageAreaHeight + slotGap)
     const widthScale = contentWidth / image.width
     const heightScale = imageAreaHeight / image.height
     const scale = Math.min(widthScale, heightScale)
@@ -234,6 +246,7 @@ export async function createSelectionPdf(
   addCoverPage(doc, payload, logo)
 
   for (const location of payload.locations) {
+    let isFirstLocationPage = true
     let pageImages: Array<{
       dataUrl: string
       width: number
@@ -255,7 +268,8 @@ export async function createSelectionPdf(
         includedImages += 1
 
         if (pageImages.length === 2) {
-          addLocationPage(doc, location, pageImages)
+          addLocationPage(doc, location, pageImages, isFirstLocationPage)
+          isFirstLocationPage = false
           pageImages = []
         }
       } catch (error) {
@@ -272,7 +286,7 @@ export async function createSelectionPdf(
     }
 
     if (pageImages.length > 0) {
-      addLocationPage(doc, location, pageImages)
+      addLocationPage(doc, location, pageImages, isFirstLocationPage)
     }
   }
 

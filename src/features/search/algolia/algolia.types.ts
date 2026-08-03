@@ -5,6 +5,7 @@ export type AlgoliaLocationHit = {
   category_slug: string | null
   category_name: string | null
   category_aliases: string[] | null
+  department_slug: string | null
   department_name: string | null
   features: string[] | null
   feature_aliases: string[] | null

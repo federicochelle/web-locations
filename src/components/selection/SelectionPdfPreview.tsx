@@ -9,6 +9,10 @@ function getPreviewValue(value: string) {
   return value.trim().length > 0 ? value : '—'
 }
 
+function formatLocationCode(value: string) {
+  return value.replace(/-/g, ' ')
+}
+
 function chunkLocationImages(images: SelectionPdfPayload['locations'][number]['images']) {
   const chunks: typeof images[] = []
 
@@ -17,6 +21,14 @@ function chunkLocationImages(images: SelectionPdfPayload['locations'][number]['i
   }
 
   return chunks
+}
+
+function buildLocationPages(location: SelectionPdfPayload['locations'][number]) {
+  return chunkLocationImages(location.images).map((imagesChunk, index) => ({
+    location,
+    images: imagesChunk,
+    isFirstPage: index === 0,
+  }))
 }
 
 export function SelectionPdfPreview({
@@ -28,10 +40,7 @@ export function SelectionPdfPreview({
   ] as const
 
   const locationPages = payload.locations.flatMap((location) =>
-    chunkLocationImages(location.images).map((imagesChunk) => ({
-      location,
-      images: imagesChunk,
-    })),
+    buildLocationPages(location),
   )
 
   return (
@@ -64,7 +73,7 @@ export function SelectionPdfPreview({
       </section>
 
       <div className="space-y-6">
-        {locationPages.map(({ location, images }, locationPageIndex) => {
+        {locationPages.map(({ location, images, isFirstPage }, locationPageIndex) => {
           const showTitle =
             location.locationTitle.trim().length > 0 &&
             location.locationTitle !== location.locationCode
@@ -75,16 +84,18 @@ export function SelectionPdfPreview({
               className="mx-auto aspect-[210/297] w-full max-w-[900px] border border-[#e2dcd3]/55 bg-[#080808] px-[7.6%] py-[5.4%] text-[#f8f4ee] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
             >
               <div className="flex h-full flex-col">
-                <div>
-                  <h4 className="font-display text-[1.65rem] font-semibold tracking-[-0.03em] text-[#d7c0a2] sm:text-[1.8rem]">
-                    {location.locationCode}
-                  </h4>
-                  {showTitle ? (
-                    <p className="mt-2 text-[0.95rem] text-[#d7c0a2]">{location.locationTitle}</p>
-                  ) : null}
-                </div>
+                {isFirstPage ? (
+                  <div className="text-center">
+                    <h4 className="font-display text-[2.8rem] font-semibold leading-none tracking-[-0.03em] text-[#d7c0a2] sm:text-[3.4rem]">
+                      {formatLocationCode(location.locationCode)}
+                    </h4>
+                    {showTitle ? (
+                      <p className="mt-3 text-[1rem] text-[#d7c0a2]">{location.locationTitle}</p>
+                    ) : null}
+                  </div>
+                ) : null}
 
-                <div className="mt-6 flex flex-1 flex-col gap-4">
+                <div className={`flex flex-1 flex-col gap-4 ${isFirstPage ? 'mt-10' : 'mt-6'}`}>
                   {images.map((image) => (
                     <div
                       key={image.key}

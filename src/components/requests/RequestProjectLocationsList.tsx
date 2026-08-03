@@ -18,6 +18,17 @@ export function RequestProjectLocationsList({
   removingLocationIds = [],
   onRemove,
 }: RequestProjectLocationsListProps) {
+  const sortedLocations = [...locations].sort((left, right) =>
+    left.location.locationCode.localeCompare(
+      right.location.locationCode,
+      'es',
+      {
+        numeric: true,
+        sensitivity: 'base',
+      },
+    ),
+  )
+
   if (isLoading) {
     return (
       <section className="-mx-6 grid gap-4 sm:mx-0 lg:grid-cols-2 2xl:grid-cols-3">
@@ -52,7 +63,7 @@ export function RequestProjectLocationsList({
 
   return (
     <section className="-mx-6 grid gap-4 sm:mx-0 lg:grid-cols-3">
-      {locations.map((item) => (
+      {sortedLocations.map((item) => (
         <RequestProjectLocationCard
           key={item.id}
           item={item}
