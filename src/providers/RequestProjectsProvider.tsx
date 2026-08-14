@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { useAuth } from '@/hooks/useAuth.ts'
@@ -31,6 +31,16 @@ export function RequestProjectsProvider({
   const [isCreating, setIsCreating] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [activeEditingProjectId, setActiveEditingProjectId] = useState<string | null>(null)
+  const activeEditingProjectIdRef = useRef<string | null>(null)
+  const editingExitHandlerRef = useRef<{
+    projectId: string
+    handler: () => Promise<boolean>
+  } | null>(null)
+
+  useEffect(() => {
+    activeEditingProjectIdRef.current = activeEditingProjectId
+  }, [activeEditingProjectId])
 
   const refreshProjects = useCallback(async () => {
     try {
@@ -66,6 +76,35 @@ export function RequestProjectsProvider({
     setHasLoadedOnce(false)
     void refreshProjects()
   }, [authLoading, isAuthenticated, refreshProjects])
+
+  useEffect(() => {
+    if (!activeEditingProjectId) {
+      return
+    }
+
+    const hasActiveProject = projects.some((project) => project.id === activeEditingProjectId)
+
+    if (!hasActiveProject) {
+      setActiveEditingProjectId(null)
+      editingExitHandlerRef.current = null
+    }
+  }, [activeEditingProjectId, projects])
+
+  useEffect(() => {
+    if (!activeEditingProjectId) {
+      return
+    }
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [activeEditingProjectId])
 
   const createProject = useCallback(async ({
     title,
@@ -153,10 +192,81 @@ export function RequestProjectsProvider({
     [projects],
   )
 
+  const beginProjectEditing = useCallback((projectId: string) => {
+    const normalizedProjectId = projectId.trim()
+
+    if (!normalizedProjectId) {
+      return
+    }
+
+    setActiveEditingProjectId(normalizedProjectId)
+  }, [])
+
+  const finishProjectEditing = useCallback((projectId?: string | null) => {
+    const normalizedProjectId = projectId?.trim() || null
+    const currentEditingProjectId = activeEditingProjectIdRef.current
+
+    if (normalizedProjectId && currentEditingProjectId !== normalizedProjectId) {
+      return
+    }
+
+    editingExitHandlerRef.current = null
+    setActiveEditingProjectId(null)
+  }, [])
+
+  const flushAndFinishProjectEditing = useCallback(async (projectId?: string | null) => {
+    const normalizedProjectId = projectId?.trim() || null
+    const currentEditingProjectId = activeEditingProjectIdRef.current
+
+    if (!currentEditingProjectId) {
+      return true
+    }
+
+    if (normalizedProjectId && currentEditingProjectId !== normalizedProjectId) {
+      return true
+    }
+
+    const exitHandler = editingExitHandlerRef.current
+
+    if (
+      exitHandler &&
+      exitHandler.projectId === currentEditingProjectId
+    ) {
+      const didFlush = await exitHandler.handler()
+
+      if (!didFlush) {
+        return false
+      }
+    }
+
+    editingExitHandlerRef.current = null
+    setActiveEditingProjectId(null)
+    return true
+  }, [])
+
+  const registerProjectEditingExitHandler = useCallback((
+    projectId: string,
+    handler: () => Promise<boolean>,
+  ) => {
+    const normalizedProjectId = projectId.trim()
+
+    editingExitHandlerRef.current = {
+      projectId: normalizedProjectId,
+      handler,
+    }
+
+    return () => {
+      if (editingExitHandlerRef.current?.projectId === normalizedProjectId) {
+        editingExitHandlerRef.current = null
+      }
+    }
+  }, [])
+
   const value = useMemo<RequestProjectsContextValue>(
     () => ({
       projects,
       draftProjects,
+      activeEditingProjectId,
       isLoading,
       hasLoadedOnce,
       isCreating,
@@ -166,16 +276,25 @@ export function RequestProjectsProvider({
       createProject,
       updateProject,
       removeProject,
+      beginProjectEditing,
+      finishProjectEditing,
+      flushAndFinishProjectEditing,
+      registerProjectEditingExitHandler,
     }),
     [
+      activeEditingProjectId,
+      beginProjectEditing,
       createProject,
       deletingProjectId,
       draftProjects,
       error,
+      finishProjectEditing,
+      flushAndFinishProjectEditing,
       hasLoadedOnce,
       isCreating,
       isLoading,
       projects,
+      registerProjectEditingExitHandler,
       refreshProjects,
       removeProject,
       updateProject,

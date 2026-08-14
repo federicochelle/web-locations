@@ -1,21 +1,29 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import drawerFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (3).webp'
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
+import { SelectionDrawerHeader } from '@/components/selection/SelectionDrawerHeader.tsx'
 import { SelectedLocationGroup } from '@/components/selection/SelectedLocationGroup.tsx'
+import { AppModal } from '@/components/ui/AppModal.tsx'
 import { SELECTION_DRAWER_TRIGGER_ID } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import {
-  getRequestProjectLocations,
-  syncRequestProjectSelection,
-} from '@/services/request-projects.service.ts'
+import { syncRequestProjectSelection } from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
-import type { RequestProjectLocation } from '@/types/request-project.ts'
 import {
+  OPEN_SELECTION_PROJECT_EVENT,
   persistSelectionActiveContext,
   restoreSelectionActiveContext,
 } from '@/utils/selection-active-context-storage.ts'
+import { fetchProjectSelectionImages } from '@/utils/selection-project-images.ts'
+import {
+  beginSelectionProjectTransition,
+  canPersistSelectionForProject,
+  clearSelectionProjectPersistenceGuard,
+  isSelectionProjectTransitioning,
+  markSelectionProjectStable,
+} from '@/utils/selection-persistence-guard.ts'
 
 const SelectionPdfFlow = lazy(() =>
   import('@/components/selection/SelectionPdfFlow.tsx').then((module) => ({
@@ -30,6 +38,14 @@ type GroupedSelection = {
   categorySlug: string
   images: SelectedLocationImage[]
 }
+
+type DrawerProjectAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
+
+const drawerFooterOverlayClassName =
+  'absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.32),rgba(5,4,4,0.4)_38%,rgba(5,4,4,0.5))]'
+
+const drawerFooterHighlightClassName =
+  'absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(215,192,162,0.16),transparent_26%),radial-gradient(circle_at_82%_22%,rgba(255,255,255,0.1),transparent_24%),radial-gradient(circle_at_50%_50%,transparent_58%,rgba(0,0,0,0.08)_100%)]'
 
 function sortGroupImages(images: SelectedLocationImage[]) {
   return [...images].sort((left, right) => {
@@ -77,6 +93,59 @@ function groupImagesByLocation(images: SelectedLocationImage[]) {
     )
 }
 
+function AutosaveSpinnerIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 animate-spin"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+    </svg>
+  )
+}
+
+function AutosaveCheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m5 12 5 5L20 7" />
+    </svg>
+  )
+}
+
+function AutosaveErrorIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v5" />
+      <path d="M12 16h.01" />
+    </svg>
+  )
+}
+
 function createSelectionSnapshot(selectionImages: SelectedLocationImage[]) {
   return JSON.stringify(
     selectionImages.map((image) => ({
@@ -86,44 +155,6 @@ function createSelectionSnapshot(selectionImages: SelectedLocationImage[]) {
       sortOrder: image.sortOrder,
     })),
   )
-}
-
-function buildProjectFallbackImage(location: RequestProjectLocation): SelectedLocationImage {
-  const imageUrl =
-    location.location.coverImageUrl ??
-    `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675"><rect width="1200" height="675" fill="#201712"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#F3E8D2" font-family="Georgia, serif" font-size="54">${location.location.locationCode}</text></svg>`,
-    )}`
-
-  return {
-    key: `${location.location.id}:project-cover`,
-    imageUrl,
-    locationImageId: null,
-    sortOrder: location.sortOrder,
-    locationId: location.location.id,
-    locationCode: location.location.locationCode,
-    locationTitle: location.location.title,
-    categorySlug: location.location.categorySlug ?? '',
-    selectedAt: location.createdAt,
-  }
-}
-
-function buildProjectSelectionImages(location: RequestProjectLocation): SelectedLocationImage[] {
-  if (location.selectedImages.length === 0) {
-    return [buildProjectFallbackImage(location)]
-  }
-
-  return location.selectedImages.map((image) => ({
-    key: `${location.location.id}:${image.locationImageId ?? image.imageUrl}:${image.id}`,
-    imageUrl: image.imageUrl,
-    locationImageId: image.locationImageId,
-    sortOrder: image.sortOrder,
-    locationId: location.location.id,
-    locationCode: location.location.locationCode,
-    locationTitle: location.location.title,
-    categorySlug: location.location.categorySlug ?? '',
-    selectedAt: image.createdAt,
-  }))
 }
 
 function ProposalPreviewIcon() {
@@ -138,14 +169,15 @@ function ProposalPreviewIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M4.75 12s2.9-5.25 7.25-5.25S19.25 12 19.25 12 16.35 17.25 12 17.25 4.75 12 4.75 12Z" />
-      <circle cx="12" cy="12" r="2.35" />
+      <path d="M4.75 11.75 18.5 5.5 14 19.25l-3.15-4.35-4.1-3.15Z" />
+      <path d="m10.6 14.7 2.6-2.6" />
     </svg>
   )
 }
 
 export function SelectionDrawer() {
   const {
+    activeProjectId: selectionProjectId,
     images,
     isDrawerOpen,
     closeDrawer,
@@ -154,7 +186,10 @@ export function SelectionDrawer() {
     replaceSelection,
   } = useImageSelection()
   const {
-    draftProjects,
+    activeEditingProjectId,
+    finishProjectEditing,
+    flushAndFinishProjectEditing,
+    projects,
     hasLoadedOnce,
     isLoading,
     refreshProjects,
@@ -174,24 +209,37 @@ export function SelectionDrawer() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [isPdfFlowBusy, setIsPdfFlowBusy] = useState(false)
+  const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
+  const [pendingProjectIdAfterExit, setPendingProjectIdAfterExit] = useState<string | null | undefined>(undefined)
+  const [projectAutosaveIndicator, setProjectAutosaveIndicator] =
+    useState<DrawerProjectAutosaveIndicatorState>('hidden')
   const autosaveTimeoutRef = useRef<number | null>(null)
   const autosaveExecutionTokenRef = useRef<symbol | null>(null)
   const autosavePromiseRef = useRef<Promise<boolean> | null>(null)
   const autosaveRequestVersionRef = useRef(0)
   const lastQueuedSnapshotRef = useRef<string | null>(null)
   const lastPersistedSnapshotRef = useRef<string | null>(null)
+  const hasHydratedActiveProjectSelectionRef = useRef(false)
+  const isProjectTransitioningRef = useRef(false)
   const activeProjectIdRef = useRef<string | null>(null)
   const hydrationRequestIdRef = useRef(0)
   const activeHydrationProjectIdRef = useRef<string | null>(null)
   const isMountedRef = useRef(true)
   const persistedContextRef = useRef(restoreSelectionActiveContext())
+  const projectFormFlushRef = useRef<(() => Promise<boolean>) | null>(null)
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),
     [images],
   )
   const activeProject =
-    draftProjects.find((project) => project.id === activeProjectId) ?? null
+    projects.find((project) => project.id === activeProjectId) ?? null
+  const selectableProjects = useMemo(
+    () => projects.filter((project) =>
+      project.status === 'draft' || project.id === activeEditingProjectId,
+    ),
+    [activeEditingProjectId, projects],
+  )
 
   useEffect(() => {
     activeProjectIdRef.current = activeProjectId
@@ -211,7 +259,10 @@ export function SelectionDrawer() {
       autosaveTimeoutRef.current = null
     }
 
-    clearSelection()
+    hasHydratedActiveProjectSelectionRef.current = false
+    if (!activeProjectIdRef.current) {
+      clearSelection()
+    }
     setActiveView('selection')
     setIsPdfFlowDetached(false)
     setProjectLoadError(null)
@@ -220,16 +271,27 @@ export function SelectionDrawer() {
     lastPersistedSnapshotRef.current = null
   }, [clearSelection])
 
-  const fetchProjectSelection = useCallback(async (projectId: string) => {
-    const projectLocations = await getRequestProjectLocations(projectId)
-    return projectLocations.flatMap((location) => buildProjectSelectionImages(location))
+  const cancelPendingAutosave = useCallback(() => {
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+
+    autosaveRequestVersionRef.current += 1
   }, [])
 
-  const applyProjectSelection = useCallback((nextSelection: SelectedLocationImage[]) => {
+  const fetchProjectSelection = useCallback(async (projectId: string) => {
+    return fetchProjectSelectionImages(projectId)
+  }, [])
+
+  const applyProjectSelection = useCallback((
+    projectId: string,
+    nextSelection: SelectedLocationImage[],
+  ) => {
     const selectionSnapshot = createSelectionSnapshot(nextSelection)
     lastQueuedSnapshotRef.current = selectionSnapshot
     lastPersistedSnapshotRef.current = selectionSnapshot
-    replaceSelection(nextSelection)
+    replaceSelection(nextSelection, { projectId })
   }, [replaceSelection])
 
   const runSelectionAutosave = useCallback((
@@ -242,7 +304,9 @@ export function SelectionDrawer() {
     const autosaveExecutionToken = Symbol('selection-autosave')
     const autosavePromise = (async () => {
       try {
-        await syncRequestProjectSelection(projectId, selectionImages)
+        await syncRequestProjectSelection(projectId, selectionImages, {
+          allowEmptySelection: false,
+        })
         await refreshProjects()
 
         const isLatestRequest =
@@ -288,6 +352,10 @@ export function SelectionDrawer() {
 
   const flushSelectionAutosaveBeforeProjectChange = useCallback(async () => {
     if (!activeProjectIdRef.current) {
+      return true
+    }
+
+    if (!hasHydratedActiveProjectSelectionRef.current) {
       return true
     }
 
@@ -337,6 +405,10 @@ export function SelectionDrawer() {
   }, [images, runSelectionAutosave])
 
   function forceCloseDrawerWithCleanup() {
+    isProjectTransitioningRef.current = false
+    hasHydratedActiveProjectSelectionRef.current = false
+    cancelPendingAutosave()
+    clearSelectionProjectPersistenceGuard()
     hydrationRequestIdRef.current += 1
     activeHydrationProjectIdRef.current = null
     resetSelectionFlow()
@@ -351,8 +423,32 @@ export function SelectionDrawer() {
     focusTriggerButton()
   }
 
+  function prepareForSubmittedProjectCleanup() {
+    if (activeEditingProjectId) {
+      finishProjectEditing(activeEditingProjectId)
+    }
+
+    isProjectTransitioningRef.current = false
+    hasHydratedActiveProjectSelectionRef.current = false
+    cancelPendingAutosave()
+    clearSelectionProjectPersistenceGuard()
+    hydrationRequestIdRef.current += 1
+    activeHydrationProjectIdRef.current = null
+    setActiveProjectId(null)
+    setIsLoadingProjectContent(false)
+    setIsHydratingPersistedContext(false)
+    persistSelectionActiveContext({ mode: 'new' })
+    persistedContextRef.current = { mode: 'new' }
+  }
+
   useEffect(() => {
-    if (!activeProjectId || activeProject || isPdfFlowDetached) {
+    if (
+      !hasLoadedOnce ||
+      isLoading ||
+      !activeProjectId ||
+      activeProject ||
+      isPdfFlowDetached
+    ) {
       return
     }
 
@@ -360,7 +456,14 @@ export function SelectionDrawer() {
     setActiveProjectId(null)
     persistSelectionActiveContext({ mode: 'new' })
     persistedContextRef.current = { mode: 'new' }
-  }, [activeProject, activeProjectId, isPdfFlowDetached, resetSelectionFlow])
+  }, [
+    activeProject,
+    activeProjectId,
+    hasLoadedOnce,
+    isLoading,
+    isPdfFlowDetached,
+    resetSelectionFlow,
+  ])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -387,7 +490,7 @@ export function SelectionDrawer() {
       return
     }
 
-    const persistedProject = draftProjects.find(
+    const persistedProject = projects.find(
       (project) => project.id === persistedContext.projectId,
     )
 
@@ -414,6 +517,10 @@ export function SelectionDrawer() {
 
     async function restorePersistedProjectSelection() {
       try {
+        isProjectTransitioningRef.current = true
+        hasHydratedActiveProjectSelectionRef.current = false
+        beginSelectionProjectTransition(persistedProjectId)
+        cancelPendingAutosave()
         setIsLoadingProjectContent(true)
         setProjectLoadError(null)
         resetSelectionFlow()
@@ -424,7 +531,9 @@ export function SelectionDrawer() {
           return
         }
 
-        applyProjectSelection(nextSelection)
+        applyProjectSelection(persistedProjectId, nextSelection)
+        hasHydratedActiveProjectSelectionRef.current = true
+        markSelectionProjectStable(persistedProjectId)
       } catch (error) {
         if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
           return
@@ -444,6 +553,7 @@ export function SelectionDrawer() {
           isMountedRef.current && hydrationRequestIdRef.current === requestId
 
         if (isCurrentHydration) {
+          isProjectTransitioningRef.current = false
           activeHydrationProjectIdRef.current = null
           setIsLoadingProjectContent(false)
           setIsHydratingPersistedContext(false)
@@ -454,16 +564,109 @@ export function SelectionDrawer() {
     void restorePersistedProjectSelection()
   }, [
     applyProjectSelection,
-    draftProjects,
+    cancelPendingAutosave,
     fetchProjectSelection,
     hasLoadedOnce,
     isHydratingPersistedContext,
     isLoading,
+    projects,
     resetSelectionFlow,
   ])
 
   useEffect(() => {
-    if (!activeProjectId || isLoadingProjectContent) {
+    function handleOpenSelectionProject(event: Event) {
+      const customEvent = event as CustomEvent<{ projectId?: string }>
+      const projectId = customEvent.detail?.projectId?.trim()
+
+      if (!projectId) {
+        return
+      }
+
+      const requestId = hydrationRequestIdRef.current + 1
+      hydrationRequestIdRef.current = requestId
+      activeHydrationProjectIdRef.current = projectId
+
+      void (async () => {
+        try {
+          if (activeProjectIdRef.current) {
+            await flushSelectionAutosaveBeforeProjectChange()
+          }
+
+          isProjectTransitioningRef.current = true
+          hasHydratedActiveProjectSelectionRef.current = false
+          beginSelectionProjectTransition(projectId)
+          cancelPendingAutosave()
+          setIsLoadingProjectContent(true)
+          setIsHydratingPersistedContext(false)
+          setProjectLoadError(null)
+          resetSelectionFlow()
+          setActiveProjectId(projectId)
+          const nextSelection = await fetchProjectSelection(projectId)
+
+          if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+            return
+          }
+
+          applyProjectSelection(projectId, nextSelection)
+          hasHydratedActiveProjectSelectionRef.current = true
+          markSelectionProjectStable(projectId)
+          persistSelectionActiveContext({ mode: 'project', projectId })
+          persistedContextRef.current = { mode: 'project', projectId }
+        } catch (error) {
+          if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+            return
+          }
+
+          resetSelectionFlow()
+          setActiveProjectId(null)
+          persistSelectionActiveContext({ mode: 'new' })
+          persistedContextRef.current = { mode: 'new' }
+          setProjectLoadError(
+            error instanceof Error
+              ? error.message
+              : 'No pudimos cargar el proyecto seleccionado.',
+          )
+        } finally {
+          const isCurrentProjectLoad =
+            isMountedRef.current && hydrationRequestIdRef.current === requestId
+
+          if (isCurrentProjectLoad) {
+            isProjectTransitioningRef.current = false
+            activeHydrationProjectIdRef.current = null
+            setIsLoadingProjectContent(false)
+          }
+        }
+      })()
+    }
+
+    window.addEventListener(
+      OPEN_SELECTION_PROJECT_EVENT,
+      handleOpenSelectionProject as EventListener,
+    )
+
+    return () => {
+      window.removeEventListener(
+        OPEN_SELECTION_PROJECT_EVENT,
+        handleOpenSelectionProject as EventListener,
+      )
+    }
+  }, [
+    applyProjectSelection,
+    cancelPendingAutosave,
+    fetchProjectSelection,
+    flushSelectionAutosaveBeforeProjectChange,
+    resetSelectionFlow,
+  ])
+
+  useEffect(() => {
+    if (
+      !activeProjectId ||
+      !hasHydratedActiveProjectSelectionRef.current ||
+      isLoadingProjectContent ||
+      isProjectTransitioningRef.current ||
+      isSelectionProjectTransitioning() ||
+      !canPersistSelectionForProject(activeProjectId)
+    ) {
       return
     }
 
@@ -488,9 +691,27 @@ export function SelectionDrawer() {
     autosaveTimeoutRef.current = window.setTimeout(() => {
       autosaveTimeoutRef.current = null
 
+      if (
+        isProjectTransitioningRef.current ||
+        isSelectionProjectTransitioning() ||
+        !canPersistSelectionForProject(projectIdAtSchedule) ||
+        activeProjectIdRef.current !== projectIdAtSchedule ||
+        autosaveRequestVersionRef.current !== requestVersion
+      ) {
+        return
+      }
+
       void runSelectionAutosave(projectIdAtSchedule, imagesAtSchedule, requestVersion)
     }, 600)
   }, [activeProjectId, images, isLoadingProjectContent, runSelectionAutosave])
+
+  useEffect(() => {
+    if (selectionProjectId === activeProjectId) {
+      return
+    }
+
+    setActiveProjectId(selectionProjectId)
+  }, [activeProjectId, selectionProjectId])
 
   useEffect(() => {
     if (!isRendered) {
@@ -537,10 +758,6 @@ export function SelectionDrawer() {
     setIsVisible(false)
 
     if (isPdfFlowDetached) {
-      setIsRendered(false)
-      setActiveView('selection')
-      setIsPdfFlowDetached(false)
-      focusTriggerButton()
       return () => {
         window.cancelAnimationFrame(frameId)
       }
@@ -582,7 +799,45 @@ export function SelectionDrawer() {
     return null
   }
 
-  function handleRemoveLocation(locationId: string) {
+  async function handleRemoveLocation(locationId: string) {
+    const activeProjectIdToClear = activeProjectId
+    const isRemovingLastLocation =
+      Boolean(activeProjectIdToClear) &&
+      groupedSelections.length === 1 &&
+      groupedSelections[0]?.locationId === locationId
+
+    if (isRemovingLastLocation) {
+      if (!activeProjectIdToClear) {
+        return
+      }
+
+      if (
+        !window.confirm(
+          'Esta accion quitara todas las locaciones del proyecto. ¿Quieres continuar?',
+        )
+      ) {
+        return
+      }
+
+      try {
+        setProjectLoadError(null)
+        await syncRequestProjectSelection(activeProjectIdToClear, [], {
+          allowEmptySelection: true,
+        })
+        await refreshProjects()
+        const emptySelectionSnapshot = createSelectionSnapshot([])
+        lastQueuedSnapshotRef.current = emptySelectionSnapshot
+        lastPersistedSnapshotRef.current = emptySelectionSnapshot
+      } catch (error) {
+        setProjectLoadError(
+          error instanceof Error
+            ? error.message
+            : 'No pudimos quitar las locaciones del proyecto.',
+        )
+        return
+      }
+    }
+
     for (const image of images) {
       if (image.locationId === locationId) {
         removeImage(image.key)
@@ -590,7 +845,7 @@ export function SelectionDrawer() {
     }
   }
 
-  async function handleActiveProjectChange(projectId: string | null) {
+  async function performActiveProjectChange(projectId: string | null) {
     if (projectId === activeProjectId) {
       return
     }
@@ -609,6 +864,14 @@ export function SelectionDrawer() {
       return
     }
 
+    if (projectFormFlushRef.current) {
+      const didFlushProjectForm = await projectFormFlushRef.current()
+
+      if (!didFlushProjectForm) {
+        return
+      }
+    }
+
     if (!isInPdfFlow && activeProjectId) {
       setIsLoadingProjectContent(true)
       const didPersistPendingSelection = await flushSelectionAutosaveBeforeProjectChange()
@@ -620,6 +883,10 @@ export function SelectionDrawer() {
     }
 
     if (projectId === null) {
+      isProjectTransitioningRef.current = false
+      hasHydratedActiveProjectSelectionRef.current = false
+      cancelPendingAutosave()
+      clearSelectionProjectPersistenceGuard()
       hydrationRequestIdRef.current += 1
       activeHydrationProjectIdRef.current = null
       resetSelectionFlow()
@@ -636,6 +903,10 @@ export function SelectionDrawer() {
     activeHydrationProjectIdRef.current = projectId
 
     try {
+      isProjectTransitioningRef.current = true
+      hasHydratedActiveProjectSelectionRef.current = false
+      beginSelectionProjectTransition(projectId)
+      cancelPendingAutosave()
       setIsLoadingProjectContent(true)
       setIsHydratingPersistedContext(false)
       resetSelectionFlow()
@@ -646,7 +917,9 @@ export function SelectionDrawer() {
         return
       }
 
-      applyProjectSelection(nextSelection)
+      applyProjectSelection(projectId, nextSelection)
+      hasHydratedActiveProjectSelectionRef.current = true
+      markSelectionProjectStable(projectId)
       persistSelectionActiveContext({ mode: 'project', projectId })
       persistedContextRef.current = { mode: 'project', projectId }
     } catch (error) {
@@ -668,10 +941,25 @@ export function SelectionDrawer() {
         isMountedRef.current && hydrationRequestIdRef.current === requestId
 
       if (isCurrentProjectLoad) {
+        isProjectTransitioningRef.current = false
         activeHydrationProjectIdRef.current = null
         setIsLoadingProjectContent(false)
       }
     }
+  }
+
+  async function handleActiveProjectChange(projectId: string | null) {
+    if (
+      activeEditingProjectId &&
+      activeProjectId === activeEditingProjectId &&
+      projectId !== activeEditingProjectId
+    ) {
+      setPendingProjectIdAfterExit(projectId)
+      setIsExitEditModalOpen(true)
+      return
+    }
+
+    await performActiveProjectChange(projectId)
   }
 
   function handlePersistedProjectChange(projectId: string) {
@@ -682,20 +970,17 @@ export function SelectionDrawer() {
 
   function renderDrawerHeader() {
     return (
-      <header className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <span id="selection-drawer-title" className="sr-only">
-              Editor de propuesta
-            </span>
-            <div className="mb-3 flex min-h-11 items-center">
-              <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                Seleccionar proyecto
-              </p>
-            </div>
+      <SelectionDrawerHeader
+        closeAriaLabel="Cerrar drawer de seleccion"
+        closeButtonRef={closeButtonRef}
+        hiddenLabel="Editor de propuesta"
+        hiddenLabelId="selection-drawer-title"
+        leftContent={
+          <div className="flex min-w-0 items-center gap-2.5">
             <ActiveProjectSelect
               activeProjectId={activeProjectId}
-              projects={draftProjects}
+              projects={selectableProjects}
+              activeProject={activeProject}
               isLoading={isLoading || isLoadingProjectContent}
               disabled={activeView === 'pdf-flow' ? isPdfFlowBusy : false}
               compact
@@ -703,18 +988,31 @@ export function SelectionDrawer() {
                 void handleActiveProjectChange(projectId)
               }}
             />
+            <span
+              aria-live="polite"
+              aria-atomic="true"
+              className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center"
+            >
+              {projectAutosaveIndicator === 'saving' ? (
+                <span className="text-brand-300">
+                  <AutosaveSpinnerIcon />
+                </span>
+              ) : null}
+              {projectAutosaveIndicator === 'saved' ? (
+                <span className="text-emerald-300">
+                  <AutosaveCheckIcon />
+                </span>
+              ) : null}
+              {projectAutosaveIndicator === 'error' ? (
+                <span className="text-red-300">
+                  <AutosaveErrorIcon />
+                </span>
+              ) : null}
+            </span>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={closeDrawer}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-            aria-label="Cerrar drawer de seleccion"
-          >
-            ×
-          </button>
-        </div>
-      </header>
+        }
+        onClose={closeDrawer}
+      />
     )
   }
 
@@ -806,15 +1104,25 @@ export function SelectionDrawer() {
             </div>
 
             {images.length > 0 ? (
-              <footer className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-5">
-                <div className="flex">
+              <footer className="relative shrink-0 overflow-hidden border-t border-white/10">
+                <div className="absolute inset-0" aria-hidden="true">
+                  <img
+                    src={drawerFooterBackgroundUrl}
+                    alt=""
+                    className="h-full w-full object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-black/46" />
+                  <div className={drawerFooterOverlayClassName} />
+                  <div className={drawerFooterHighlightClassName} />
+                </div>
+                <div className="relative flex px-4 py-4 sm:px-5">
                   <button
                     type="button"
                     onClick={() => {
                       setActiveView('pdf-flow')
                       setIsPdfFlowDetached(true)
                     }}
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100"
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)]"
                   >
                     <ProposalPreviewIcon />
                     Continuar
@@ -837,7 +1145,9 @@ export function SelectionDrawer() {
           }}
           className={
             isPdfFlowDetached
-              ? 'absolute inset-0'
+              ? `absolute inset-0 transition-opacity duration-300 ease-out motion-reduce:duration-0 ${
+                  isVisible ? 'opacity-100' : 'opacity-0'
+                }`
               : `absolute right-0 top-0 flex h-screen max-h-screen min-h-0 w-full max-w-[460px] flex-col overflow-hidden border-l border-white/10 bg-[#14110f] text-brand-100 shadow-[-16px_0_48px_rgba(0,0,0,0.32)] transition-transform duration-300 ease-out motion-reduce:duration-0 supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] sm:w-[min(92vw,460px)] ${
                   isVisible ? 'translate-x-0' : 'translate-x-full'
                 }`
@@ -873,6 +1183,7 @@ export function SelectionDrawer() {
               <SelectionPdfFlow
                 onClose={closeDrawer}
                 onSuccessComplete={forceCloseDrawerWithCleanup}
+                onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
                 isDetached={isPdfFlowDetached}
                 embeddedInDrawer={!isPdfFlowDetached}
                 onStartProcessing={() => {
@@ -883,17 +1194,71 @@ export function SelectionDrawer() {
                 }}
                 activeProjectId={activeProjectId}
                 activeProject={activeProject}
-                draftProjects={draftProjects}
+                draftProjects={selectableProjects}
                 isLoadingProjects={isLoading}
                 onProjectSelectionChange={handleActiveProjectChange}
                 onPersistedProjectChange={handlePersistedProjectChange}
                 onProjectsRefresh={refreshProjects}
                 onBusyStateChange={setIsPdfFlowBusy}
+                onRegisterProjectFormFlush={(handler) => {
+                  projectFormFlushRef.current = handler
+                }}
+                onAutosaveIndicatorChange={setProjectAutosaveIndicator}
               />
             </div>
           </Suspense>
         </div>
       )}
+      <AppModal
+        open={isExitEditModalOpen}
+        onClose={() => {
+          setIsExitEditModalOpen(false)
+          setPendingProjectIdAfterExit(undefined)
+        }}
+        panelClassName="max-w-md"
+      >
+        <div className="p-6 sm:p-7">
+          <div className="min-w-0">
+            <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+              Salir de la edición
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-brand-100/78">
+              Estás editando una nueva versión de este proyecto. ¿Querés salir?
+            </p>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsExitEditModalOpen(false)
+                setPendingProjectIdAfterExit(undefined)
+              }}
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/14 bg-white/8 px-4.5 text-sm font-medium text-brand-100 transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
+            >
+              Seguir editando
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const didExitEditing = await flushAndFinishProjectEditing(activeEditingProjectId)
+
+                if (!didExitEditing) {
+                  return
+                }
+
+                const nextProjectId = pendingProjectIdAfterExit
+                setIsExitEditModalOpen(false)
+                setPendingProjectIdAfterExit(undefined)
+                await performActiveProjectChange(nextProjectId ?? null)
+              }}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-brand-300 px-4.5 text-sm font-semibold text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
+            >
+              Salir
+            </button>
+          </div>
+        </div>
+      </AppModal>
     </div>
   )
 }

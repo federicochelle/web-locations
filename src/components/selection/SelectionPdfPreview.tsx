@@ -3,6 +3,7 @@ import type { SelectionPdfPayload } from '@/types/selection-pdf.ts'
 
 type SelectionPdfPreviewProps = {
   payload: SelectionPdfPayload
+  hideCover?: boolean
 }
 
 function getPreviewValue(value: string) {
@@ -33,6 +34,7 @@ function buildLocationPages(location: SelectionPdfPayload['locations'][number]) 
 
 export function SelectionPdfPreview({
   payload,
+  hideCover = false,
 }: SelectionPdfPreviewProps) {
   const coverDetails = [
     ['Producto', payload.project.product],
@@ -45,32 +47,34 @@ export function SelectionPdfPreview({
 
   return (
     <div className="space-y-6">
-      <section className="mx-auto aspect-[210/297] w-full max-w-[900px] border border-[#e2dcd3]/55 bg-[#080808] px-[11.4%] py-[6.1%] text-[#f8f4ee] shadow-[0_28px_80px_rgba(0,0,0,0.28)]">
-        <div className="flex h-full flex-col">
-          <div className="flex justify-center">
-            <img
-              src={logoUrl}
-              alt="Logo"
-              className="h-auto max-h-[24rem] w-full max-w-[40rem] object-contain"
-            />
-          </div>
+      {!hideCover ? (
+        <section className="mx-auto aspect-[210/297] w-full max-w-[900px] border border-[#e2dcd3]/55 bg-[#080808] px-[11.4%] py-[6.1%] text-[#f8f4ee] shadow-[0_28px_80px_rgba(0,0,0,0.28)]">
+          <div className="flex h-full flex-col">
+            <div className="flex justify-center">
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="h-auto max-h-[24rem] w-full max-w-[40rem] object-contain"
+              />
+            </div>
 
-          <div className="mt-12 space-y-4">
-            {coverDetails.map(([label, value]) => (
-              <div key={label} className="text-center">
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#d7c0a2]">
-                  {label}
-                </p>
-                <p className="mt-2 text-[1.35rem] leading-[1.35] text-[#d7c0a2] sm:text-[1.55rem]">
-                  {getPreviewValue(value)}
-                </p>
-              </div>
-            ))}
-          </div>
+            <div className="mt-12 space-y-4">
+              {coverDetails.map(([label, value]) => (
+                <div key={label} className="text-center">
+                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#d7c0a2]">
+                    {label}
+                  </p>
+                  <p className="mt-2 text-[1.35rem] leading-[1.35] text-[#d7c0a2] sm:text-[1.55rem]">
+                    {getPreviewValue(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
 
-          <div className="mt-auto pt-6 text-center text-sm text-[#d7c0a2]">1</div>
-        </div>
-      </section>
+            <div className="mt-auto pt-6 text-center text-sm text-[#d7c0a2]">1</div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="space-y-6">
         {locationPages.map(({ location, images, isFirstPage }, locationPageIndex) => {
@@ -99,14 +103,16 @@ export function SelectionPdfPreview({
                   {images.map((image) => (
                     <div
                       key={image.key}
-                      className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/20 p-3"
+                      className="relative min-h-0 flex-1 overflow-hidden bg-black/20"
                     >
-                      <img
-                        src={image.imageUrl}
-                        alt={`Imagen seleccionada de ${location.locationCode}`}
-                        loading="lazy"
-                        className="h-full w-full object-contain"
-                      />
+                      <div className="absolute inset-3 flex min-h-0 items-center justify-center overflow-hidden">
+                        <img
+                          src={image.imageUrl}
+                          alt={`Imagen seleccionada de ${location.locationCode}`}
+                          loading="lazy"
+                          className="block h-full w-full object-contain object-center"
+                        />
+                      </div>
                     </div>
                   ))}
 
@@ -116,7 +122,7 @@ export function SelectionPdfPreview({
                 </div>
 
                 <div className="mt-4 pt-2 text-center text-sm text-[#d7c0a2]">
-                  {locationPageIndex + 2}
+                  {locationPageIndex + (hideCover ? 1 : 2)}
                 </div>
               </div>
             </section>

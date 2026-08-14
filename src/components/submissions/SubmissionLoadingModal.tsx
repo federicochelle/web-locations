@@ -6,6 +6,7 @@ type SubmissionLoadingModalProps = {
   title?: string
   description?: string
   statusMessage?: string
+  progressPercent?: number | null
 }
 
 export function SubmissionLoadingModal({
@@ -14,6 +15,7 @@ export function SubmissionLoadingModal({
   title = 'Enviando tu postulacion',
   description = 'Estamos guardando los datos y procesando las imagenes. Esto puede demorar unos segundos.',
   statusMessage,
+  progressPercent = null,
 }: SubmissionLoadingModalProps) {
   const liveStatusMessage = statusMessage ?? (phase === 'uploading'
     ? 'Procesando y subiendo tus fotografias...'
@@ -55,6 +57,23 @@ export function SubmissionLoadingModal({
           <p aria-live="polite" className="mt-4 text-sm font-medium text-brand-300">
             {liveStatusMessage}
           </p>
+
+          {progressPercent !== null ? (
+            <div className="mt-5 w-full">
+              <div className="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-brand-100/60">
+                <span>Progreso</span>
+                <span>{Math.round(progressPercent)}%</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-brand-300 transition-[width] duration-300 ease-out"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, progressPercent))}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </AppModal>

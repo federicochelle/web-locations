@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
 import { Footer } from '@/components/layout/Footer.tsx'
@@ -8,26 +7,13 @@ import { ScrollManager } from '@/components/routing/ScrollManager.tsx'
 import { SelectionDrawer } from '@/components/selection/SelectionDrawer.tsx'
 import { SelectionDrawerTrigger } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
-import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import logoUrl from '../../logo.webp'
 
 export function PublicLayout() {
   const location = useLocation()
   const { isAuthenticated, loading } = useAuth()
-  const { closeDrawer } = useImageSelection()
   const isNotFoundRoute = location.pathname === '/404'
-  const isRequestDetailPage =
-    /^\/requests\/[^/]+$/u.test(location.pathname) &&
-    location.pathname !== '/requests/new'
   const shouldShowHeaderOnMobile = isNotFoundRoute
-
-  useEffect(() => {
-    if (!isRequestDetailPage) {
-      return
-    }
-
-    closeDrawer()
-  }, [closeDrawer, isRequestDetailPage])
 
   return (
     <div className="relative flex min-h-screen flex-col bg-transparent pb-[calc(76px+env(safe-area-inset-bottom))] text-brand-950 md:pb-0">
@@ -55,8 +41,8 @@ export function PublicLayout() {
         <Footer />
       </div>
       <MobileBottomNavigation />
-      {!isRequestDetailPage && !loading && isAuthenticated ? <SelectionDrawerTrigger /> : null}
-      {!isRequestDetailPage ? <SelectionDrawer /> : null}
+      {!loading && isAuthenticated ? <SelectionDrawerTrigger /> : null}
+      <SelectionDrawer />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
@@ -28,10 +28,17 @@ import {
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
 import { downloadSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
+import {
+  createRequestProjectFormSnapshot,
+  normalizeRequestProjectFormValues,
+  normalizeRequestProjectSnapshotFromProject,
+} from '@/utils/request-project-form-autosave.ts'
+import { canPersistSelectionForProject } from '@/utils/selection-persistence-guard.ts'
 
 type SelectionPdfFlowProps = {
   onClose: () => void
   onSuccessComplete: () => void
+  onPrepareForSuccessCleanup: () => void
   isDetached: boolean
   embeddedInDrawer?: boolean
   onStartProcessing: () => void
@@ -44,6 +51,8 @@ type SelectionPdfFlowProps = {
   onPersistedProjectChange: (projectId: string) => void
   onProjectsRefresh: () => Promise<void>
   onBusyStateChange?: (isBusy: boolean) => void
+  onRegisterProjectFormFlush?: (handler: (() => Promise<boolean>) | null) => void
+  onAutosaveIndicatorChange?: (state: DrawerAutosaveIndicatorState) => void
 }
 
 const initialValues: SelectionPdfFormValues = {
@@ -61,6 +70,37 @@ const selectionPdfFieldOrder: (keyof SelectionPdfFormValues)[] = [
   'tentativeEndDate',
   'message',
 ]
+
+type DrawerAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+type DrawerAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
+
+function getProgressStatusMessage(
+  progress: SelectionPdfProgress | null,
+  createdProjectId: string | null,
+) {
+  if (!progress) {
+    return createdProjectId
+      ? 'Proyecto guardado. Preparando el documento.'
+      : 'Creando el proyecto y preparando el documento.'
+  }
+
+  switch (progress.stage) {
+    case 'saving-project':
+      return 'Guardando proyecto'
+    case 'preparing-images':
+      return `Preparando imagenes ${progress.current ?? 0} de ${progress.total ?? 0}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
+    case 'building-pdf':
+      return 'Armando PDF'
+    case 'uploading-pdf':
+      return 'Subiendo PDF'
+    case 'finalizing-project':
+      return 'Finalizando proyecto'
+    case 'completed':
+      return 'Proceso completado'
+    default:
+      return 'Preparando el documento.'
+  }
+}
 
 function DraftSaveIcon() {
   return (
@@ -99,10 +139,64 @@ function SubmitProposalIcon() {
   )
 }
 
+function AutosaveSpinnerIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 animate-spin"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+    </svg>
+  )
+}
+
+function AutosaveCheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m5 12 5 5L20 7" />
+    </svg>
+  )
+}
+
+function AutosaveErrorIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v5" />
+      <path d="M12 16h.01" />
+    </svg>
+  )
+}
+
 export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const {
     onClose,
     onSuccessComplete,
+    onPrepareForSuccessCleanup,
     isDetached,
     embeddedInDrawer = false,
     onStartProcessing,
@@ -115,10 +209,17 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onPersistedProjectChange,
     onProjectsRefresh,
     onBusyStateChange,
+    onRegisterProjectFormFlush,
+    onAutosaveIndicatorChange,
   } = props
   const navigate = useNavigate()
   const { images, clearSelection } = useImageSelection()
-  const { createProject, updateProject } = useRequestProjects()
+  const {
+    activeEditingProjectId,
+    createProject,
+    registerProjectEditingExitHandler,
+    updateProject,
+  } = useRequestProjects()
   const [step, setStep] = useState<SelectionPdfFlowStep>('form')
   const [values, setValues] = useState<SelectionPdfFormValues>(initialValues)
   const [errors, setErrors] = useState<SelectionPdfFormErrors>({})
@@ -135,14 +236,45 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [, setAutosaveStatus] = useState<DrawerAutosaveStatus>('idle')
+  const [autosaveIndicator, setAutosaveIndicator] = useState<DrawerAutosaveIndicatorState>('hidden')
+  const autosaveTimeoutRef = useRef<number | null>(null)
+  const autosavePromiseRef = useRef<Promise<boolean> | null>(null)
+  const autosaveExecutionTokenRef = useRef<symbol | null>(null)
+  const autosaveRequestVersionRef = useRef(0)
+  const autosaveSuccessTimeoutRef = useRef<number | null>(null)
+  const latestSnapshotRef = useRef<string | null>(null)
+  const latestNormalizedValuesRef = useRef<ReturnType<typeof normalizeRequestProjectFormValues> | null>(null)
+  const persistedSnapshotRef = useRef<string | null>(null)
+  const hydratedProjectIdRef = useRef<string | null>(null)
 
   const livePreviewPayload = useMemo(
     () => buildSelectionPdfPayloadFromImages(values, images),
     [images, values],
   )
+  const normalizedProjectValues = useMemo(
+    () => normalizeRequestProjectFormValues(values),
+    [values],
+  )
+  const currentProjectSnapshot = useMemo(
+    () => createRequestProjectFormSnapshot(normalizedProjectValues),
+    [normalizedProjectValues],
+  )
+  const isExistingProject = Boolean(activeProjectId && activeProject)
+  const isSentProject = Boolean(activeProject && activeProject.status !== 'draft')
+  const isProjectAutosaveEnabled = Boolean(
+    activeProject &&
+      (activeProject.status === 'draft' || activeProject.id === activeEditingProjectId),
+  )
+  const isProjectLocked = Boolean(activeProject && !isProjectAutosaveEnabled)
 
   const hasSelectedImages = images.length > 0
   const isBusy = isSavingDraft || isSubmittingProposal || isLoadingModalOpen
+
+  useEffect(() => {
+    latestSnapshotRef.current = currentProjectSnapshot
+    latestNormalizedValuesRef.current = normalizedProjectValues
+  }, [currentProjectSnapshot, normalizedProjectValues])
 
   useEffect(() => {
     onBusyStateChange?.(isBusy)
@@ -166,33 +298,63 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setDraftSuccessProjectId(null)
   }
 
-  function renderProjectHeader(disabled = false, compact = false) {
+  function renderProjectHeader(disabled = false) {
     return (
-      <div className="min-w-0 flex-1">
-        <div className={`${compact ? 'mb-0' : 'mb-3'} flex min-h-11 items-center`}>
-          <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100">
-            Seleccionar proyecto
-          </p>
-        </div>
-        <div className={compact ? 'mt-3' : ''}>
-          <ActiveProjectSelect
-            activeProjectId={activeProjectId}
-            projects={draftProjects}
-            isLoading={isLoadingProjects}
-            disabled={disabled || isBusy}
-            compact
-            onChange={onProjectSelectionChange}
-          />
-        </div>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <ActiveProjectSelect
+          activeProjectId={activeProjectId}
+          projects={draftProjects}
+          activeProject={activeProject}
+          isLoading={isLoadingProjects}
+          disabled={disabled || isBusy}
+          compact
+          onChange={onProjectSelectionChange}
+        />
+        <span
+          aria-live="polite"
+          aria-atomic="true"
+          className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center"
+        >
+          {isProjectAutosaveEnabled && autosaveIndicator === 'saving' ? (
+            <span className="text-brand-300">
+              <AutosaveSpinnerIcon />
+            </span>
+          ) : null}
+          {isProjectAutosaveEnabled && autosaveIndicator === 'saved' ? (
+            <span className="text-emerald-300">
+              <AutosaveCheckIcon />
+            </span>
+          ) : null}
+          {isProjectAutosaveEnabled && autosaveIndicator === 'error' ? (
+            <span className="text-red-300">
+              <AutosaveErrorIcon />
+            </span>
+          ) : null}
+        </span>
       </div>
     )
   }
 
   function applyProjectToForm(project: RequestProject | null) {
     if (!project) {
+      hydratedProjectIdRef.current = null
+      persistedSnapshotRef.current = null
+      setAutosaveStatus('idle')
+      setAutosaveIndicator('hidden')
       setValues(initialValues)
       setErrors({})
       setDraftNotice(null)
+      return
+    }
+
+    const normalizedPersistedValues = normalizeRequestProjectSnapshotFromProject(project)
+    const nextPersistedSnapshot = createRequestProjectFormSnapshot(normalizedPersistedValues)
+    persistedSnapshotRef.current = nextPersistedSnapshot
+
+    if (hydratedProjectIdRef.current === project.id) {
+      if (latestSnapshotRef.current === nextPersistedSnapshot) {
+        setAutosaveStatus('saved')
+      }
       return
     }
 
@@ -205,14 +367,130 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       message: project.message ?? '',
     }
 
+    hydratedProjectIdRef.current = project.id
     setValues(mappedValues)
     setErrors({})
     setDraftNotice(null)
+    setAutosaveStatus(project.status === 'draft' ? 'saved' : 'idle')
   }
 
   useEffect(() => {
     applyProjectToForm(activeProjectId ? activeProject : null)
   }, [activeProject, activeProjectId])
+
+  useEffect(() => {
+    if (
+      !activeProjectId ||
+      !activeProject ||
+      !isProjectAutosaveEnabled ||
+      hydratedProjectIdRef.current !== activeProject.id
+    ) {
+      return
+    }
+
+    if (currentProjectSnapshot === persistedSnapshotRef.current) {
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+        autosaveTimeoutRef.current = null
+      }
+
+      if (!autosavePromiseRef.current) {
+        setAutosaveStatus('saved')
+      }
+      return
+    }
+
+    setDraftNotice(null)
+    setAutosaveStatus('saving')
+
+    if (autosavePromiseRef.current) {
+      return
+    }
+
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+    }
+
+    const requestVersion = autosaveRequestVersionRef.current + 1
+    autosaveRequestVersionRef.current = requestVersion
+    const snapshotAtSchedule = currentProjectSnapshot
+    const valuesAtSchedule = normalizedProjectValues
+    const projectIdAtSchedule = activeProject.id
+
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null
+
+      if (
+        hydratedProjectIdRef.current !== projectIdAtSchedule ||
+        autosaveRequestVersionRef.current !== requestVersion ||
+        persistedSnapshotRef.current === snapshotAtSchedule
+      ) {
+        return
+      }
+
+      void runProjectAutosave(snapshotAtSchedule, valuesAtSchedule, requestVersion)
+    }, 800)
+  }, [
+    activeProject,
+    activeProjectId,
+    currentProjectSnapshot,
+    isProjectAutosaveEnabled,
+    normalizedProjectValues,
+  ])
+
+  useEffect(() => {
+    if (!onRegisterProjectFormFlush) {
+      return
+    }
+
+    if (!activeProjectId || !isExistingProject) {
+      onRegisterProjectFormFlush(null)
+      return
+    }
+
+    onRegisterProjectFormFlush(flushProjectAutosave)
+
+    return () => {
+      onRegisterProjectFormFlush(null)
+    }
+  }, [activeProjectId, isExistingProject, onRegisterProjectFormFlush])
+
+  useEffect(() => {
+    onAutosaveIndicatorChange?.(
+      isProjectAutosaveEnabled ? autosaveIndicator : 'hidden',
+    )
+
+    return () => {
+      onAutosaveIndicatorChange?.('hidden')
+    }
+  }, [autosaveIndicator, isProjectAutosaveEnabled, onAutosaveIndicatorChange])
+
+  useEffect(() => {
+    if (!activeProject || !isSentProject || !isProjectAutosaveEnabled) {
+      return
+    }
+
+    return registerProjectEditingExitHandler(activeProject.id, flushProjectAutosave)
+  }, [
+    activeProject,
+    isProjectAutosaveEnabled,
+    isSentProject,
+    registerProjectEditingExitHandler,
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+        autosaveTimeoutRef.current = null
+      }
+
+      if (autosaveSuccessTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveSuccessTimeoutRef.current)
+        autosaveSuccessTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
@@ -233,6 +511,125 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         [field]: undefined,
       }
     })
+  }
+
+  async function runProjectAutosave(
+    snapshot: string,
+    nextValues: ReturnType<typeof normalizeRequestProjectFormValues>,
+    requestVersion: number,
+  ) {
+    if (!activeProjectId || !activeProject || !isProjectAutosaveEnabled) {
+      return true
+    }
+
+    const autosaveExecutionToken = Symbol('drawer-project-autosave')
+    const autosavePromise = (async () => {
+      try {
+        if (autosaveSuccessTimeoutRef.current !== null) {
+          window.clearTimeout(autosaveSuccessTimeoutRef.current)
+          autosaveSuccessTimeoutRef.current = null
+        }
+
+        setAutosaveIndicator('saving')
+
+        const savedProject = await updateProject(activeProjectId, {
+          title: nextValues.title,
+          productionCompany: nextValues.productionCompany,
+          message: nextValues.message,
+          tentativeStartDate: nextValues.tentativeStartDate,
+          tentativeEndDate: nextValues.tentativeEndDate,
+        })
+
+        if (!savedProject) {
+          if (autosaveRequestVersionRef.current === requestVersion) {
+            setAutosaveStatus('error')
+            setAutosaveIndicator('error')
+          }
+          return false
+        }
+
+        persistedSnapshotRef.current = snapshot
+
+        if (
+          autosaveRequestVersionRef.current === requestVersion &&
+          latestSnapshotRef.current === snapshot
+        ) {
+          setAutosaveStatus('saved')
+          setAutosaveIndicator('saved')
+          autosaveSuccessTimeoutRef.current = window.setTimeout(() => {
+            autosaveSuccessTimeoutRef.current = null
+            setAutosaveIndicator((current) =>
+              current === 'saved' ? 'hidden' : current,
+            )
+          }, 1800)
+        }
+
+        return true
+      } finally {
+        if (autosaveExecutionTokenRef.current === autosaveExecutionToken) {
+          autosaveExecutionTokenRef.current = null
+          autosavePromiseRef.current = null
+        }
+
+        const latestSnapshot = latestSnapshotRef.current
+        const latestNormalizedValues = latestNormalizedValuesRef.current
+
+        if (
+          isProjectAutosaveEnabled &&
+          latestSnapshot &&
+          latestNormalizedValues &&
+          latestSnapshot !== persistedSnapshotRef.current
+        ) {
+          const nextRequestVersion = autosaveRequestVersionRef.current + 1
+          autosaveRequestVersionRef.current = nextRequestVersion
+          setAutosaveStatus('saving')
+          void runProjectAutosave(
+            latestSnapshot,
+            latestNormalizedValues,
+            nextRequestVersion,
+          )
+        }
+      }
+    })()
+
+    autosaveExecutionTokenRef.current = autosaveExecutionToken
+    autosavePromiseRef.current = autosavePromise
+    return autosavePromise
+  }
+
+  async function flushProjectAutosave() {
+    if (!activeProjectId || !activeProject || !isProjectAutosaveEnabled) {
+      return true
+    }
+
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+
+    if (autosavePromiseRef.current) {
+      await autosavePromiseRef.current
+    }
+
+    const latestSnapshot = latestSnapshotRef.current
+    const latestNormalizedValues = latestNormalizedValuesRef.current
+
+    if (
+      latestSnapshot &&
+      latestNormalizedValues &&
+      latestSnapshot !== persistedSnapshotRef.current
+    ) {
+      const requestVersion = autosaveRequestVersionRef.current + 1
+      autosaveRequestVersionRef.current = requestVersion
+      setAutosaveStatus('saving')
+      return runProjectAutosave(
+        latestSnapshot,
+        latestNormalizedValues,
+        requestVersion,
+      )
+    }
+
+    return true
   }
 
   function focusFirstInvalidField(nextErrors: SelectionPdfFormErrors) {
@@ -292,16 +689,30 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         setCreatedProjectId(projectId)
         onPersistedProjectChange(projectId)
       } else {
-        const updatedProject = await updateProject(projectId, draftPayload)
+        if (isProjectAutosaveEnabled) {
+          const didFlushAutosave = await flushProjectAutosave()
 
-        if (!updatedProject) {
-          throw new Error('No pudimos guardar el borrador.')
+          if (!didFlushAutosave) {
+            throw new Error('No pudimos guardar el borrador.')
+          }
+        } else {
+          const updatedProject = await updateProject(projectId, draftPayload)
+
+          if (!updatedProject) {
+            throw new Error('No pudimos guardar el borrador.')
+          }
         }
 
         setCreatedProjectId(projectId)
       }
 
-      await syncRequestProjectSelection(projectId, images)
+      if (!canPersistSelectionForProject(projectId)) {
+        throw new Error('Estamos terminando de cargar la seleccion del proyecto. Intenta nuevamente en unos segundos.')
+      }
+
+      await syncRequestProjectSelection(projectId, images, {
+        allowEmptySelection: false,
+      })
 
       await onProjectsRefresh()
       setDraftNotice(created ? 'Borrador guardado.' : 'Borrador actualizado.')
@@ -355,6 +766,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     }
 
     setIsSubmittingProposal(true)
+    setProgress({
+      stage: 'saving-project',
+      percent: 0,
+    })
 
     try {
       const draftResult = await persistProposalDraft()
@@ -364,6 +779,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       }
 
       setDraftNotice(null)
+      setProgress({
+        stage: 'saving-project',
+        percent: 5,
+      })
       const payload: SelectionPdfPayload = livePreviewPayload
       setProjectSavedBeforeError(true)
       setStep('generating')
@@ -386,8 +805,15 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         submissionResult.exportResult.fileName,
       )
       await onProjectsRefresh()
+      setProgress({
+        stage: 'completed',
+        percent: 100,
+        current: submissionResult.exportResult.totalImages,
+        total: submissionResult.exportResult.totalImages,
+      })
       setExportResult(submissionResult.exportResult)
       setFailedImages(submissionResult.exportResult.failedImages)
+      onPrepareForSuccessCleanup()
       clearSelection()
       setIsLoadingModalOpen(false)
       setStep('success')
@@ -411,7 +837,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   }
 
   function renderDetachedPreview() {
-    return <SelectionPdfPreview payload={livePreviewPayload} />
+    return <SelectionPdfPreview payload={livePreviewPayload} hideCover />
   }
 
   function renderDetachedStatusBody() {
@@ -423,20 +849,16 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
               Guardando proyecto y generando PDF...
             </h3>
             <p aria-live="polite" className="mt-3 text-sm leading-6 text-brand-300">
-              {progress
-                ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
-                : createdProjectId
-                  ? 'Proyecto guardado. Preparando el documento.'
-                  : 'Creando el proyecto y preparando el documento.'}
+              {getProgressStatusMessage(progress, createdProjectId)}
             </p>
           </div>
           <div className="rounded-[1.5rem] border border-white/10 bg-white/4 p-4">
             <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
               <div
-                className="h-full rounded-full bg-brand-300 transition-[width]"
+                className="h-full rounded-full bg-brand-300 transition-[width] duration-300 ease-out"
                 style={{
                   width: progress
-                    ? `${Math.max(8, Math.round((progress.current / progress.total) * 100))}%`
+                    ? `${Math.max(0, Math.min(100, progress.percent))}%`
                     : '8%',
                 }}
               />
@@ -560,7 +982,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           values={values}
           errors={errors}
           onChange={handleFieldChange}
-          disabled={isBusy}
+          disabled={isBusy || isProjectLocked}
           columns={2}
         />
       </div>
@@ -570,27 +992,29 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function renderFormSidebarFooter() {
     return (
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          type="button"
-          onClick={() => {
-            void handleSaveDraft()
-          }}
-          disabled={isBusy}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-        >
-          <DraftSaveIcon />
-          Guardar borrador
-        </button>
+        {!isExistingProject ? (
+          <button
+            type="button"
+            onClick={() => {
+              void handleSaveDraft()
+            }}
+            disabled={isBusy}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+          >
+            <DraftSaveIcon />
+            Guardar
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => {
             void handleSubmitProposal()
           }}
-          disabled={!hasSelectedImages || isBusy}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+          disabled={!hasSelectedImages || isBusy || isProjectLocked}
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
         >
           <SubmitProposalIcon />
-          Enviar propuesta
+          {isSentProject ? 'Enviar nueva version' : 'Solicitar'}
         </button>
       </div>
     )
@@ -610,11 +1034,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         </div>
       ) : (
         <ProposalWorkspace
-          preview={<SelectionPdfPreview payload={livePreviewPayload} />}
+          preview={<SelectionPdfPreview payload={livePreviewPayload} hideCover />}
           sidebarTitle="Datos del proyecto"
           sidebarHeader={renderProjectHeader()}
           sidebarBody={renderFormSidebarBody()}
           sidebarFooter={renderFormSidebarFooter()}
+          previewSectionClassName="bg-white/[0.035] backdrop-blur-xl"
           closeDisabled={isBusy}
           onClose={onClose}
         />
@@ -622,9 +1047,22 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         <ProposalWorkspace
           preview={renderDetachedPreview()}
           sidebarTitle="Datos del proyecto"
-          sidebarHeader={renderProjectHeader(step === 'generating' || isBusy, true)}
-          sidebarBody={step === 'form' ? renderFormSidebarBody() : renderDetachedStatusBody()}
-          sidebarFooter={step === 'form' ? renderFormSidebarFooter() : renderDetachedFooter()}
+          sidebarHeader={renderProjectHeader(step === 'generating' || isBusy)}
+          previewSectionClassName="bg-white/[0.035] backdrop-blur-xl"
+          sidebarBody={
+            step === 'form'
+              ? renderFormSidebarBody()
+              : isLoadingModalOpen
+                ? <div aria-hidden="true" className="min-h-[240px]" />
+                : renderDetachedStatusBody()
+          }
+          sidebarFooter={
+            step === 'form'
+              ? renderFormSidebarFooter()
+              : isLoadingModalOpen
+                ? null
+                : renderDetachedFooter()
+          }
           closeDisabled={step === 'generating' || isSuccessModalOpen || isBusy}
           hidePreviewOnMobile
           onClose={onClose}
@@ -635,13 +1073,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         isOpen={isLoadingModalOpen}
         title="Generando propuesta..."
         description="Estamos guardando tu proyecto y preparando el PDF."
-        statusMessage={
-          progress
-            ? `Procesando imagen ${progress.current} de ${progress.total}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
-            : createdProjectId
-              ? 'Proyecto guardado. Preparando el documento.'
-              : 'Creando el proyecto y preparando el documento.'
-        }
+        statusMessage={getProgressStatusMessage(progress, createdProjectId)}
+        progressPercent={progress?.percent ?? 0}
       />
 
       <SubmissionResultModal

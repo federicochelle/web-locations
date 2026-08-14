@@ -11,6 +11,7 @@ import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
+import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
 
 function formatLocationCode(locationCode: string) {
@@ -144,7 +145,11 @@ export function LocationDetailPage() {
       return
     }
 
-    const key = `${location.id}:${image.url}`
+    const key = getImageSelectionKey({
+      locationId: location.id,
+      locationImageId: image.id,
+      imageUrl: image.url,
+    })
 
     if (isSelected(key)) {
       removeImage(key)
@@ -266,7 +271,11 @@ export function LocationDetailPage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {location.images.length > 0 ? (
                 location.images.map((image, index) => {
-                  const imageSelectionKey = `${location.id}:${image.url}`
+                  const imageSelectionKey = getImageSelectionKey({
+                    locationId: location.id,
+                    locationImageId: image.id,
+                    imageUrl: image.url,
+                  })
                   const imageIsSelected = isSelected(imageSelectionKey)
 
                   return (
@@ -332,7 +341,13 @@ export function LocationDetailPage() {
             id: image.id,
             url: image.url,
             alt: `${formatLocationCode(location.locationCode)} · imagen ${index + 1}`,
-            isSelected: isSelected(`${location.id}:${image.url}`),
+            isSelected: isSelected(
+              getImageSelectionKey({
+                locationId: location.id,
+                locationImageId: image.id,
+                imageUrl: image.url,
+              }),
+            ),
           })) ?? []
         }
         initialIndex={lightboxIndex}

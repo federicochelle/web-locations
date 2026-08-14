@@ -26,6 +26,10 @@ type UpdateProjectValues = {
   tentativeEndDate: string | null
 }
 
+type SaveProjectOptions = {
+  suppressErrorState?: boolean
+}
+
 export function useRequestProjectDetail(projectId: string | undefined) {
   const { user } = useAuth()
   const [project, setProject] = useState<RequestProject | null>(null)
@@ -162,7 +166,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       message,
       tentativeStartDate,
       tentativeEndDate,
-    }: UpdateProjectValues) => {
+    }: UpdateProjectValues, options: SaveProjectOptions = {}) => {
       if (!projectId) {
         return null
       }
@@ -183,7 +187,9 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setProject(nextProject)
         return nextProject
       } catch (saveError) {
-        setError(getRequestProjectErrorMessage(saveError))
+        if (!options.suppressErrorState) {
+          setError(getRequestProjectErrorMessage(saveError))
+        }
         return null
       } finally {
         setIsSaving(false)

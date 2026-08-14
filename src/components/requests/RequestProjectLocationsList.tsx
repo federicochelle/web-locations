@@ -9,6 +9,7 @@ type RequestProjectLocationsListProps = {
   canRemove?: boolean
   removingLocationIds?: string[]
   onRemove?: (locationId: string) => void
+  compact?: boolean
 }
 
 export function RequestProjectLocationsList({
@@ -17,6 +18,7 @@ export function RequestProjectLocationsList({
   canRemove = false,
   removingLocationIds = [],
   onRemove,
+  compact = false,
 }: RequestProjectLocationsListProps) {
   const sortedLocations = [...locations].sort((left, right) =>
     left.location.locationCode.localeCompare(
@@ -31,11 +33,11 @@ export function RequestProjectLocationsList({
 
   if (isLoading) {
     return (
-      <section className="-mx-6 grid gap-4 sm:mx-0 lg:grid-cols-2 2xl:grid-cols-3">
+      <section className={`-mx-6 grid gap-4 sm:mx-0 ${compact ? '' : 'lg:grid-cols-2 2xl:grid-cols-3'}`}>
         {Array.from({ length: 2 }).map((_, index) => (
           <div
             key={index}
-            className="min-h-[240px] animate-pulse rounded-none bg-sand-200 sm:rounded-[1.75rem]"
+            className={`${compact ? 'min-h-[110px]' : 'min-h-[240px]'} animate-pulse rounded-none bg-sand-200 sm:rounded-[1.75rem]`}
           />
         ))}
       </section>
@@ -62,7 +64,7 @@ export function RequestProjectLocationsList({
   }
 
   return (
-    <section className="-mx-6 grid gap-4 sm:mx-0 lg:grid-cols-3">
+    <section className="-mx-6 grid gap-4 sm:mx-0">
       {sortedLocations.map((item) => (
         <RequestProjectLocationCard
           key={item.id}
@@ -70,6 +72,7 @@ export function RequestProjectLocationsList({
           canRemove={canRemove}
           isRemoving={removingLocationIds.includes(item.location.id)}
           onRemove={onRemove}
+          compact={compact}
         />
       ))}
     </section>

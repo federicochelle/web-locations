@@ -8,6 +8,7 @@ type RequestProjectLocationCardProps = {
   canRemove?: boolean
   isRemoving?: boolean
   onRemove?: (locationId: string) => void
+  compact?: boolean
 }
 
 function formatLocationCode(locationCode: string) {
@@ -19,6 +20,7 @@ export function RequestProjectLocationCard({
   canRemove = false,
   isRemoving = false,
   onRemove,
+  compact = false,
 }: RequestProjectLocationCardProps) {
   const locationTitle = formatLocationCode(item.location.locationCode)
 
@@ -45,24 +47,24 @@ export function RequestProjectLocationCard({
         </button>
       ) : null}
 
-      <div className="grid md:grid-cols-[minmax(0,1fr)]">
-        <div className="block h-full min-h-[220px] bg-sand-100">
+      <div className={compact ? 'grid min-h-[110px] grid-cols-[168px_minmax(0,1fr)]' : 'grid md:grid-cols-[minmax(0,1fr)]'}>
+        <div className={`block bg-sand-100 ${compact ? 'h-full min-h-[110px]' : 'h-full min-h-[220px]'}`}>
           {item.location.coverImageUrl ? (
             <div
-              className="h-full min-h-[220px] bg-cover bg-center"
+              className={compact ? 'h-full min-h-[110px] bg-cover bg-center' : 'h-full min-h-[220px] bg-cover bg-center'}
               style={{
                 backgroundImage: `url(${item.location.coverImageUrl})`,
               }}
             />
           ) : (
-            <div className="h-full min-h-[220px] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))]" />
+            <div className={compact ? 'h-full min-h-[110px] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))]' : 'h-full min-h-[220px] bg-[linear-gradient(135deg,rgba(124,91,66,0.55),rgba(32,23,18,0.92))]'} />
           )}
         </div>
 
-        <div className="relative z-20 space-y-4 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="font-display text-2xl font-semibold leading-none tracking-[-0.03em] text-brand-100 transition">
+        <div className={`relative z-20 ${compact ? 'flex items-center p-4 sm:p-5' : 'space-y-4 p-5'}`}>
+          <div className={`flex w-full ${compact ? 'flex-col items-start justify-center gap-3' : 'flex-wrap items-start justify-between gap-3'}`}>
+            <div className={compact ? 'min-w-0 flex-1' : 'space-y-1'}>
+              <p className={`font-display font-semibold leading-none tracking-[-0.03em] text-brand-100 transition ${compact ? 'text-[1.55rem]' : 'text-2xl'}`}>
                 {locationTitle}
               </p>
             </div>

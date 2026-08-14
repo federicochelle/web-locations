@@ -14,6 +14,7 @@ type CreateSelectionPdfOptions = {
   onProgress?: (progress: SelectionPdfProgress) => void
 }
 
+const PDF_IMAGE_PREPARATION_CONCURRENCY = 4
 const PDF_BACKGROUND = [8, 8, 8] as const
 const PDF_TEXT_GOLD = [215, 192, 162] as const
 function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
@@ -208,6 +209,108 @@ function addLocationPage(
   addPageNumber(doc, doc.getNumberOfPages())
 }
 
+type PreparedLocationImageResult =
+  | {
+      kind: 'success'
+      preparedImage: {
+        dataUrl: string
+        width: number
+        height: number
+      }
+    }
+  | {
+      kind: 'error'
+      failedImage: SelectionPdfFailedImage
+    }
+
+type PreparedLocationImageTask = {
+  globalIndex: number
+  imageIndex: number
+  imageKey: string
+  imageUrl: string
+  locationCode: string
+  prepare: () => Promise<PreparedLocationImageResult>
+}
+
+async function runLimitedConcurrencyPool<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrencyLimit: number,
+) {
+  const results = new Array<T>(tasks.length)
+  let nextTaskIndex = 0
+
+  async function worker() {
+    while (true) {
+      const taskIndex = nextTaskIndex
+      nextTaskIndex += 1
+
+      if (taskIndex >= tasks.length) {
+        return
+      }
+
+      results[taskIndex] = await tasks[taskIndex]()
+    }
+  }
+
+  const workerCount = Math.min(concurrencyLimit, tasks.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+
+  return results
+}
+
+async function prepareLocationImagesForPdf(
+  location: SelectionPdfLocation,
+  globalStartIndex: number,
+  onImageSettled?: (task: PreparedLocationImageTask) => void,
+) {
+  const imageTasks: PreparedLocationImageTask[] = location.images.map((image, imageIndex) => ({
+    globalIndex: globalStartIndex + imageIndex + 1,
+    imageIndex,
+    imageKey: image.key,
+    imageUrl: image.imageUrl,
+    locationCode: location.locationCode,
+    prepare: async () => {
+      let result: PreparedLocationImageResult
+
+      try {
+        const preparedImage = await prepareImageForPdf(image.imageUrl)
+
+        result = {
+          kind: 'success' as const,
+          preparedImage,
+        }
+      } catch (error) {
+        result = {
+          kind: 'error' as const,
+          failedImage: {
+            key: image.key,
+            imageUrl: image.imageUrl,
+            locationCode: location.locationCode,
+            message:
+              error instanceof Error
+                ? error.message
+                : 'No pudimos incluir la imagen en el PDF.',
+          },
+        }
+      } finally {
+        onImageSettled?.(imageTasks[imageIndex]!)
+      }
+
+      return result
+    },
+  }))
+
+  const preparedResults = await runLimitedConcurrencyPool(
+    imageTasks.map((task) => async () => task.prepare()),
+    PDF_IMAGE_PREPARATION_CONCURRENCY,
+  )
+
+  return imageTasks.map((task, resultIndex) => ({
+    ...task,
+    result: preparedResults[resultIndex],
+  }))
+}
+
 export async function createSelectionPdf(
   payload: SelectionPdfPayload,
   options: CreateSelectionPdfOptions = {},
@@ -223,6 +326,7 @@ export async function createSelectionPdf(
   const failedImages: SelectionPdfFailedImage[] = []
   let includedImages = 0
   let processedImages = 0
+  let pdfCompositionDurationMs = 0
 
   let logo: {
     dataUrl: string
@@ -243,7 +347,12 @@ export async function createSelectionPdf(
     logo = null
   }
 
+  const coverPageStartedAt = performance.now()
   addCoverPage(doc, payload, logo)
+  pdfCompositionDurationMs += performance.now() - coverPageStartedAt
+
+  let globalImageIndex = 0
+  let completedImages = 0
 
   for (const location of payload.locations) {
     let isFirstLocationPage = true
@@ -252,41 +361,45 @@ export async function createSelectionPdf(
       width: number
       height: number
     }> = []
+    const preparedLocationResults = await prepareLocationImagesForPdf(
+      location,
+      globalImageIndex,
+      (task) => {
+        completedImages += 1
+        options.onProgress?.({
+          stage: 'preparing-images',
+          percent: 5 + Math.round((completedImages / Math.max(1, totalImages)) * 75),
+          current: completedImages,
+          total: totalImages,
+          locationCode: task.locationCode,
+        })
+      },
+    )
 
-    for (const image of location.images) {
+    for (const preparedLocationResult of preparedLocationResults) {
       processedImages += 1
-      options.onProgress?.({
-        current: processedImages,
-        total: totalImages,
-        locationCode: location.locationCode,
-      })
-
-      try {
-        const preparedImage = await prepareImageForPdf(image.imageUrl)
-
-        pageImages.push(preparedImage)
+      if (preparedLocationResult.result.kind === 'success') {
+        pageImages.push(preparedLocationResult.result.preparedImage)
         includedImages += 1
 
         if (pageImages.length === 2) {
+          const pageStartedAt = performance.now()
           addLocationPage(doc, location, pageImages, isFirstLocationPage)
+          pdfCompositionDurationMs += performance.now() - pageStartedAt
           isFirstLocationPage = false
           pageImages = []
         }
-      } catch (error) {
-        failedImages.push({
-          key: image.key,
-          imageUrl: image.imageUrl,
-          locationCode: location.locationCode,
-          message:
-            error instanceof Error
-              ? error.message
-              : 'No pudimos incluir la imagen en el PDF.',
-        })
+      } else {
+        failedImages.push(preparedLocationResult.result.failedImage)
       }
     }
 
+    globalImageIndex += location.images.length
+
     if (pageImages.length > 0) {
+      const pageStartedAt = performance.now()
       addLocationPage(doc, location, pageImages, isFirstLocationPage)
+      pdfCompositionDurationMs += performance.now() - pageStartedAt
     }
   }
 
@@ -296,8 +409,24 @@ export async function createSelectionPdf(
     )
   }
 
+  options.onProgress?.({
+    stage: 'building-pdf',
+    percent: 80,
+    current: totalImages,
+    total: totalImages,
+  })
+
+  const blob = doc.output('blob')
+
+  options.onProgress?.({
+    stage: 'building-pdf',
+    percent: 85,
+    current: totalImages,
+    total: totalImages,
+  })
+
   return {
-    blob: doc.output('blob'),
+    blob,
     fileName: buildPdfFileName(payload),
     totalImages,
     includedImages,
