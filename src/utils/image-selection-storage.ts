@@ -4,6 +4,11 @@ export const IMAGE_SELECTION_STORAGE_KEY = 'public-image-selection:v1'
 
 const MAX_SELECTED_IMAGES = 80
 
+export type ImageSelectionCache = {
+  globalImages: SelectedLocationImage[]
+  projectSelections: Record<string, SelectedLocationImage[]>
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
@@ -50,40 +55,102 @@ function dedupeImages(images: SelectedLocationImage[]) {
   return [...uniqueImages.values()].slice(0, MAX_SELECTED_IMAGES)
 }
 
-export function restoreImageSelection(): SelectedLocationImage[] {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function sanitizeProjectSelections(
+  value: unknown,
+): Record<string, SelectedLocationImage[]> {
+  if (!isRecord(value)) {
+    return {}
+  }
+
+  const nextSelections: Record<string, SelectedLocationImage[]> = {}
+
+  for (const [projectId, images] of Object.entries(value)) {
+    if (!isNonEmptyString(projectId) || !Array.isArray(images)) {
+      continue
+    }
+
+    const validImages = images.filter(isSelectedLocationImage)
+
+    if (validImages.length === 0) {
+      continue
+    }
+
+    nextSelections[projectId] = dedupeImages(validImages)
+  }
+
+  return nextSelections
+}
+
+export function restoreImageSelectionCache(): ImageSelectionCache {
   if (typeof window === 'undefined') {
-    return []
+    return {
+      globalImages: [],
+      projectSelections: {},
+    }
   }
 
   try {
     const rawValue = window.localStorage.getItem(IMAGE_SELECTION_STORAGE_KEY)
 
     if (!rawValue) {
-      return []
+      return {
+        globalImages: [],
+        projectSelections: {},
+      }
     }
 
     const parsedValue = JSON.parse(rawValue) as unknown
 
-    if (!Array.isArray(parsedValue)) {
-      return []
+    if (Array.isArray(parsedValue)) {
+      const validImages = parsedValue.filter(isSelectedLocationImage)
+
+      return {
+        globalImages: dedupeImages(validImages),
+        projectSelections: {},
+      }
     }
 
-    const validImages = parsedValue.filter(isSelectedLocationImage)
-    return dedupeImages(validImages)
+    if (!isRecord(parsedValue)) {
+      return {
+        globalImages: [],
+        projectSelections: {},
+      }
+    }
+
+    const globalImages = Array.isArray(parsedValue.globalImages)
+      ? dedupeImages(parsedValue.globalImages.filter(isSelectedLocationImage))
+      : []
+
+    return {
+      globalImages,
+      projectSelections: sanitizeProjectSelections(parsedValue.projectSelections),
+    }
   } catch {
-    return []
+    return {
+      globalImages: [],
+      projectSelections: {},
+    }
   }
 }
 
-export function persistImageSelection(images: SelectedLocationImage[]) {
+export function persistImageSelectionCache(cache: ImageSelectionCache) {
   if (typeof window === 'undefined') {
     return
   }
 
-  const nextImages = dedupeImages(images)
+  const nextGlobalImages = dedupeImages(cache.globalImages)
+  const nextProjectSelections = sanitizeProjectSelections(cache.projectSelections)
+
   window.localStorage.setItem(
     IMAGE_SELECTION_STORAGE_KEY,
-    JSON.stringify(nextImages),
+    JSON.stringify({
+      globalImages: nextGlobalImages,
+      projectSelections: nextProjectSelections,
+    }),
   )
 }
 

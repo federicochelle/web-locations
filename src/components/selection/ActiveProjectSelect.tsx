@@ -5,6 +5,7 @@ import type { RequestProject } from '@/types/request-project.ts'
 type ActiveProjectSelectProps = {
   activeProjectId: string | null
   projects: RequestProject[]
+  activeProject?: RequestProject | null
   isLoading?: boolean
   disabled?: boolean
   compact?: boolean
@@ -14,6 +15,7 @@ type ActiveProjectSelectProps = {
 export function ActiveProjectSelect({
   activeProjectId,
   projects,
+  activeProject = null,
   isLoading = false,
   disabled = false,
   compact = false,
@@ -25,9 +27,12 @@ export function ActiveProjectSelect({
   }
 
   const isSelectDisabled = disabled || isLoading
+  const shouldRenderTemporaryActiveProject =
+    Boolean(activeProject) &&
+    !projects.some((project) => project.id === activeProject?.id)
 
   return (
-    <label className="mt-3 block min-w-0">
+    <label className="block min-w-0">
       <div
         className={`relative ${
           compact ? 'max-w-[220px]' : 'max-w-[260px]'
@@ -47,11 +52,16 @@ export function ActiveProjectSelect({
           }}
           className={`min-h-11 w-full appearance-none border bg-transparent px-3.5 pr-11 text-sm outline-none shadow-none transition focus-visible:ring-2 focus-visible:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70 ${
             compact
-              ? 'rounded-full border-white/8 bg-white/[0.045] text-brand-100 hover:bg-white/[0.07]'
-              : 'rounded-xl border-white/10 bg-white/6 text-brand-100 hover:bg-white/10'
+              ? 'rounded-full border-white/55 bg-white/10 text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-12px_28px_rgba(0,0,0,0.18),0_10px_22px_rgba(0,0,0,0.14)] hover:border-white/75 hover:bg-white/18'
+              : 'rounded-xl border-white/45 bg-white/8 text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-12px_28px_rgba(0,0,0,0.16),0_10px_22px_rgba(0,0,0,0.12)] hover:border-white/70 hover:bg-white/14'
           }`}
         >
           <option value="">Nuevo</option>
+          {shouldRenderTemporaryActiveProject && activeProject ? (
+            <option value={activeProject.id}>
+              {activeProject.title}
+            </option>
+          ) : null}
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.title}
@@ -61,7 +71,7 @@ export function ActiveProjectSelect({
         <span
           aria-hidden="true"
           className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition ${
-            isSelectDisabled ? 'text-brand-100/35' : 'text-brand-100/72'
+            isSelectDisabled ? 'text-white/40' : 'text-white/85'
           }`}
         >
           <svg

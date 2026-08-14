@@ -167,6 +167,10 @@ export type EnsureInitialRequestProjectVersionResult = {
 
 type AddLocationToRequestProjectResult = 'added' | 'exists'
 
+type SyncRequestProjectSelectionOptions = {
+  allowEmptySelection?: boolean
+}
+
 const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 
 const REQUEST_PROJECT_SELECT = `
@@ -721,7 +725,8 @@ async function finalizeRequestProjectSubmission({
     throw new Error('No pudimos confirmar el envio de la solicitud.')
   }
 
-  const project = await getRequestProjectById(row.id)
+  const projectIdToReload = row.id
+  const project = await getRequestProjectById(projectIdToReload)
 
   if (!project) {
     throw new Error('No pudimos confirmar la solicitud enviada.')
@@ -748,13 +753,42 @@ export async function submitRequestProjectWithOfficialPdf({
 
   onPdfReady?.(exportResult)
 
+  onProgress?.({
+    stage: 'uploading-pdf',
+    percent: 85,
+    current: exportResult.totalImages,
+    total: exportResult.totalImages,
+  })
+
   await syncRequestProjectPdfPayloadSnapshot(projectId, payload)
+
+  onProgress?.({
+    stage: 'uploading-pdf',
+    percent: 90,
+    current: exportResult.totalImages,
+    total: exportResult.totalImages,
+  })
 
   const uploadResult = await uploadOfficialRequestProjectPdf(
     projectId,
     exportResult,
     payload.generatedAt,
   )
+
+  onProgress?.({
+    stage: 'uploading-pdf',
+    percent: 95,
+    current: exportResult.totalImages,
+    total: exportResult.totalImages,
+  })
+
+  onProgress?.({
+    stage: 'finalizing-project',
+    percent: 96,
+    current: exportResult.totalImages,
+    total: exportResult.totalImages,
+  })
+
   const project = await finalizeRequestProjectSubmission({
     projectId,
     bucket: uploadResult.bucket,
@@ -764,6 +798,13 @@ export async function submitRequestProjectWithOfficialPdf({
     generatedAt: payload.generatedAt,
     uploadedAt: uploadResult.uploadedAt,
     sizeBytes: uploadResult.sizeBytes,
+  })
+
+  onProgress?.({
+    stage: 'finalizing-project',
+    percent: 99,
+    current: exportResult.totalImages,
+    total: exportResult.totalImages,
   })
 
   return {
@@ -999,6 +1040,7 @@ function groupSelectionImagesByLocation(images: SelectedLocationImage[]) {
 export async function syncRequestProjectSelection(
   projectId: string,
   images: SelectedLocationImage[],
+  { allowEmptySelection = false }: SyncRequestProjectSelectionOptions = {},
 ) {
   await getCurrentUserId()
   const project = await getRequestProjectById(projectId)
@@ -1020,6 +1062,36 @@ export async function syncRequestProjectSelection(
     location_id: string | null
   }[]
 
+  if (groupedLocations.length === 0) {
+    if (!allowEmptySelection) {
+      return
+    }
+
+    const existingLocationIds = existingLocationRows
+      .map((row) => row.location_id)
+      .filter((locationId): locationId is string => Boolean(locationId))
+
+    if (existingLocationIds.length === 0) {
+      return
+    }
+
+    const { error: clearLocationsError } = await supabase
+      .from('request_project_locations')
+      .delete()
+      .eq('request_project_id', projectId)
+      .in('location_id', existingLocationIds)
+
+    if (clearLocationsError) {
+      throw new Error(clearLocationsError.message)
+    }
+
+    if (project?.status !== 'draft') {
+      await markRequestProjectAsChanged(projectId)
+    }
+
+    return
+  }
+
   const locationIdsToRemove = existingLocationRows
     .map((row) => row.location_id)
     .filter((locationId): locationId is string => Boolean(locationId))
@@ -1035,10 +1107,6 @@ export async function syncRequestProjectSelection(
     if (removeLocationsError) {
       throw new Error(removeLocationsError.message)
     }
-  }
-
-  if (groupedLocations.length === 0) {
-    return
   }
 
   const { error: upsertLocationsError } = await supabase

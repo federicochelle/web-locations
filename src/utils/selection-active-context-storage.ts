@@ -1,4 +1,7 @@
 export const SELECTION_ACTIVE_CONTEXT_STORAGE_KEY = 'selection-active-context:v1'
+export const OPEN_SELECTION_PROJECT_EVENT = 'selection-drawer:open-project'
+export const SELECTION_ACTIVE_CONTEXT_CHANGE_EVENT =
+  'selection-drawer:active-context-change'
 
 export type SelectionActiveContext =
   | {
@@ -51,6 +54,16 @@ export function persistSelectionActiveContext(context: SelectionActiveContext) {
     SELECTION_ACTIVE_CONTEXT_STORAGE_KEY,
     JSON.stringify(context),
   )
+  window.dispatchEvent(
+    new CustomEvent<{ context: SelectionActiveContext }>(
+      SELECTION_ACTIVE_CONTEXT_CHANGE_EVENT,
+      {
+        detail: {
+          context,
+        },
+      },
+    ),
+  )
 }
 
 export function clearSelectionActiveContext() {
@@ -59,4 +72,30 @@ export function clearSelectionActiveContext() {
   }
 
   window.localStorage.removeItem(SELECTION_ACTIVE_CONTEXT_STORAGE_KEY)
+}
+
+export function openSelectionProjectContext(projectId: string) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const normalizedProjectId = projectId.trim()
+
+  if (!normalizedProjectId) {
+    return
+  }
+
+  const context: SelectionActiveContext = {
+    mode: 'project',
+    projectId: normalizedProjectId,
+  }
+
+  persistSelectionActiveContext(context)
+  window.dispatchEvent(
+    new CustomEvent<{ projectId: string }>(OPEN_SELECTION_PROJECT_EVENT, {
+      detail: {
+        projectId: normalizedProjectId,
+      },
+    }),
+  )
 }

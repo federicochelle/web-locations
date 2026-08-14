@@ -21,6 +21,7 @@ export type UpdateRequestProjectValues = {
 export type RequestProjectsContextValue = {
   projects: RequestProject[]
   draftProjects: RequestProject[]
+  activeEditingProjectId: string | null
   isLoading: boolean
   hasLoadedOnce: boolean
   isCreating: boolean
@@ -33,6 +34,13 @@ export type RequestProjectsContextValue = {
     values: UpdateRequestProjectValues,
   ) => Promise<RequestProject | null>
   removeProject: (projectId: string) => Promise<boolean>
+  beginProjectEditing: (projectId: string) => void
+  finishProjectEditing: (projectId?: string | null) => void
+  flushAndFinishProjectEditing: (projectId?: string | null) => Promise<boolean>
+  registerProjectEditingExitHandler: (
+    projectId: string,
+    handler: () => Promise<boolean>,
+  ) => () => void
 }
 
 export const RequestProjectsContext = createContext<

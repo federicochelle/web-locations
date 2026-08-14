@@ -34,10 +34,20 @@ export type SelectionPdfFlowStep =
   | 'success'
   | 'error'
 
+export type SelectionPdfProgressStage =
+  | 'saving-project'
+  | 'preparing-images'
+  | 'building-pdf'
+  | 'uploading-pdf'
+  | 'finalizing-project'
+  | 'completed'
+
 export type SelectionPdfProgress = {
-  current: number
-  total: number
-  locationCode: string
+  stage: SelectionPdfProgressStage
+  percent: number
+  current?: number
+  total?: number
+  locationCode?: string
 }
 
 export type SelectionPdfFailedImage = {
