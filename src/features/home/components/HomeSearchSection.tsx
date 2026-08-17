@@ -6,18 +6,28 @@ import { HeroBackgroundMosaic } from '@/features/home/components/HeroBackgroundM
 export function HomeSearchSection() {
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
+  const [department, setDepartment] = useState('Montevideo')
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  event.preventDefault()
 
-    const trimmedSearchText = searchText.trim()
+  const trimmedSearchText = searchText.trim()
+  const params = new URLSearchParams()
 
-    if (!trimmedSearchText) {
-      return
-    }
-
-    navigate(`/busqueda?q=${encodeURIComponent(trimmedSearchText)}`)
+  if (trimmedSearchText) {
+    params.set('q', trimmedSearchText)
   }
+
+  if (department) {
+    params.set('department', department)
+  }
+
+  if (!trimmedSearchText && !department) {
+    return
+  }
+
+  navigate(`/busqueda?${params.toString()}`)
+}
 
   return (
     <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden bg-transparent">
@@ -45,6 +55,16 @@ export function HomeSearchSection() {
                 placeholder="Buscar locaciones..."
                 className="min-h-14 flex-1 bg-transparent px-3 text-base text-brand-100 outline-none transition placeholder:text-brand-100/42 sm:text-lg"
               />
+
+              <select
+  value={department}
+  onChange={(event) => setDepartment(event.target.value)}
+  className="min-h-12 shrink-0 border-l border-white/15 bg-transparent px-4 text-base text-brand-100 outline-none"
+>
+  <option value="Montevideo">Montevideo</option>
+  <option value="Canelones">Canelones</option>
+  <option value="Maldonado">Maldonado</option>
+</select>
 
               <button
                 type="submit"
