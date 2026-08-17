@@ -107,7 +107,7 @@ async function searchAlgoliaLocations(params: {
           indexName,
           query: params.query,
           ...(params.departmentSlug
-            ? { filters: `department_slug:${JSON.stringify(params.departmentSlug)}` }
+            ? { filters: `department_name:${JSON.stringify(params.departmentSlug)}` }
             : {}),
           page: Math.max(0, params.page - 1),
           hitsPerPage: params.hitsPerPage,
