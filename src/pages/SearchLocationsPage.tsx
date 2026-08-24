@@ -3,6 +3,7 @@ import { Navigate, useSearchParams } from 'react-router-dom'
 
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
 import { useAlgoliaLocationSearch } from '@/features/search/algolia/useAlgoliaLocationSearch.ts'
+import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
@@ -92,6 +93,22 @@ export function SearchLocationsPage() {
   const hasLegacySearch =
     !hasAlgoliaSearch && (hasLegacyCategory || hasLegacyDepartment || hasLegacyFeatures)
   const hasValidSearch = hasAlgoliaSearch || hasLegacySearch
+  const {
+    coreQuery,
+    optionalTerms,
+    loading: isSearchInterpretationLoading,
+    fallback: didSearchInterpretationFallback,
+    fallbackReason: searchInterpretationFallbackReason,
+    rawQuery,
+    shouldUseAi,
+    usedAi,
+    durationMs: searchInterpretationDurationMs,
+  } = useLocationSearchInterpretation({
+    enabled: hasAlgoliaSearch,
+    query: trimmedSearchQuery,
+  })
+  const effectiveSearchQuery = coreQuery.trim() || trimmedSearchQuery
+  const isAwaitingSearchInterpretation = hasAlgoliaSearch && shouldUseAi && isSearchInterpretationLoading
 
   const {
     error: algoliaError,
@@ -100,14 +117,14 @@ export function SearchLocationsPage() {
     nextPage,
     page,
     previousPage,
-    query,
     totalHits: algoliaTotalHits,
     totalPages,
   } = useAlgoliaLocationSearch({
     departmentSlug: normalizedDepartmentSlug,
-    enabled: hasAlgoliaSearch,
+    enabled: hasAlgoliaSearch && !isAwaitingSearchInterpretation,
     initialPage,
-    initialQuery: trimmedSearchQuery,
+    initialQuery: effectiveSearchQuery,
+    optionalTerms,
   })
 
   const locations = useMemo(() => {
@@ -125,7 +142,9 @@ export function SearchLocationsPage() {
       })
     })
   }, [algoliaHits, hasAlgoliaSearch, legacyLocations])
-  const isLoading = hasAlgoliaSearch ? isAlgoliaLoading : isLegacyLoading
+  const isLoading = hasAlgoliaSearch
+    ? isSearchInterpretationLoading || isAlgoliaLoading
+    : isLegacyLoading
   const error = hasAlgoliaSearch ? algoliaError : legacyError
   const currentPage = hasAlgoliaSearch ? page : legacyPage
   const currentTotalCount = hasAlgoliaSearch ? algoliaTotalHits : legacyTotalCount
@@ -161,7 +180,32 @@ export function SearchLocationsPage() {
   usePageTitle('Resultados de busqueda')
 
   useEffect(() => {
-    const nextSearchParams = buildSearchParams(currentPage, hasAlgoliaSearch ? query : trimmedSearchQuery)
+    if (!import.meta.env.DEV || !hasAlgoliaSearch) {
+      return
+    }
+
+    console.info('[search-query-analysis]', {
+      rawQuery,
+      coreQuery: effectiveSearchQuery,
+      optionalTerms,
+      usedAi,
+      fallback: didSearchInterpretationFallback,
+      fallbackReason: searchInterpretationFallbackReason,
+      durationMs: searchInterpretationDurationMs,
+    })
+  }, [
+    didSearchInterpretationFallback,
+    effectiveSearchQuery,
+    hasAlgoliaSearch,
+    optionalTerms,
+    rawQuery,
+    searchInterpretationFallbackReason,
+    searchInterpretationDurationMs,
+    usedAi,
+  ])
+
+  useEffect(() => {
+    const nextSearchParams = buildSearchParams(currentPage, trimmedSearchQuery)
     const nextSearchParamsString = nextSearchParams.toString()
 
     if (currentSearchParams !== nextSearchParamsString) {
@@ -174,7 +218,6 @@ export function SearchLocationsPage() {
     normalizedCategorySlug,
     normalizedDepartmentSlug,
     normalizedFeatureSlugs,
-    query,
     setSearchParams,
     trimmedSearchQuery,
   ])
@@ -263,7 +306,7 @@ export function SearchLocationsPage() {
     }
 
     if (currentTotalPages === 0) {
-      const nextSearchParams = buildSearchParams(1, hasAlgoliaSearch ? query : trimmedSearchQuery)
+      const nextSearchParams = buildSearchParams(1, trimmedSearchQuery)
       const nextSearchParamsString = nextSearchParams.toString()
 
       if (currentSearchParams !== nextSearchParamsString) {
@@ -276,7 +319,7 @@ export function SearchLocationsPage() {
     if (currentPage > currentTotalPages) {
       const nextSearchParams = buildSearchParams(
         currentTotalPages,
-        hasAlgoliaSearch ? query : trimmedSearchQuery,
+        trimmedSearchQuery,
       )
       const nextSearchParamsString = nextSearchParams.toString()
 
@@ -289,7 +332,6 @@ export function SearchLocationsPage() {
     currentSearchParams,
     currentTotalPages,
     hasAlgoliaSearch,
-    query,
     setSearchParams,
     trimmedSearchQuery,
   ])

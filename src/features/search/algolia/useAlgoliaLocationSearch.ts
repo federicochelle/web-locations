@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { getAlgoliaSearchClient, getAlgoliaSearchConfig } from '@/features/search/algolia/algolia.client.ts'
 import { mapAlgoliaHitToPublicLocationCard } from '@/features/search/algolia/algolia.mapper.ts'
@@ -11,6 +11,7 @@ type UseAlgoliaLocationSearchOptions = {
   enabled?: boolean
   initialPage?: number
   initialQuery?: string
+  optionalTerms?: string[]
   debounceMs?: number
   hitsPerPage?: number
 }
@@ -43,10 +44,19 @@ const algoliaSearchInFlight = new Map<string, Promise<AlgoliaLocationSearchSnaps
 function buildSearchRequestKey(params: {
   departmentSlug: string
   hitsPerPage: number
+  optionalTerms: string[]
   page: number
   query: string
 }) {
   return JSON.stringify(params)
+}
+
+function normalizeOptionalTerms(optionalTerms: string[] | undefined) {
+  return [...new Set(
+    (optionalTerms ?? [])
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0),
+  )].slice(0, 3)
 }
 
 async function filterPublishedAlgoliaHits(hits: AlgoliaLocationHit[]) {
@@ -82,6 +92,7 @@ async function filterPublishedAlgoliaHits(hits: AlgoliaLocationHit[]) {
 async function searchAlgoliaLocations(params: {
   departmentSlug: string
   hitsPerPage: number
+  optionalTerms: string[]
   page: number
   query: string
 }): Promise<AlgoliaLocationSearchSnapshot> {
@@ -106,6 +117,9 @@ async function searchAlgoliaLocations(params: {
         {
           indexName,
           query: params.query,
+          ...(params.optionalTerms.length > 0
+            ? { optionalWords: params.optionalTerms }
+            : {}),
           ...(params.departmentSlug
             ? { filters: `department_name:${JSON.stringify(params.departmentSlug)}` }
             : {}),
@@ -169,6 +183,7 @@ export function useAlgoliaLocationSearch(
     enabled = true,
     initialPage = 1,
     initialQuery = '',
+    optionalTerms = [],
     debounceMs = 350,
     hitsPerPage = 20,
   } = options
@@ -183,6 +198,11 @@ export function useAlgoliaLocationSearch(
   const [totalPages, setTotalPages] = useState(0)
   const [searchTimeMs, setSearchTimeMs] = useState<number | null>(null)
   const latestRequestKeyRef = useRef<string | null>(null)
+  const normalizedOptionalTerms = useMemo(
+    () => normalizeOptionalTerms(optionalTerms),
+    [optionalTerms],
+  )
+  const optionalTermsKey = JSON.stringify(normalizedOptionalTerms)
 
   useEffect(() => {
     setQueryState((currentQuery) =>
@@ -225,6 +245,7 @@ export function useAlgoliaLocationSearch(
       const requestKey = buildSearchRequestKey({
         departmentSlug,
         hitsPerPage,
+        optionalTerms: normalizedOptionalTerms,
         page,
         query: debouncedQuery,
       })
@@ -238,6 +259,7 @@ export function useAlgoliaLocationSearch(
         const snapshot = await searchAlgoliaLocations({
           departmentSlug,
           hitsPerPage,
+          optionalTerms: normalizedOptionalTerms,
           page,
           query: debouncedQuery,
         })
@@ -276,7 +298,7 @@ export function useAlgoliaLocationSearch(
     return () => {
       isCancelled = true
     }
-  }, [debouncedQuery, departmentSlug, enabled, hitsPerPage, page])
+  }, [debouncedQuery, departmentSlug, enabled, hitsPerPage, normalizedOptionalTerms, optionalTermsKey, page])
 
   function setQuery(nextQuery: string) {
     if (nextQuery === query) {
