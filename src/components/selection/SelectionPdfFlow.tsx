@@ -58,6 +58,7 @@ type SelectionPdfFlowProps = {
 const initialValues: SelectionPdfFormValues = {
   product: '',
   productionCompany: '',
+  productionCompanyId: null,
   tentativeStartDate: '',
   tentativeEndDate: '',
   message: '',
@@ -362,6 +363,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       ...initialValues,
       product: project.title,
       productionCompany: project.productionCompany ?? '',
+      productionCompanyId: project.productionCompanyId,
       tentativeStartDate: project.tentativeStartDate ?? '',
       tentativeEndDate: project.tentativeEndDate ?? '',
       message: project.message ?? '',
@@ -494,11 +496,19 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
-    value: string,
+    value: string | null,
   ) {
     setValues((currentValues) => ({
       ...currentValues,
-      [field]: value,
+      [field]:
+        field === 'productionCompanyId'
+          ? value
+          : value ?? '',
+      ...(field === 'productionCompany' &&
+      currentValues.productionCompanyId &&
+      value !== currentValues.productionCompany
+        ? { productionCompanyId: null }
+        : {}),
     }))
 
     setErrors((currentErrors) => {
@@ -535,6 +545,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         const savedProject = await updateProject(activeProjectId, {
           title: nextValues.title,
           productionCompany: nextValues.productionCompany,
+          productionCompanyId: nextValues.productionCompanyId,
           message: nextValues.message,
           tentativeStartDate: nextValues.tentativeStartDate,
           tentativeEndDate: nextValues.tentativeEndDate,
@@ -668,6 +679,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     const draftPayload = {
       title: values.product.trim(),
       productionCompany: values.productionCompany.trim() || null,
+      productionCompanyId: values.productionCompanyId,
       message: values.message.trim() || null,
       tentativeStartDate: values.tentativeStartDate.trim() || null,
       tentativeEndDate: values.tentativeEndDate.trim() || null,

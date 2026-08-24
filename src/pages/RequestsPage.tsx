@@ -6,6 +6,7 @@ import {
   RequestProjectForm,
   type RequestProjectFormValues,
 } from '@/components/requests/RequestProjectForm.tsx'
+import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { RequestProjectsSectionIllustration } from '@/components/requests/RequestProjectsSectionIllustrations.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
@@ -113,8 +114,8 @@ function ProjectsSection({
                   className="block overflow-hidden rounded-[0.75rem] border border-white/8 bg-[#1B1B1D] transition hover:border-white/14 hover:bg-[#212124] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black lg:flex lg:min-h-[16rem]"
                 >
                   <div className="relative bg-sand-100 lg:min-h-[16rem] lg:w-1/2 lg:shrink-0">
-                    <div className="absolute left-3 top-3 z-10 inline-flex min-h-8 items-center justify-center rounded-full bg-black/55 px-3 text-sm font-medium text-white backdrop-blur-sm">
-                      {isDraft ? 'Borrador' : 'Enviada'}
+                    <div className="absolute left-3 top-3 z-10">
+                      <RequestProjectStatusBadge status={project.status} />
                     </div>
 
                     {project.locationCount > 1 ? (

@@ -110,20 +110,21 @@ export function SearchLocationsPage() {
     initialQuery: trimmedSearchQuery,
   })
 
-  const locations = hasAlgoliaSearch ? algoliaHits : legacyLocations
-  const sortedLocations = useMemo(
-    () =>
-      [...locations].sort((left, right) => {
-        const leftCode = left.locationCode?.trim() || '\uffff'
-        const rightCode = right.locationCode?.trim() || '\uffff'
+  const locations = useMemo(() => {
+    if (hasAlgoliaSearch) {
+      return algoliaHits
+    }
 
-        return leftCode.localeCompare(rightCode, 'es', {
-          numeric: true,
-          sensitivity: 'base',
-        })
-      }),
-    [locations],
-  )
+    return [...legacyLocations].sort((left, right) => {
+      const leftCode = left.locationCode?.trim() || '\uffff'
+      const rightCode = right.locationCode?.trim() || '\uffff'
+
+      return leftCode.localeCompare(rightCode, 'es', {
+        numeric: true,
+        sensitivity: 'base',
+      })
+    })
+  }, [algoliaHits, hasAlgoliaSearch, legacyLocations])
   const isLoading = hasAlgoliaSearch ? isAlgoliaLoading : isLegacyLoading
   const error = hasAlgoliaSearch ? algoliaError : legacyError
   const currentPage = hasAlgoliaSearch ? page : legacyPage
@@ -369,7 +370,7 @@ export function SearchLocationsPage() {
 
         {!isLoading && !error && locations.length > 0 ? (
           <>
-            <LocationsGrid locations={sortedLocations} />
+            <LocationsGrid locations={locations} />
 
             {currentTotalPages > 1 ? (
               <SearchResultsPagination

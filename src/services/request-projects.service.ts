@@ -8,6 +8,7 @@ import type {
 } from '@/types/request-project.ts'
 import type {
   SelectionPdfExportResult,
+  SelectionPdfLocation,
   SelectionPdfPayload,
   SelectionPdfProgress,
 } from '@/types/selection-pdf.ts'
@@ -31,6 +32,7 @@ type RequestProjectRow = {
   id: string
   title?: string | null
   production_company?: string | null
+  production_company_id?: string | null
   message?: string | null
   status?: RequestProjectStatus | null
   has_unsubmitted_changes?: boolean | null
@@ -65,6 +67,10 @@ type EnsureInitialRequestProjectVersionRow = {
   created?: boolean | null
   version_id?: string | null
   version_number?: number | string | null
+}
+
+type RequestProjectVersionSnapshotRow = {
+  snapshot_payload?: SelectionPdfPayload | null
 }
 
 type RelatedNameRow =
@@ -123,6 +129,7 @@ type RequestProjectLocationRelationRow = {
 type CreateRequestProjectInput = {
   title: string
   productionCompany?: string | null
+  productionCompanyId?: string | null
   message: string | null
   tentativeStartDate?: string | null
   tentativeEndDate?: string | null
@@ -131,6 +138,7 @@ type CreateRequestProjectInput = {
 type UpdateRequestProjectInput = {
   title: string
   productionCompany?: string | null
+  productionCompanyId?: string | null
   message: string | null
   tentativeStartDate: string | null
   tentativeEndDate: string | null
@@ -177,6 +185,7 @@ const REQUEST_PROJECT_SELECT = `
   id,
   title,
   production_company,
+  production_company_id,
   message,
   status,
   has_unsubmitted_changes,
@@ -352,6 +361,7 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
     id: row.id,
     title: row.title?.trim() || 'Solicitud sin titulo',
     productionCompany: row.production_company?.trim() || null,
+    productionCompanyId: row.production_company_id?.trim() || null,
     message: row.message?.trim() || null,
     status: row.status ?? 'draft',
     hasUnsubmittedChanges: row.has_unsubmitted_changes ?? false,
@@ -505,6 +515,146 @@ function mapRequestProjectLocation(
   }
 }
 
+function mapSnapshotLocationToRequestProjectLocation(
+  projectId: string,
+  snapshotLocation: SelectionPdfLocation,
+  index: number,
+) {
+  const fallbackCard = mapPublicLocationCard({
+    id: snapshotLocation.locationId,
+    locationCode: snapshotLocation.locationCode,
+    categorySlug: snapshotLocation.categorySlug,
+    coverImageUrl: snapshotLocation.images[0]?.imageUrl ?? null,
+    coverImageAlt: 'Imagen de locacion',
+    features: [],
+  })
+
+  return {
+    id: `version-snapshot:${projectId}:${snapshotLocation.locationId}`,
+    notes: null,
+    sortOrder: index,
+    createdAt: new Date(0).toISOString(),
+    selectedImages: snapshotLocation.images.map((image, imageIndex) => ({
+      id: `${snapshotLocation.locationId}:${imageIndex}`,
+      locationImageId: null,
+      imageUrl: image.imageUrl,
+      sortOrder: image.sortOrder ?? imageIndex,
+      createdAt: new Date(0).toISOString(),
+    })),
+    location: {
+      id: fallbackCard.id,
+      slug: fallbackCard.slug,
+      title: snapshotLocation.locationTitle?.trim() || fallbackCard.title,
+      locationCode: snapshotLocation.locationCode?.trim() || fallbackCard.locationCode,
+      categorySlug: snapshotLocation.categorySlug?.trim() || fallbackCard.categorySlug,
+      categoryName: fallbackCard.categoryName,
+      departmentName: fallbackCard.departmentName,
+      zoneName: fallbackCard.zoneName,
+      coverImageUrl: snapshotLocation.images[0]?.imageUrl ?? fallbackCard.coverImageUrl,
+      coverImageAlt: fallbackCard.coverImageAlt,
+    },
+  } satisfies RequestProjectLocation
+}
+
+async function getLatestRequestProjectSnapshotPayload(projectId: string) {
+  const { data, error } = await supabase
+    .from('request_project_versions')
+    .select('snapshot_payload')
+    .eq('request_project_id', projectId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const row = data as RequestProjectVersionSnapshotRow | null
+  const payload = row?.snapshot_payload
+
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !Array.isArray(payload.locations)
+  ) {
+    return null
+  }
+
+  return payload
+}
+
+async function getRequestProjectLocationRows(projectId: string) {
+  const { data, error } = await supabase
+    .from('request_project_locations')
+    .select(
+      `
+        id,
+        notes,
+        sort_order,
+        created_at,
+        location_id,
+        location_code_snapshot,
+        location_title_snapshot,
+        category_slug_snapshot,
+        cover_image_url_snapshot,
+        request_project_location_images (
+          id,
+          location_image_id,
+          sort_order,
+          image_url_snapshot,
+          created_at
+        ),
+        locations!inner (
+          id,
+          title,
+          location_code,
+          published,
+          categories (
+            name,
+            slug
+          ),
+          departments (
+            name
+          ),
+          zones (
+            name
+          ),
+          location_images (
+            url,
+            sort_order,
+            is_cover
+          )
+        )
+      `,
+    )
+    .eq('request_project_id', projectId)
+    .order('sort_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []) as RequestProjectLocationRelationRow[]
+}
+
+async function getRequestProjectStatus(projectId: string) {
+  const { data, error } = await supabase
+    .from('request_projects')
+    .select('status, latest_version_number')
+    .eq('id', projectId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return {
+    status: (data?.status as RequestProjectStatus | null | undefined) ?? null,
+    latestVersionNumber: parseOptionalSizeBytes(data?.latest_version_number) ?? 0,
+  }
+}
+
 export function getRequestProjectErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return mapRequestProjectErrorMessage(error.message)
@@ -580,6 +730,7 @@ export async function getRequestProjectById(id: string) {
 export async function createRequestProject({
   title,
   productionCompany = null,
+  productionCompanyId = null,
   message,
   tentativeStartDate = null,
   tentativeEndDate = null,
@@ -592,6 +743,7 @@ export async function createRequestProject({
       user_id: userId,
       title: title.trim(),
       production_company: productionCompany?.trim() || null,
+      production_company_id: productionCompanyId,
       message: message?.trim() || null,
       tentative_start_date: tentativeStartDate,
       tentative_end_date: tentativeEndDate,
@@ -611,6 +763,7 @@ export async function updateRequestProject(
   {
     title,
     productionCompany = null,
+    productionCompanyId = null,
     message,
     tentativeStartDate,
     tentativeEndDate,
@@ -621,6 +774,7 @@ export async function updateRequestProject(
     .update({
       title: title.trim(),
       production_company: productionCompany?.trim() || null,
+      production_company_id: productionCompanyId,
       message: message?.trim() || null,
       tentative_start_date: tentativeStartDate,
       tentative_end_date: tentativeEndDate,
@@ -701,6 +855,7 @@ async function finalizeRequestProjectSubmission({
     p_request_project_id: projectId,
     p_title: payload.project.product,
     p_production_company: payload.project.productionCompany || null,
+    p_production_company_id: payload.project.productionCompanyId || null,
     p_message: payload.project.message || null,
     p_tentative_start_date: payload.project.tentativeStartDate || null,
     p_tentative_end_date: payload.project.tentativeEndDate || null,
@@ -868,6 +1023,7 @@ export async function ensureInitialRequestProjectVersion(
     p_status: project.status,
     p_title: payload.project.product,
     p_production_company: payload.project.productionCompany || null,
+    p_production_company_id: payload.project.productionCompanyId || null,
     p_message: payload.project.message || null,
     p_tentative_start_date: payload.project.tentativeStartDate || null,
     p_tentative_end_date: payload.project.tentativeEndDate || null,
@@ -910,59 +1066,21 @@ export async function deleteRequestProject(id: string) {
 
 export async function getRequestProjectLocations(projectId: string) {
   await getCurrentUserId()
+  const { status, latestVersionNumber } = await getRequestProjectStatus(projectId)
 
-  const { data, error } = await supabase
-    .from('request_project_locations')
-    .select(
-      `
-        id,
-        notes,
-        sort_order,
-        created_at,
-        location_id,
-        location_code_snapshot,
-        location_title_snapshot,
-        category_slug_snapshot,
-        cover_image_url_snapshot,
-        request_project_location_images (
-          id,
-          location_image_id,
-          sort_order,
-          image_url_snapshot,
-          created_at
-        ),
-        locations!inner (
-          id,
-          title,
-          location_code,
-          published,
-          categories (
-            name,
-            slug
-          ),
-          departments (
-            name
-          ),
-          zones (
-            name
-          ),
-          location_images (
-            url,
-            sort_order,
-            is_cover
-          )
-        )
-      `,
-    )
-    .eq('request_project_id', projectId)
-    .order('sort_order', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true })
+  if (status && status !== 'draft' && latestVersionNumber > 0) {
+    const snapshotPayload = await getLatestRequestProjectSnapshotPayload(projectId)
 
-  if (error) {
-    throw new Error(error.message)
+    if (snapshotPayload?.locations.length) {
+      return snapshotPayload.locations.map((location, index) =>
+        mapSnapshotLocationToRequestProjectLocation(projectId, location, index),
+      )
+    }
   }
 
-  return ((data ?? []) as RequestProjectLocationRelationRow[])
+  const rows = await getRequestProjectLocationRows(projectId)
+
+  return rows
     .map((row) => mapRequestProjectLocation(row))
     .filter((location): location is RequestProjectLocation => Boolean(location))
 }

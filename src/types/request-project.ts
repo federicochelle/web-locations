@@ -1,5 +1,7 @@
 export type RequestProjectStatus =
   | 'draft'
+  | 'pending'
+  | 'confirmed'
   | 'submitted'
   | 'in_review'
   | 'contacted'
@@ -9,6 +11,7 @@ export type RequestProject = {
   id: string
   title: string
   productionCompany: string | null
+  productionCompanyId: string | null
   message: string | null
   status: RequestProjectStatus
   hasUnsubmittedChanges: boolean
