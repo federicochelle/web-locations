@@ -85,6 +85,22 @@
     animation: cinematic-bg-drift var(--bg-motion-duration, 24s) ease-in-out infinite alternate;
     will-change: transform;
   }
+
+  .drawer-view-slide-in-right {
+    animation: drawer-view-slide-in-right 300ms ease-out both;
+  }
+
+  .drawer-view-slide-in-left {
+    animation: drawer-view-slide-in-left 300ms ease-out both;
+  }
+
+  .drawer-view-slide-out-left {
+    animation: drawer-view-slide-out-left 300ms ease-out both;
+  }
+
+  .drawer-view-slide-out-right {
+    animation: drawer-view-slide-out-right 300ms ease-out both;
+  }
 }
 
 @keyframes hero-mosaic-left {
@@ -117,6 +133,54 @@
   }
 }
 
+@keyframes drawer-view-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(40px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes drawer-view-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-40px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes drawer-view-slide-out-left {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(-40px, 0, 0);
+  }
+}
+
+@keyframes drawer-view-slide-out-right {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(40px, 0, 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-mosaic-track {
     animation: none;
@@ -128,6 +192,13 @@
     animation: none;
     transform: scale(1.04) translate3d(0, 0, 0);
     will-change: auto;
+  }
+
+  .drawer-view-slide-in-right,
+  .drawer-view-slide-in-left,
+  .drawer-view-slide-out-left,
+  .drawer-view-slide-out-right {
+    animation: none;
   }
 }
 

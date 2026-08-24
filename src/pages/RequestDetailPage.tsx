@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 
 import { ProposalWorkspace } from '@/components/selection/ProposalWorkspace.tsx'
+import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
@@ -167,6 +168,7 @@ export function RequestDetailPage() {
     isLoadingAvailableFavorites,
     error,
     notFound,
+    hasPendingLocationChanges,
     addLocations,
     refreshProject,
     saveProject,
@@ -174,6 +176,7 @@ export function RequestDetailPage() {
   const [values, setValues] = useState<SelectionPdfFormValues>({
     product: '',
     productionCompany: '',
+    productionCompanyId: null,
     tentativeStartDate: '',
     tentativeEndDate: '',
     message: '',
@@ -242,11 +245,15 @@ export function RequestDetailPage() {
   }, [location.state])
 
   const isDraft = project?.status === 'draft'
+  const isConfirmedProject = project?.status === 'confirmed'
   const isSentProject = Boolean(project && project.status !== 'draft')
-  const isEditableProject = project ? project.status !== 'closed' : false
+  const isEditableProject = project
+    ? project.status !== 'closed' && project.status !== 'confirmed'
+    : false
   const isEditingProject = Boolean(
     project &&
       project.status !== 'draft' &&
+      project.status !== 'confirmed' &&
       activeEditingProjectId === project.id,
   )
   const isFormEditable = isEditableProject && (!isSentProject || isEditingProject)
@@ -258,11 +265,19 @@ export function RequestDetailPage() {
 
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
-    value: string,
+    value: string | null,
   ) {
     setValues((current) => ({
       ...current,
-      [field]: value,
+      [field]:
+        field === 'productionCompanyId'
+          ? value
+          : value ?? '',
+      ...(field === 'productionCompany' &&
+      current.productionCompanyId &&
+      value !== current.productionCompany
+        ? { productionCompanyId: null }
+        : {}),
     }))
     setValidationError(null)
 
@@ -296,6 +311,16 @@ export function RequestDetailPage() {
     autosaveEnabledRef.current = isAutosaveEnabled
   }, [isAutosaveEnabled])
 
+  useEffect(() => {
+    if (!project || project.status !== 'confirmed') {
+      return
+    }
+
+    if (activeEditingProjectId === project.id) {
+      finishProjectEditing(project.id)
+    }
+  }, [activeEditingProjectId, finishProjectEditing, project])
+
   const currentPdfPayload = useMemo(
     () => buildSelectionPdfPayloadFromProject(values, locations, new Date().toISOString()),
     [locations, values],
@@ -310,7 +335,12 @@ export function RequestDetailPage() {
   }, [currentDraftSnapshot, persistedDraftSnapshot, project])
   const canSubmitCurrentProject = Boolean(
     project &&
-      (isDraft || project.hasUnsubmittedChanges || hasUnsavedChanges),
+      (
+        isDraft ||
+        project.hasUnsubmittedChanges ||
+        hasUnsavedChanges ||
+        hasPendingLocationChanges
+      ),
   )
 
   useEffect(() => {
@@ -385,12 +415,8 @@ export function RequestDetailPage() {
     }
   }, [])
 
-  if (notFound) {
-    return <Navigate replace to="/404" />
-  }
-
   function openSentProjectEditing() {
-    if (!project) {
+    if (!project || project.status === 'confirmed') {
       return
     }
 
@@ -423,6 +449,7 @@ export function RequestDetailPage() {
           {
             title: nextValues.title,
             productionCompany: nextValues.productionCompany,
+            productionCompanyId: nextValues.productionCompanyId,
             message: nextValues.message,
             tentativeStartDate: nextValues.tentativeStartDate,
             tentativeEndDate: nextValues.tentativeEndDate,
@@ -528,6 +555,7 @@ export function RequestDetailPage() {
       const savedProject = await saveProject({
         title: normalizedDraftValues.title,
         productionCompany: normalizedDraftValues.productionCompany,
+        productionCompanyId: normalizedDraftValues.productionCompanyId,
         message: normalizedDraftValues.message,
         tentativeStartDate: normalizedDraftValues.tentativeStartDate,
         tentativeEndDate: normalizedDraftValues.tentativeEndDate,
@@ -581,7 +609,7 @@ export function RequestDetailPage() {
   }
 
   async function handleSubmitProject() {
-    if (!project || !isEditableProject) {
+    if (!project || !isEditableProject || isConfirmedProject) {
       return
     }
 
@@ -773,7 +801,7 @@ export function RequestDetailPage() {
             sidebarBodyInnerClassName="h-full"
             sidebarHeader={(
               <div className="flex min-w-0 items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2.5">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
                   <h2 className="min-w-0 font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
                     {isDraft ? 'Detalle del borrador' : 'Detalle del proyecto'}
                   </h2>
@@ -799,6 +827,7 @@ export function RequestDetailPage() {
                     ) : null}
                   </span>
                 </div>
+                {project ? <RequestProjectStatusBadge status={project.status} /> : null}
                 {isSentProject && !isEditingProject && isEditableProject ? (
                   <button
                     type="button"
@@ -830,6 +859,10 @@ export function RequestDetailPage() {
         </form>
       </section>
     )
+  }
+
+  if (notFound) {
+    return <Navigate replace to="/404" />
   }
 
   return (
@@ -967,7 +1000,7 @@ export function RequestDetailPage() {
                   return
                 }
 
-                setValues(mapRequestProjectToPdfFormValues(project))
+                await refreshProject()
                 setFormErrors({})
                 setValidationError(null)
                 setSuccessMessage(null)

@@ -1,14 +1,18 @@
-import { useId, useRef } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
+import { useAuth } from '@/hooks/useAuth.ts'
+import { getActiveProductionCompanies } from '@/services/production-companies.service.ts'
+import type { ProductionCompany } from '@/types/production-company.ts'
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
 } from '@/types/selection-pdf.ts'
+import { normalizePublicValue } from '@/utils/location-public.ts'
 
 type SelectionPdfFormProps = {
   values: SelectionPdfFormValues
   errors: SelectionPdfFormErrors
-  onChange: (field: keyof SelectionPdfFormValues, value: string) => void
+  onChange: (field: keyof SelectionPdfFormValues, value: string | null) => void
   disabled?: boolean
   variant?: 'default' | 'compact'
   columns?: 1 | 2
@@ -63,7 +67,7 @@ export type DateInputWithVisualShellProps = {
   disabled: boolean
   min?: string
   compact: boolean
-  onChange: (field: keyof SelectionPdfFormValues, value: string) => void
+  onChange: (field: keyof SelectionPdfFormValues, value: string | null) => void
 }
 
 function formatDateValue(value: string) {
@@ -202,6 +206,286 @@ export function DateInputWithVisualShell({
   )
 }
 
+type ProductionCompanyFieldProps = {
+  value: string
+  selectedCompanyId: string | null
+  error?: string
+  disabled: boolean
+  compact: boolean
+  onChange: (field: keyof SelectionPdfFormValues, value: string | null) => void
+}
+
+function ProductionCompanyField({
+  value,
+  selectedCompanyId,
+  error,
+  disabled,
+  compact,
+  onChange,
+}: ProductionCompanyFieldProps) {
+  const { role } = useAuth()
+  const isAdmin = role === 'admin'
+  const [companies, setCompanies] = useState<ProductionCompany[]>([])
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false)
+  const [companiesError, setCompaniesError] = useState<string | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const errorId = 'productionCompany-error'
+  const hasError = Boolean(error)
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setCompanies([])
+      setCompaniesError(null)
+      setIsLoadingCompanies(false)
+      return
+    }
+
+    let isActive = true
+
+    async function loadCompanies() {
+      try {
+        setIsLoadingCompanies(true)
+        setCompaniesError(null)
+        const nextCompanies = await getActiveProductionCompanies()
+
+        if (!isActive) {
+          return
+        }
+
+        setCompanies(nextCompanies)
+      } catch (loadError) {
+        console.error('Failed to load production companies suggestions', loadError)
+
+        if (isActive) {
+          setCompanies([])
+          setCompaniesError('No se pudieron cargar las sugerencias')
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingCompanies(false)
+        }
+      }
+    }
+
+    void loadCompanies()
+
+    return () => {
+      isActive = false
+    }
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target
+
+      if (
+        rootRef.current &&
+        target instanceof Node &&
+        !rootRef.current.contains(target)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [isOpen])
+
+  const filteredCompanies = useMemo(() => {
+    if (!isAdmin) {
+      return []
+    }
+
+    const query = normalizePublicValue(value)
+
+    if (!query) {
+      return companies
+    }
+
+    return companies.filter((company) =>
+      normalizePublicValue(company.name).includes(query),
+    )
+  }, [companies, isAdmin, value])
+
+  const selectedCompany = useMemo(
+    () =>
+      selectedCompanyId
+        ? companies.find((company) => company.id === selectedCompanyId) ?? null
+        : null,
+    [companies, selectedCompanyId],
+  )
+
+  function openList() {
+    if (disabled || !isAdmin) {
+      return
+    }
+
+    setIsOpen(true)
+  }
+
+  if (!isAdmin) {
+    return (
+      <>
+        <label
+          htmlFor="productionCompany"
+          className="mb-2 block text-sm font-medium text-brand-100"
+        >
+          Productora
+        </label>
+        <input
+          id="productionCompany"
+          name="productionCompany"
+          type="text"
+          value={value}
+          placeholder="Nombre de la productora"
+          autoComplete="organization"
+          disabled={disabled}
+          onChange={(event) => {
+            onChange('productionCompany', event.target.value)
+          }}
+          aria-invalid={hasError}
+          aria-describedby={hasError ? errorId : undefined}
+          className={`${compact ? 'min-h-11 rounded-xl px-3.5' : 'min-h-12 rounded-2xl px-4'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70 ${
+            hasError
+              ? 'border-red-300 focus:ring-red-300'
+              : 'border-white/12 hover:bg-white/8'
+          }`}
+        />
+        {hasError ? (
+          <p id={errorId} className="mt-2 text-sm text-red-200">
+            {error}
+          </p>
+        ) : null}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <label
+        htmlFor="productionCompany"
+        className="mb-2 block text-sm font-medium text-brand-100"
+      >
+        Productora
+      </label>
+      <div ref={rootRef} className="relative min-w-0">
+        <input
+          id="productionCompany"
+          name="productionCompany"
+          type="text"
+          value={value}
+          placeholder="Nombre de la productora"
+          autoComplete="off"
+          disabled={disabled}
+          onFocus={openList}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setIsOpen(false)
+            }
+          }}
+          onChange={(event) => {
+            onChange('productionCompany', event.target.value)
+            openList()
+          }}
+          aria-invalid={hasError}
+          aria-describedby={hasError ? errorId : undefined}
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
+          role="combobox"
+          className={`${compact ? 'min-h-11 rounded-xl px-3.5 pr-11' : 'min-h-12 rounded-2xl px-4 pr-12'} w-full min-w-0 border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70 ${
+            hasError
+              ? 'border-red-300 focus:ring-red-300'
+              : 'border-white/12 hover:bg-white/8'
+          }`}
+        />
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs uppercase tracking-[0.18em] ${
+            selectedCompany ? 'text-brand-300' : 'text-brand-100/36'
+          }`}
+        >
+          {selectedCompany ? 'OK' : ''}
+        </span>
+        {isOpen ? (
+          <div className="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-50 min-w-0 overflow-hidden rounded-[1rem] border border-white/10 bg-[#171412] shadow-[0_18px_48px_rgba(0,0,0,0.4)]">
+            <div className="max-h-56 overflow-y-auto p-1.5">
+              {isLoadingCompanies ? (
+                <p className="px-3 py-2.5 text-xs text-brand-100/58">
+                  Cargando productoras...
+                </p>
+              ) : companiesError ? (
+                <p className="px-3 py-2.5 text-xs text-brand-100/58">
+                  {companiesError}
+                </p>
+              ) : filteredCompanies.length === 0 ? (
+                <p className="px-3 py-2.5 text-xs text-brand-100/58">
+                  Sin coincidencias
+                </p>
+              ) : (
+                filteredCompanies.map((company) => {
+                  const isSelected = company.id === selectedCompanyId
+
+                  return (
+                    <button
+                      key={company.id}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                      }}
+                      onClick={() => {
+                        onChange('productionCompany', company.name)
+                        onChange('productionCompanyId', company.id)
+                        setIsOpen(false)
+                      }}
+                      className={`flex w-full min-w-0 items-center gap-2.5 rounded-[0.85rem] px-2.5 py-2 text-left text-sm transition ${
+                        isSelected
+                          ? 'bg-brand-300/16 text-brand-100'
+                          : 'text-brand-100/82 hover:bg-white/8'
+                      }`}
+                    >
+                      {company.logoUrl ? (
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white/6 ring-1 ring-white/10">
+                          <img
+                            src={company.logoUrl}
+                            alt=""
+                            className="h-full w-full object-contain"
+                            loading="lazy"
+                          />
+                        </span>
+                      ) : (
+                        <span className="h-6 w-6 shrink-0 rounded-md bg-white/6 ring-1 ring-white/10" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{company.name}</span>
+                      {isSelected ? (
+                        <span className="shrink-0 text-[0.65rem] uppercase tracking-[0.18em] text-brand-300">
+                          Seleccionada
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {hasError ? (
+        <p id={errorId} className="mt-2 text-sm text-red-200">
+          {error}
+        </p>
+      ) : null}
+    </>
+  )
+}
+
 export function SelectionPdfForm({
   values,
   errors,
@@ -237,6 +521,9 @@ export function SelectionPdfForm({
         const hasError = Boolean(errors[field.name])
         const isDateField = field.type === 'date'
         const isTextareaField = field.type === 'textarea'
+        const fieldValue = (
+          typeof values[field.name] === 'string' ? values[field.name] : ''
+        ) as string
         const min =
           field.name === 'tentativeEndDate' && values.tentativeStartDate
             ? values.tentativeStartDate
@@ -247,12 +534,21 @@ export function SelectionPdfForm({
             key={field.name}
             className={isTextareaField && useTwoColumns ? 'sm:col-span-2' : undefined}
           >
-            {isDateField ? (
+            {field.name === 'productionCompany' ? (
+              <ProductionCompanyField
+                value={values.productionCompany}
+                selectedCompanyId={values.productionCompanyId}
+                error={errors.productionCompany}
+                disabled={disabled}
+                compact={isCompact}
+                onChange={onChange}
+              />
+            ) : isDateField ? (
               <DateInputWithVisualShell
                 id={field.name}
                 name={field.name}
                 label={field.label}
-                value={values[field.name]}
+                value={fieldValue}
                 error={errors[field.name]}
                 disabled={disabled}
                 min={min}
@@ -270,7 +566,7 @@ export function SelectionPdfForm({
                 <textarea
                   id={field.name}
                   name={field.name}
-                  value={values[field.name]}
+                  value={fieldValue}
                   placeholder={field.placeholder}
                   disabled={disabled}
                   rows={isCompact ? 5 : 6}
@@ -299,7 +595,7 @@ export function SelectionPdfForm({
                   name={field.name}
                   type={field.type ?? 'text'}
                   autoComplete={field.autoComplete}
-                  value={values[field.name]}
+                  value={fieldValue}
                   placeholder={field.placeholder}
                   disabled={disabled}
                   onChange={(event) => {

@@ -2,6 +2,9 @@ import type { ChangeEvent } from 'react'
 
 import type { RequestProject } from '@/types/request-project.ts'
 
+const NEW_PROJECT_OPTION_VALUE = '__new__'
+const PLACEHOLDER_OPTION_VALUE = '__placeholder__'
+
 type ActiveProjectSelectProps = {
   activeProjectId: string | null
   projects: RequestProject[]
@@ -23,13 +26,14 @@ export function ActiveProjectSelect({
 }: ActiveProjectSelectProps) {
   function handleChange(event: ChangeEvent<HTMLSelectElement>) {
     const value = event.target.value
-    onChange(value ? value : null)
+    onChange(value === NEW_PROJECT_OPTION_VALUE ? null : value || null)
   }
 
   const isSelectDisabled = disabled || isLoading
   const shouldRenderTemporaryActiveProject =
     Boolean(activeProject) &&
     !projects.some((project) => project.id === activeProject?.id)
+  const selectValue = activeProjectId ?? PLACEHOLDER_OPTION_VALUE
 
   return (
     <label className="block min-w-0">
@@ -39,7 +43,7 @@ export function ActiveProjectSelect({
         }`}
       >
         <select
-          value={activeProjectId ?? ''}
+          value={selectValue}
           onChange={handleChange}
           disabled={isSelectDisabled}
           aria-label="Proyecto activo"
@@ -56,17 +60,20 @@ export function ActiveProjectSelect({
               : 'rounded-xl border-white/45 bg-white/8 text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-12px_28px_rgba(0,0,0,0.16),0_10px_22px_rgba(0,0,0,0.12)] hover:border-white/70 hover:bg-white/14'
           }`}
         >
-          <option value="">Nuevo</option>
-          {shouldRenderTemporaryActiveProject && activeProject ? (
-            <option value={activeProject.id}>
-              {activeProject.title}
-            </option>
-          ) : null}
+          <option value={PLACEHOLDER_OPTION_VALUE} disabled hidden>
+            Seleccionar proyecto
+          </option>
+          <option value={NEW_PROJECT_OPTION_VALUE}>Nuevo</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.title}
             </option>
           ))}
+          {shouldRenderTemporaryActiveProject && activeProject ? (
+            <option value={activeProject.id}>
+              {activeProject.title}
+            </option>
+          ) : null}
         </select>
         <span
           aria-hidden="true"

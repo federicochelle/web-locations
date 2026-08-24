@@ -86,6 +86,7 @@ export function mapRequestProjectToPdfFormValues(
   const values: SelectionPdfFormValues = {
     product: project.title,
     productionCompany: project.productionCompany ?? '',
+    productionCompanyId: project.productionCompanyId,
     tentativeStartDate: project.tentativeStartDate ?? '',
     tentativeEndDate: project.tentativeEndDate ?? '',
     message: project.message ?? '',
@@ -134,6 +135,7 @@ export function buildSelectionPdfPayloadFromImages(
     project: {
       product: normalizeValue(values.product),
       productionCompany: normalizeValue(values.productionCompany),
+      productionCompanyId: values.productionCompanyId,
       tentativeStartDate: normalizeValue(values.tentativeStartDate),
       tentativeEndDate: normalizeValue(values.tentativeEndDate),
       message: normalizeValue(values.message),
@@ -233,6 +235,7 @@ export function buildSelectionPdfPayloadFromProject(
     project: {
       product: normalizeValue(projectIdOrValues.product),
       productionCompany: normalizeValue(projectIdOrValues.productionCompany),
+      productionCompanyId: projectIdOrValues.productionCompanyId,
       tentativeStartDate: normalizeValue(projectIdOrValues.tentativeStartDate),
       tentativeEndDate: normalizeValue(projectIdOrValues.tentativeEndDate),
       message: normalizeValue(projectIdOrValues.message),

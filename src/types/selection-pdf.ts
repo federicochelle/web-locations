@@ -1,6 +1,7 @@
 export type SelectionPdfProject = {
   product: string
   productionCompany: string
+  productionCompanyId?: string | null
   tentativeStartDate: string
   tentativeEndDate: string
   message: string
@@ -68,6 +69,7 @@ export type SelectionPdfExportResult = {
 export type SelectionPdfFormValues = {
   product: string
   productionCompany: string
+  productionCompanyId: string | null
   tentativeStartDate: string
   tentativeEndDate: string
   message: string

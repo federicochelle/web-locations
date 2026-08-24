@@ -109,6 +109,7 @@ export function RequestProjectsProvider({
   const createProject = useCallback(async ({
     title,
     productionCompany = null,
+    productionCompanyId = null,
     message,
     tentativeStartDate = null,
     tentativeEndDate = null,
@@ -120,6 +121,7 @@ export function RequestProjectsProvider({
       const nextProject = await createRequestProject({
         title,
         productionCompany: productionCompany?.trim() || null,
+        productionCompanyId,
         message: message?.trim() || null,
         tentativeStartDate,
         tentativeEndDate,
@@ -140,6 +142,7 @@ export function RequestProjectsProvider({
     {
       title,
       productionCompany = null,
+      productionCompanyId = null,
       message,
       tentativeStartDate,
       tentativeEndDate,
@@ -151,6 +154,7 @@ export function RequestProjectsProvider({
       const nextProject = await updateRequestProject(projectId, {
         title,
         productionCompany: productionCompany?.trim() || null,
+        productionCompanyId,
         message: message?.trim() || null,
         tentativeStartDate,
         tentativeEndDate,

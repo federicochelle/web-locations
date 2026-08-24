@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '@/hooks/useAuth.ts'
 import { getFavorites } from '@/services/favorites.service.ts'
@@ -21,6 +21,7 @@ import {
 type UpdateProjectValues = {
   title: string
   productionCompany: string
+  productionCompanyId: string | null
   message: string
   tentativeStartDate: string | null
   tentativeEndDate: string | null
@@ -28,6 +29,15 @@ type UpdateProjectValues = {
 
 type SaveProjectOptions = {
   suppressErrorState?: boolean
+}
+
+function createLocationsSnapshot(locations: RequestProjectLocation[]) {
+  return JSON.stringify(
+    locations.map((location) => ({
+      locationId: location.location.id,
+      sortOrder: location.sortOrder ?? null,
+    })),
+  )
 }
 
 export function useRequestProjectDetail(projectId: string | undefined) {
@@ -44,6 +54,12 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const [removingLocationIds, setRemovingLocationIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [persistedLocationsSnapshot, setPersistedLocationsSnapshot] = useState<string>('[]')
+
+  const hasPendingLocationChanges = useMemo(
+    () => createLocationsSnapshot(locations) !== persistedLocationsSnapshot,
+    [locations, persistedLocationsSnapshot],
+  )
 
   const ensureVersioningBaseline = useCallback(async () => {
     if (!project || project.status === 'draft' || project.latestVersionNumber > 0) {
@@ -76,6 +92,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const refreshLocations = useCallback(async () => {
     if (!projectId) {
       setLocations([])
+      setPersistedLocationsSnapshot('[]')
       return
     }
 
@@ -83,9 +100,11 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       setIsLoadingLocations(true)
       const nextLocations = await getRequestProjectLocations(projectId)
       setLocations(nextLocations)
+      setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
     } catch (loadError) {
       setError(getRequestProjectErrorMessage(loadError))
       setLocations([])
+      setPersistedLocationsSnapshot('[]')
     } finally {
       setIsLoadingLocations(false)
     }
@@ -145,10 +164,12 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       setProject(nextProject)
       const nextLocations = await getRequestProjectLocations(projectId)
       setLocations(nextLocations)
+      setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
     } catch (loadError) {
       setError(getRequestProjectErrorMessage(loadError))
       setProject(null)
       setLocations([])
+      setPersistedLocationsSnapshot('[]')
     } finally {
       setIsLoading(false)
       setIsLoadingLocations(false)
@@ -163,6 +184,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     async ({
       title,
       productionCompany,
+      productionCompanyId,
       message,
       tentativeStartDate,
       tentativeEndDate,
@@ -179,6 +201,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         const nextProject = await updateRequestProject(projectId, {
           title,
           productionCompany: productionCompany.trim() || null,
+          productionCompanyId,
           message: message.trim() || null,
           tentativeStartDate,
           tentativeEndDate,
@@ -233,7 +256,64 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       try {
         setIsMutatingLocations(true)
         setError(null)
+
+        if (project?.status === 'confirmed' || project?.status === 'closed') {
+          return 0
+        }
+
         await ensureVersioningBaseline()
+
+        if (project?.status !== 'draft') {
+          const nextFavorites = locationIds
+            .filter((locationId) =>
+              !locations.some((location) => location.location.id === locationId),
+            )
+            .map((locationId) =>
+              availableFavorites.find((item) => item.id === locationId) ?? null,
+            )
+            .filter((favorite): favorite is PublicLocationCard => Boolean(favorite))
+
+          addedCount = nextFavorites.length
+
+          setLocations((currentLocations) => {
+            const locationIdsInState = new Set(
+              currentLocations.map((location) => location.location.id),
+            )
+            const nextLocations = [...currentLocations]
+            const now = new Date().toISOString()
+
+            for (const favorite of nextFavorites) {
+              if (locationIdsInState.has(favorite.id)) {
+                continue
+              }
+
+              locationIdsInState.add(favorite.id)
+              nextLocations.push({
+                id: `editable-version:${projectId}:${favorite.id}`,
+                notes: null,
+                sortOrder: nextLocations.length,
+                createdAt: now,
+                selectedImages: [],
+                location: {
+                  id: favorite.id,
+                  slug: favorite.slug,
+                  title: favorite.title,
+                  locationCode: favorite.locationCode,
+                  categorySlug: favorite.categorySlug,
+                  categoryName: favorite.categoryName,
+                  departmentName: favorite.departmentName,
+                  zoneName: favorite.zoneName,
+                  coverImageUrl: favorite.coverImageUrl,
+                  coverImageAlt: favorite.coverImageAlt,
+                },
+              })
+            }
+
+            return nextLocations
+          })
+
+          return addedCount
+        }
 
         for (const locationId of locationIds) {
           const result = await addLocationToRequestProject(projectId, locationId)
@@ -252,7 +332,15 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setIsMutatingLocations(false)
       }
     },
-    [ensureVersioningBaseline, projectId, refreshLocations, refreshProject],
+    [
+      availableFavorites,
+      ensureVersioningBaseline,
+      locations,
+      project?.status,
+      projectId,
+      refreshLocations,
+      refreshProject,
+    ],
   )
 
   const removeLocation = useCallback(
@@ -264,7 +352,24 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       try {
         setRemovingLocationIds((currentIds) => [...currentIds, locationId])
         setError(null)
+
+        if (project?.status === 'confirmed' || project?.status === 'closed') {
+          return false
+        }
+
         await ensureVersioningBaseline()
+
+        if (project?.status !== 'draft') {
+          setLocations((currentLocations) =>
+            currentLocations
+              .filter((location) => location.location.id !== locationId)
+              .map((location, index) => ({
+                ...location,
+                sortOrder: index,
+              })),
+          )
+          return true
+        }
 
         await removeLocationFromRequestProject(projectId, locationId)
         await Promise.all([refreshProject(), refreshLocations()])
@@ -278,7 +383,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         )
       }
     },
-    [ensureVersioningBaseline, projectId, refreshLocations, refreshProject],
+    [ensureVersioningBaseline, project?.status, projectId, refreshLocations, refreshProject],
   )
 
   return {
@@ -292,6 +397,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     isMutatingLocations,
     isLoadingAvailableFavorites,
     removingLocationIds,
+    hasPendingLocationChanges,
     error,
     notFound,
     refreshProject,

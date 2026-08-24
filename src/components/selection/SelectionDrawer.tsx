@@ -40,6 +40,14 @@ type GroupedSelection = {
 }
 
 type DrawerProjectAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
+type DrawerInternalView = 'selection' | 'pdf-flow'
+type DrawerViewTransition = {
+  from: DrawerInternalView
+  to: DrawerInternalView
+  direction: 'forward' | 'backward'
+}
+
+const DRAWER_INTERNAL_VIEW_TRANSITION_MS = 300
 
 const drawerFooterOverlayClassName =
   'absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.32),rgba(5,4,4,0.4)_38%,rgba(5,4,4,0.5))]'
@@ -175,6 +183,24 @@ function ProposalPreviewIcon() {
   )
 }
 
+function BackArrowIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M15.25 5.75 8.75 12l6.5 6.25" />
+      <path d="M9.5 12h8.75" />
+    </svg>
+  )
+}
+
 export function SelectionDrawer() {
   const {
     activeProjectId: selectionProjectId,
@@ -196,7 +222,7 @@ export function SelectionDrawer() {
   } = useRequestProjects()
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const drawerPanelRef = useRef<HTMLDivElement | null>(null)
-  const [activeView, setActiveView] = useState<'selection' | 'pdf-flow'>('selection')
+  const [activeView, setActiveView] = useState<DrawerInternalView>('selection')
   const [isRendered, setIsRendered] = useState(isDrawerOpen)
   const [isVisible, setIsVisible] = useState(isDrawerOpen)
   const [isPdfFlowDetached, setIsPdfFlowDetached] = useState(false)
@@ -227,6 +253,9 @@ export function SelectionDrawer() {
   const isMountedRef = useRef(true)
   const persistedContextRef = useRef(restoreSelectionActiveContext())
   const projectFormFlushRef = useRef<(() => Promise<boolean>) | null>(null)
+  const prefersReducedMotionRef = useRef(false)
+  const viewTransitionTimeoutRef = useRef<number | null>(null)
+  const [viewTransition, setViewTransition] = useState<DrawerViewTransition | null>(null)
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),
@@ -466,6 +495,28 @@ export function SelectionDrawer() {
   ])
 
   useEffect(() => {
+    const mediaQuery =
+      typeof window !== 'undefined'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null
+
+    if (!mediaQuery) {
+      return
+    }
+
+    const updatePreference = () => {
+      prefersReducedMotionRef.current = mediaQuery.matches
+    }
+
+    updatePreference()
+    mediaQuery.addEventListener('change', updatePreference)
+
+    return () => {
+      mediaQuery.removeEventListener('change', updatePreference)
+    }
+  }, [])
+
+  useEffect(() => {
     isMountedRef.current = true
 
     return () => {
@@ -475,6 +526,10 @@ export function SelectionDrawer() {
 
       if (autosaveTimeoutRef.current !== null) {
         window.clearTimeout(autosaveTimeoutRef.current)
+      }
+
+      if (viewTransitionTimeoutRef.current !== null) {
+        window.clearTimeout(viewTransitionTimeoutRef.current)
       }
     }
   }, [])
@@ -799,6 +854,36 @@ export function SelectionDrawer() {
     return null
   }
 
+  function transitionToView(nextView: DrawerInternalView) {
+    if (nextView === activeView) {
+      return
+    }
+
+    if (viewTransitionTimeoutRef.current !== null) {
+      window.clearTimeout(viewTransitionTimeoutRef.current)
+      viewTransitionTimeoutRef.current = null
+    }
+
+    if (prefersReducedMotionRef.current) {
+      setViewTransition(null)
+      setActiveView(nextView)
+      return
+    }
+
+    const nextTransition: DrawerViewTransition = {
+      from: activeView,
+      to: nextView,
+      direction: nextView === 'pdf-flow' ? 'forward' : 'backward',
+    }
+
+    setViewTransition(nextTransition)
+    setActiveView(nextView)
+    viewTransitionTimeoutRef.current = window.setTimeout(() => {
+      viewTransitionTimeoutRef.current = null
+      setViewTransition(null)
+    }, DRAWER_INTERNAL_VIEW_TRANSITION_MS)
+  }
+
   async function handleRemoveLocation(locationId: string) {
     const activeProjectIdToClear = activeProjectId
     const isRemovingLastLocation =
@@ -977,17 +1062,31 @@ export function SelectionDrawer() {
         hiddenLabelId="selection-drawer-title"
         leftContent={
           <div className="flex min-w-0 items-center gap-2.5">
-            <ActiveProjectSelect
-              activeProjectId={activeProjectId}
-              projects={selectableProjects}
-              activeProject={activeProject}
-              isLoading={isLoading || isLoadingProjectContent}
-              disabled={activeView === 'pdf-flow' ? isPdfFlowBusy : false}
-              compact
-              onChange={(projectId) => {
-                void handleActiveProjectChange(projectId)
-              }}
-            />
+            {activeView === 'selection' ? (
+              <ActiveProjectSelect
+                activeProjectId={activeProjectId}
+                projects={selectableProjects}
+                activeProject={activeProject}
+                isLoading={isLoading || isLoadingProjectContent}
+                disabled={false}
+                compact
+                onChange={(projectId) => {
+                  void handleActiveProjectChange(projectId)
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  transitionToView('selection')
+                }}
+                disabled={isPdfFlowBusy}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/18 bg-white/8 px-3.5 text-sm font-medium text-brand-100 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              >
+                <BackArrowIcon />
+                <span>Volver</span>
+              </button>
+            )}
             <span
               aria-live="polite"
               aria-atomic="true"
@@ -1016,6 +1115,146 @@ export function SelectionDrawer() {
     )
   }
 
+  function renderSelectionViewContent() {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          {projectLoadError ? (
+            <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              {projectLoadError}
+            </div>
+          ) : null}
+          {draftNotice ? (
+            <div className="mb-4 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
+              {draftNotice}
+            </div>
+          ) : null}
+
+          {isLoadingProjectContent || isHydratingPersistedContext ? (
+            <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+              <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
+                Cargando proyecto...
+              </div>
+            </div>
+          ) : groupedSelections.length > 0 ? (
+            <div className="space-y-4">
+              {groupedSelections.map((group) => (
+                <SelectedLocationGroup
+                  key={group.locationId}
+                  locationId={group.locationId}
+                  locationCode={group.locationCode}
+                  categorySlug={group.categorySlug}
+                  locationTitle={group.locationTitle}
+                  images={group.images}
+                  onNavigate={closeDrawer}
+                  onRemoveLocation={handleRemoveLocation}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+              <div className="max-w-sm">
+                <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                  Tu seleccion esta vacia
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-brand-300">
+                  Guarda imagenes desde las locaciones para revisarlas aqui mientras navegas.
+                </p>
+                <Link
+                  to="/#explorar"
+                  onClick={closeDrawer}
+                  className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                >
+                  Explorar locaciones
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {images.length > 0 ? (
+          <footer className="relative shrink-0 overflow-hidden border-t border-white/10">
+            <div className="absolute inset-0" aria-hidden="true">
+              <img
+                src={drawerFooterBackgroundUrl}
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-black/46" />
+              <div className={drawerFooterOverlayClassName} />
+              <div className={drawerFooterHighlightClassName} />
+            </div>
+            <div className="relative flex px-4 py-4 sm:px-5">
+              <button
+                type="button"
+                onClick={() => {
+                  transitionToView('pdf-flow')
+                }}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)]"
+              >
+                <ProposalPreviewIcon />
+                Continuar
+              </button>
+            </div>
+          </footer>
+        ) : null}
+      </div>
+    )
+  }
+
+  function renderPdfFlowViewContent() {
+    return (
+      <div className="h-full min-h-0 overflow-hidden">
+        <SelectionPdfFlow
+          onClose={closeDrawer}
+          onSuccessComplete={forceCloseDrawerWithCleanup}
+          onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
+          isDetached={false}
+          embeddedInDrawer
+          onStartProcessing={() => {
+            setIsPdfFlowDetached(true)
+          }}
+          onRestoreAfterError={() => {
+            setIsPdfFlowDetached(false)
+          }}
+          activeProjectId={activeProjectId}
+          activeProject={activeProject}
+          draftProjects={selectableProjects}
+          isLoadingProjects={isLoading}
+          onProjectSelectionChange={handleActiveProjectChange}
+          onPersistedProjectChange={handlePersistedProjectChange}
+          onProjectsRefresh={refreshProjects}
+          onBusyStateChange={setIsPdfFlowBusy}
+          onRegisterProjectFormFlush={(handler) => {
+            projectFormFlushRef.current = handler
+          }}
+          onAutosaveIndicatorChange={setProjectAutosaveIndicator}
+        />
+      </div>
+    )
+  }
+
+  function renderDrawerInternalView(view: DrawerInternalView) {
+    return view === 'selection'
+      ? renderSelectionViewContent()
+      : renderPdfFlowViewContent()
+  }
+
+  function getDrawerViewAnimationClass(
+    view: DrawerInternalView,
+    transition: DrawerViewTransition,
+  ) {
+    if (transition.from === view) {
+      return transition.direction === 'forward'
+        ? 'drawer-view-slide-out-left'
+        : 'drawer-view-slide-out-right'
+    }
+
+    return transition.direction === 'forward'
+      ? 'drawer-view-slide-in-right'
+      : 'drawer-view-slide-in-left'
+  }
+
   return (
     <div className="fixed inset-0 z-40 overscroll-none">
       {!isPdfFlowDetached ? (
@@ -1028,7 +1267,7 @@ export function SelectionDrawer() {
           onClick={closeDrawer}
         />
       ) : null}
-      {activeView === 'selection' ? (
+      {!isPdfFlowDetached ? (
         <aside
           id="selection-drawer"
           role="dialog"
@@ -1047,90 +1286,32 @@ export function SelectionDrawer() {
           }`}
         >
           {renderDrawerHeader()}
-
-          <>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-              {projectLoadError ? (
-                <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                  {projectLoadError}
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            {viewTransition ? (
+              <>
+                <div
+                  className={`absolute inset-0 min-h-0 overflow-hidden ${getDrawerViewAnimationClass(
+                    viewTransition.from,
+                    viewTransition,
+                  )} motion-reduce:animate-none`}
+                >
+                  {renderDrawerInternalView(viewTransition.from)}
                 </div>
-              ) : null}
-              {draftNotice ? (
-                <div className="mb-4 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
-                  {draftNotice}
+                <div
+                  className={`absolute inset-0 min-h-0 overflow-hidden ${getDrawerViewAnimationClass(
+                    viewTransition.to,
+                    viewTransition,
+                  )} motion-reduce:animate-none`}
+                >
+                  {renderDrawerInternalView(viewTransition.to)}
                 </div>
-              ) : null}
-
-              {isLoadingProjectContent || isHydratingPersistedContext ? (
-                <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-                  <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-                    Cargando proyecto...
-                  </div>
-                </div>
-              ) : groupedSelections.length > 0 ? (
-                <div className="space-y-4">
-                  {groupedSelections.map((group) => (
-                    <SelectedLocationGroup
-                      key={group.locationId}
-                      locationId={group.locationId}
-                      locationCode={group.locationCode}
-                      categorySlug={group.categorySlug}
-                      locationTitle={group.locationTitle}
-                      images={group.images}
-                      onNavigate={closeDrawer}
-                      onRemoveLocation={handleRemoveLocation}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-                  <div className="max-w-sm">
-                    <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                      Tu seleccion esta vacia
-                    </h3>
-                    <p className="mt-3 text-sm leading-6 text-brand-300">
-                      Guarda imagenes desde las locaciones para revisarlas aqui mientras navegas.
-                    </p>
-                    <Link
-                      to="/#explorar"
-                      onClick={closeDrawer}
-                      className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                    >
-                      Explorar locaciones
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {images.length > 0 ? (
-              <footer className="relative shrink-0 overflow-hidden border-t border-white/10">
-                <div className="absolute inset-0" aria-hidden="true">
-                  <img
-                    src={drawerFooterBackgroundUrl}
-                    alt=""
-                    className="h-full w-full object-cover object-center"
-                  />
-                  <div className="absolute inset-0 bg-black/46" />
-                  <div className={drawerFooterOverlayClassName} />
-                  <div className={drawerFooterHighlightClassName} />
-                </div>
-                <div className="relative flex px-4 py-4 sm:px-5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveView('pdf-flow')
-                      setIsPdfFlowDetached(true)
-                    }}
-                    className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)]"
-                  >
-                    <ProposalPreviewIcon />
-                    Continuar
-                  </button>
-                </div>
-              </footer>
-            ) : null}
-          </>
+              </>
+            ) : (
+              <div className="absolute inset-0 min-h-0 overflow-hidden">
+                {renderDrawerInternalView(activeView)}
+              </div>
+            )}
+          </div>
         </aside>
       ) : (
         <div
