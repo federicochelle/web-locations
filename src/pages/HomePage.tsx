@@ -6,6 +6,7 @@ import { HomeCategoriesGrid } from '@/features/home/components/HomeCategoriesGri
 import { HomePublishLocationSection } from '@/features/home/components/HomePublishLocationSection.tsx'
 import { HomeSearchSection } from '@/features/home/components/HomeSearchSection.tsx'
 import { buildHomeCategoryCards } from '@/features/home/mocks/home.mock.ts'
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getCategories } from '@/services/categories.service.ts'
 import type { Category } from '@/types/location.ts'
@@ -61,15 +62,8 @@ export function HomePage() {
 
       <div className="mx-auto max-w-[1720px] space-y-12 px-4 pt-12 sm:space-y-14 sm:px-6 sm:pt-14 lg:space-y-18 lg:px-10 lg:pt-16 2xl:px-14">
         {isLoading ? (
-          <section>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="aspect-[5/6] animate-pulse rounded-[0.3rem] bg-white/8 sm:aspect-[6/5] xl:aspect-[4/5]"
-                />
-              ))}
-            </div>
+          <section id="explorar">
+            <AppLoading label="Cargando categorías..." />
           </section>
         ) : null}
 

@@ -12,6 +12,7 @@ type ImageLightboxProps = {
   images: ImageLightboxImage[]
   initialIndex: number
   isOpen: boolean
+  imageClassName?: string
   onToggleSelect?: (image: ImageLightboxImage) => void
   onClose: () => void
 }
@@ -21,6 +22,7 @@ const SWIPE_THRESHOLD_PX = 48
 export function ImageLightbox({
   images,
   initialIndex,
+  imageClassName = 'rounded-[1.25rem]',
   isOpen,
   onToggleSelect,
   onClose,
@@ -224,7 +226,7 @@ export function ImageLightbox({
             <img
               src={activeImage.url}
               alt={activeImage.alt ?? `Imagen ${activeIndex + 1}`}
-              className="max-h-full max-w-full rounded-[1.25rem] object-contain shadow-[0_24px_80px_rgba(0,0,0,0.4)] transition-transform duration-200"
+              className={`max-h-full max-w-full object-contain shadow-[0_24px_80px_rgba(0,0,0,0.4)] transition-transform duration-200 ${imageClassName}`.trim()}
             />
           </div>
         </div>

@@ -129,12 +129,17 @@ const router = createBrowserRouter([
             element: withRouteSuspense(<CategoryLocationsPage />),
           },
           {
-            path: 'categorias/:categorySlug/:locationCode',
-            element: withRouteSuspense(<LocationDetailPage />),
-          },
-          {
-            path: 'locations/:slug',
-            element: withRouteSuspense(<LocationDetailPage />),
+            element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
+            children: [
+              {
+                path: 'categorias/:categorySlug/:locationCode',
+                element: withRouteSuspense(<LocationDetailPage />),
+              },
+              {
+                path: 'locations/:slug',
+                element: withRouteSuspense(<LocationDetailPage />),
+              },
+            ],
           },
           {
             path: 'postular-locacion',

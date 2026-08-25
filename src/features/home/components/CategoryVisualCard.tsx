@@ -5,9 +5,15 @@ import type { HomeCategoryCard } from '@/features/home/mocks/home.mock.ts'
 
 type CategoryVisualCardProps = {
   category: HomeCategoryCard
+  imageLoading?: 'eager' | 'lazy'
+  imageFetchPriority?: 'high' | 'auto'
 }
 
-export function CategoryVisualCard({ category }: CategoryVisualCardProps) {
+export function CategoryVisualCard({
+  category,
+  imageLoading = 'lazy',
+  imageFetchPriority = 'auto',
+}: CategoryVisualCardProps) {
   const backgroundStyle = {
     backgroundImage: category.imageStyle,
   } satisfies CSSProperties
@@ -23,7 +29,9 @@ export function CategoryVisualCard({ category }: CategoryVisualCardProps) {
         <img
           src={category.imageUrl}
           alt={category.name}
-          loading="lazy"
+          loading={imageLoading}
+          fetchPriority={imageFetchPriority}
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]"
         />
       ) : null}
