@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
@@ -48,8 +48,8 @@ type SelectionPdfFlowProps = {
   draftProjects: RequestProject[]
   isLoadingProjects: boolean
   onProjectSelectionChange: (projectId: string | null) => void
-  onPersistedProjectChange: (projectId: string) => void
   onProjectsRefresh: () => Promise<void>
+  workspaceSidebarHeader?: ReactNode
   onBusyStateChange?: (isBusy: boolean) => void
   onRegisterProjectFormFlush?: (handler: (() => Promise<boolean>) | null) => void
   onAutosaveIndicatorChange?: (state: DrawerAutosaveIndicatorState) => void
@@ -101,25 +101,6 @@ function getProgressStatusMessage(
     default:
       return 'Preparando el documento.'
   }
-}
-
-function DraftSaveIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-[1.05rem] w-[1.05rem] shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5.5 4.75h10.25l2.75 2.75v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4.5 18.5v-12A1.75 1.75 0 0 1 6.25 4.75Z" />
-      <path d="M8 4.75v5h7v-5" />
-      <path d="M8.25 15.25h7.5" />
-    </svg>
-  )
 }
 
 function SubmitProposalIcon() {
@@ -207,8 +188,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     draftProjects,
     isLoadingProjects,
     onProjectSelectionChange,
-    onPersistedProjectChange,
     onProjectsRefresh,
+    workspaceSidebarHeader,
     onBusyStateChange,
     onRegisterProjectFormFlush,
     onAutosaveIndicatorChange,
@@ -217,7 +198,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const { images, clearSelection } = useImageSelection()
   const {
     activeEditingProjectId,
-    createProject,
     registerProjectEditingExitHandler,
     updateProject,
   } = useRequestProjects()
@@ -231,10 +211,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null)
   const [projectSavedBeforeError, setProjectSavedBeforeError] = useState(false)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
-  const [isDraftSuccessModalOpen, setIsDraftSuccessModalOpen] = useState(false)
-  const [draftSuccessProjectId, setDraftSuccessProjectId] = useState<string | null>(null)
   const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
-  const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [, setAutosaveStatus] = useState<DrawerAutosaveStatus>('idle')
@@ -261,7 +238,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     () => createRequestProjectFormSnapshot(normalizedProjectValues),
     [normalizedProjectValues],
   )
-  const isExistingProject = Boolean(activeProjectId && activeProject)
   const isSentProject = Boolean(activeProject && activeProject.status !== 'draft')
   const isProjectAutosaveEnabled = Boolean(
     activeProject &&
@@ -270,7 +246,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const isProjectLocked = Boolean(activeProject && !isProjectAutosaveEnabled)
 
   const hasSelectedImages = images.length > 0
-  const isBusy = isSavingDraft || isSubmittingProposal || isLoadingModalOpen
+  const isBusy = isSubmittingProposal || isLoadingModalOpen
 
   useEffect(() => {
     latestSnapshotRef.current = currentProjectSnapshot
@@ -295,8 +271,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setProjectSavedBeforeError(false)
     setIsLoadingModalOpen(false)
     setIsSuccessModalOpen(false)
-    setIsDraftSuccessModalOpen(false)
-    setDraftSuccessProjectId(null)
   }
 
   function renderProjectHeader(disabled = false) {
@@ -445,7 +419,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       return
     }
 
-    if (!activeProjectId || !isExistingProject) {
+    if (!activeProjectId || !activeProject) {
       onRegisterProjectFormFlush(null)
       return
     }
@@ -455,7 +429,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     return () => {
       onRegisterProjectFormFlush(null)
     }
-  }, [activeProjectId, isExistingProject, onRegisterProjectFormFlush])
+  }, [activeProject, activeProjectId, onRegisterProjectFormFlush])
 
   useEffect(() => {
     onAutosaveIndicatorChange?.(
@@ -675,6 +649,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   }
 
   async function persistProposalDraft() {
+    if (!activeProjectId || !activeProject) {
+      throw new Error('Debes crear o seleccionar un proyecto antes de continuar.')
+    }
+
     setExportError(null)
     const draftPayload = {
       title: values.product.trim(),
@@ -685,38 +663,24 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       tentativeEndDate: values.tentativeEndDate.trim() || null,
     }
 
-    let projectId = activeProjectId
-    let created = false
+    const projectId = activeProjectId
 
     try {
-      if (!projectId) {
-        const createdProject = await createProject(draftPayload)
+      if (isProjectAutosaveEnabled) {
+        const didFlushAutosave = await flushProjectAutosave()
 
-        if (!createdProject) {
+        if (!didFlushAutosave) {
           throw new Error('No pudimos guardar el borrador.')
         }
-
-        projectId = createdProject.id
-        created = true
-        setCreatedProjectId(projectId)
-        onPersistedProjectChange(projectId)
       } else {
-        if (isProjectAutosaveEnabled) {
-          const didFlushAutosave = await flushProjectAutosave()
+        const updatedProject = await updateProject(projectId, draftPayload)
 
-          if (!didFlushAutosave) {
-            throw new Error('No pudimos guardar el borrador.')
-          }
-        } else {
-          const updatedProject = await updateProject(projectId, draftPayload)
-
-          if (!updatedProject) {
-            throw new Error('No pudimos guardar el borrador.')
-          }
+        if (!updatedProject) {
+          throw new Error('No pudimos guardar el borrador.')
         }
-
-        setCreatedProjectId(projectId)
       }
+
+      setCreatedProjectId(projectId)
 
       if (!canPersistSelectionForProject(projectId)) {
         throw new Error('Estamos terminando de cargar la seleccion del proyecto. Intenta nuevamente en unos segundos.')
@@ -727,11 +691,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       })
 
       await onProjectsRefresh()
-      setDraftNotice(created ? 'Borrador guardado.' : 'Borrador actualizado.')
+      setDraftNotice('Borrador actualizado.')
 
       return {
         projectId,
-        created,
       }
     } catch (error) {
       setExportError(
@@ -739,27 +702,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       )
       setDraftNotice(null)
       return null
-    }
-  }
-
-  async function handleSaveDraft() {
-    if (isBusy) {
-      return
-    }
-
-    setIsSavingDraft(true)
-    const draftResult = await persistProposalDraft()
-
-    try {
-      if (!draftResult) {
-        return
-      }
-
-      setDraftNotice(null)
-      setDraftSuccessProjectId(draftResult.projectId)
-      setIsDraftSuccessModalOpen(true)
-    } finally {
-      setIsSavingDraft(false)
     }
   }
 
@@ -980,7 +922,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function renderFormSidebarBody() {
     return (
       <div className="space-y-4">
-        {draftNotice && !isDraftSuccessModalOpen ? (
+        {draftNotice ? (
           <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
             {draftNotice}
           </div>
@@ -1004,19 +946,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function renderFormSidebarFooter() {
     return (
       <div className="flex flex-col gap-3 sm:flex-row">
-        {!isExistingProject ? (
-          <button
-            type="button"
-            onClick={() => {
-              void handleSaveDraft()
-            }}
-            disabled={isBusy}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-          >
-            <DraftSaveIcon />
-            Guardar
-          </button>
-        ) : null}
         <button
           type="button"
           onClick={() => {
@@ -1037,7 +966,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       {!isDetached ? embeddedInDrawer ? (
         <div className="flex h-full min-h-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-            {renderFormSidebarBody()}
+            <div className="space-y-6">
+              {renderFormSidebarBody()}
+              <SelectionPdfPreview payload={livePreviewPayload} hideCover />
+            </div>
           </div>
 
           <footer className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-5">
@@ -1048,7 +980,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         <ProposalWorkspace
           preview={<SelectionPdfPreview payload={livePreviewPayload} hideCover />}
           sidebarTitle="Datos del proyecto"
-          sidebarHeader={renderProjectHeader()}
+          sidebarHeader={workspaceSidebarHeader ?? renderProjectHeader()}
           sidebarBody={renderFormSidebarBody()}
           sidebarFooter={renderFormSidebarFooter()}
           previewSectionClassName="bg-white/[0.035] backdrop-blur-xl"
@@ -1097,32 +1029,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         primaryActionLabel="Ir a Mis proyectos"
         onPrimaryAction={handleSuccessModalClose}
         onClose={handleSuccessModalClose}
-      />
-
-      <SubmissionResultModal
-        isOpen={isDraftSuccessModalOpen}
-        variant="success"
-        title="Guardado con éxito"
-        description="Tu borrador se guardó correctamente."
-        primaryActionLabel="Continuar"
-        secondaryActionLabel="Ir al proyecto"
-        onPrimaryAction={() => {
-          setIsDraftSuccessModalOpen(false)
-        }}
-        onSecondaryAction={() => {
-          const projectId = draftSuccessProjectId
-          setIsDraftSuccessModalOpen(false)
-
-          if (projectId) {
-            navigate(`/requests/${projectId}`)
-            return
-          }
-
-          navigate('/requests')
-        }}
-        onClose={() => {
-          setIsDraftSuccessModalOpen(false)
-        }}
       />
     </>
   )

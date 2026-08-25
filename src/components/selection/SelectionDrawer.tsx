@@ -41,10 +41,33 @@ type GroupedSelection = {
 
 type DrawerProjectAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
 type DrawerInternalView = 'selection' | 'pdf-flow'
+type DrawerTransitionDirection = 'forward' | 'backward'
 type DrawerViewTransition = {
   from: DrawerInternalView
   to: DrawerInternalView
-  direction: 'forward' | 'backward'
+  direction: DrawerTransitionDirection
+}
+type SelectionContentState =
+  | {
+      kind: 'loading'
+    }
+  | {
+      kind: 'new'
+    }
+  | {
+      kind: 'grouped'
+      groups: GroupedSelection[]
+    }
+  | {
+      kind: 'empty-draft'
+    }
+  | {
+      kind: 'empty-generic'
+    }
+type SelectionContentTransition = {
+  from: SelectionContentState
+  to: SelectionContentState
+  direction: DrawerTransitionDirection
 }
 
 const DRAWER_INTERNAL_VIEW_TRANSITION_MS = 300
@@ -210,11 +233,14 @@ export function SelectionDrawer() {
     removeImage,
     clearSelection,
     replaceSelection,
+    setActiveProjectContext,
   } = useImageSelection()
   const {
     activeEditingProjectId,
+    createProject,
     finishProjectEditing,
     flushAndFinishProjectEditing,
+    isCreating,
     projects,
     hasLoadedOnce,
     isLoading,
@@ -234,6 +260,9 @@ export function SelectionDrawer() {
   })
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [newProjectProduct, setNewProjectProduct] = useState('')
+  const [newProjectProductionCompany, setNewProjectProductionCompany] = useState('')
+  const [newProjectError, setNewProjectError] = useState<string | null>(null)
   const [isPdfFlowBusy, setIsPdfFlowBusy] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
   const [pendingProjectIdAfterExit, setPendingProjectIdAfterExit] = useState<string | null | undefined>(undefined)
@@ -255,7 +284,10 @@ export function SelectionDrawer() {
   const projectFormFlushRef = useRef<(() => Promise<boolean>) | null>(null)
   const prefersReducedMotionRef = useRef(false)
   const viewTransitionTimeoutRef = useRef<number | null>(null)
+  const selectionContentTransitionTimeoutRef = useRef<number | null>(null)
   const [viewTransition, setViewTransition] = useState<DrawerViewTransition | null>(null)
+  const [selectionContentTransition, setSelectionContentTransition] =
+    useState<SelectionContentTransition | null>(null)
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),
@@ -269,9 +301,58 @@ export function SelectionDrawer() {
     ),
     [activeEditingProjectId, projects],
   )
+  const currentSelectionContentState = useMemo<SelectionContentState>(() => {
+    if (isLoadingProjectContent || isHydratingPersistedContext) {
+      return {
+        kind: 'loading',
+      }
+    }
+
+    if (activeProjectId === null) {
+      return {
+        kind: 'new',
+      }
+    }
+
+    if (groupedSelections.length > 0) {
+      return {
+        kind: 'grouped',
+        groups: groupedSelections,
+      }
+    }
+
+    if (activeProject?.status === 'draft') {
+      return {
+        kind: 'empty-draft',
+      }
+    }
+
+    return {
+      kind: 'empty-generic',
+    }
+  }, [
+    activeProject?.status,
+    activeProjectId,
+    groupedSelections,
+    isHydratingPersistedContext,
+    isLoadingProjectContent,
+  ])
+  const currentSelectionContentStateRef = useRef<SelectionContentState>(
+    currentSelectionContentState,
+  )
 
   useEffect(() => {
     activeProjectIdRef.current = activeProjectId
+  }, [activeProjectId])
+
+  useEffect(() => {
+    currentSelectionContentStateRef.current = currentSelectionContentState
+  }, [currentSelectionContentState])
+
+  useEffect(() => {
+    if (activeProjectId !== null) {
+      setNewProjectError(null)
+    }
   }, [activeProjectId])
 
   const focusTriggerButton = useCallback(() => {
@@ -530,6 +611,10 @@ export function SelectionDrawer() {
 
       if (viewTransitionTimeoutRef.current !== null) {
         window.clearTimeout(viewTransitionTimeoutRef.current)
+      }
+
+      if (selectionContentTransitionTimeoutRef.current !== null) {
+        window.clearTimeout(selectionContentTransitionTimeoutRef.current)
       }
     }
   }, [])
@@ -854,8 +939,28 @@ export function SelectionDrawer() {
     return null
   }
 
+  function getDirectionalDrawerAnimationClass(
+    direction: DrawerTransitionDirection,
+    phase: 'enter' | 'exit',
+  ) {
+    if (phase === 'exit') {
+      return direction === 'forward'
+        ? 'drawer-view-slide-out-left'
+        : 'drawer-view-slide-out-right'
+    }
+
+    return direction === 'forward'
+      ? 'drawer-view-slide-in-right'
+      : 'drawer-view-slide-in-left'
+  }
+
   function transitionToView(nextView: DrawerInternalView) {
     if (nextView === activeView) {
+      return
+    }
+
+    if (nextView === 'pdf-flow' && !activeProjectIdRef.current) {
+      setProjectLoadError('Creá o seleccioná un proyecto antes de continuar.')
       return
     }
 
@@ -881,6 +986,36 @@ export function SelectionDrawer() {
     viewTransitionTimeoutRef.current = window.setTimeout(() => {
       viewTransitionTimeoutRef.current = null
       setViewTransition(null)
+    }, DRAWER_INTERNAL_VIEW_TRANSITION_MS)
+  }
+
+  function startSelectionContentTransition(
+    nextState: SelectionContentState,
+    direction: DrawerTransitionDirection,
+  ) {
+    if (activeView !== 'selection') {
+      return
+    }
+
+    if (selectionContentTransitionTimeoutRef.current !== null) {
+      window.clearTimeout(selectionContentTransitionTimeoutRef.current)
+      selectionContentTransitionTimeoutRef.current = null
+    }
+
+    if (prefersReducedMotionRef.current) {
+      setSelectionContentTransition(null)
+      return
+    }
+
+    setSelectionContentTransition({
+      from: currentSelectionContentStateRef.current,
+      to: nextState,
+      direction,
+    })
+
+    selectionContentTransitionTimeoutRef.current = window.setTimeout(() => {
+      selectionContentTransitionTimeoutRef.current = null
+      setSelectionContentTransition(null)
     }, DRAWER_INTERNAL_VIEW_TRANSITION_MS)
   }
 
@@ -958,16 +1093,29 @@ export function SelectionDrawer() {
     }
 
     if (!isInPdfFlow && activeProjectId) {
+      startSelectionContentTransition(
+        {
+          kind: 'loading',
+        },
+        'forward',
+      )
       setIsLoadingProjectContent(true)
       const didPersistPendingSelection = await flushSelectionAutosaveBeforeProjectChange()
 
       if (!didPersistPendingSelection) {
+        setSelectionContentTransition(null)
         setIsLoadingProjectContent(false)
         return
       }
     }
 
     if (projectId === null) {
+      startSelectionContentTransition(
+        {
+          kind: 'new',
+        },
+        'backward',
+      )
       isProjectTransitioningRef.current = false
       hasHydratedActiveProjectSelectionRef.current = false
       cancelPendingAutosave()
@@ -988,6 +1136,15 @@ export function SelectionDrawer() {
     activeHydrationProjectIdRef.current = projectId
 
     try {
+      if (!activeProjectId) {
+        startSelectionContentTransition(
+          {
+            kind: 'loading',
+          },
+          'forward',
+        )
+      }
+
       isProjectTransitioningRef.current = true
       hasHydratedActiveProjectSelectionRef.current = false
       beginSelectionProjectTransition(projectId)
@@ -1047,13 +1204,85 @@ export function SelectionDrawer() {
     await performActiveProjectChange(projectId)
   }
 
-  function handlePersistedProjectChange(projectId: string) {
-    setActiveProjectId(projectId)
-    persistSelectionActiveContext({ mode: 'project', projectId })
-    persistedContextRef.current = { mode: 'project', projectId }
+  async function handleCreateProject() {
+    const normalizedProduct = newProjectProduct.trim()
+    const normalizedProductionCompany = newProjectProductionCompany.trim()
+
+    if (!normalizedProduct || isCreating) {
+      if (!normalizedProduct) {
+        setNewProjectError('Ingresá el producto para crear el proyecto.')
+      }
+      return
+    }
+
+    setNewProjectError(null)
+    setProjectLoadError(null)
+
+    const imagesToAssociate = images
+
+    const createdProject = await createProject({
+      title: normalizedProduct,
+      productionCompany: normalizedProductionCompany || null,
+      productionCompanyId: null,
+      message: null,
+      tentativeStartDate: null,
+      tentativeEndDate: null,
+    })
+
+    if (!createdProject) {
+      setNewProjectError('No pudimos crear el proyecto. Intenta nuevamente.')
+      return
+    }
+
+    const selectionSnapshot = createSelectionSnapshot(imagesToAssociate)
+    const hasSelectionToAssociate = imagesToAssociate.length > 0
+
+    replaceSelection(imagesToAssociate, { projectId: createdProject.id })
+    clearSelection({ projectId: null })
+    setActiveProjectId(createdProject.id)
+    setActiveProjectContext(createdProject.id, {
+      hydrate: false,
+      persist: true,
+    })
+    persistedContextRef.current = { mode: 'project', projectId: createdProject.id }
+    isProjectTransitioningRef.current = false
+    hasHydratedActiveProjectSelectionRef.current = true
+    markSelectionProjectStable(createdProject.id)
+    setIsHydratingPersistedContext(false)
+    setIsLoadingProjectContent(false)
+    setDraftNotice(null)
+    setNewProjectProduct('')
+    setNewProjectProductionCompany('')
+
+    if (!hasSelectionToAssociate) {
+      lastQueuedSnapshotRef.current = selectionSnapshot
+      lastPersistedSnapshotRef.current = selectionSnapshot
+      return
+    }
+
+    try {
+      await syncRequestProjectSelection(createdProject.id, imagesToAssociate, {
+        allowEmptySelection: false,
+      })
+      await refreshProjects()
+      lastQueuedSnapshotRef.current = selectionSnapshot
+      lastPersistedSnapshotRef.current = selectionSnapshot
+    } catch (error) {
+      lastQueuedSnapshotRef.current = null
+      lastPersistedSnapshotRef.current = null
+      setNewProjectError(
+        error instanceof Error
+          ? error.message
+          : 'El proyecto se creó, pero no pudimos asociar la selección actual.',
+      )
+    }
   }
 
   function renderDrawerHeader() {
+    const hasDraftProjects = projects.some((project) => project.status === 'draft')
+    const shouldHideProjectSelect =
+      activeView === 'selection' && activeProjectId === null && !hasDraftProjects
+
     return (
       <SelectionDrawerHeader
         closeAriaLabel="Cerrar drawer de seleccion"
@@ -1062,7 +1291,7 @@ export function SelectionDrawer() {
         hiddenLabelId="selection-drawer-title"
         leftContent={
           <div className="flex min-w-0 items-center gap-2.5">
-            {activeView === 'selection' ? (
+            {activeView === 'selection' && !shouldHideProjectSelect ? (
               <ActiveProjectSelect
                 activeProjectId={activeProjectId}
                 projects={selectableProjects}
@@ -1074,7 +1303,8 @@ export function SelectionDrawer() {
                   void handleActiveProjectChange(projectId)
                 }}
               />
-            ) : (
+            ) : null}
+            {activeView !== 'selection' ? (
               <button
                 type="button"
                 onClick={() => {
@@ -1086,7 +1316,7 @@ export function SelectionDrawer() {
                 <BackArrowIcon />
                 <span>Volver</span>
               </button>
-            )}
+            ) : null}
             <span
               aria-live="polite"
               aria-atomic="true"
@@ -1115,10 +1345,218 @@ export function SelectionDrawer() {
     )
   }
 
+  function renderSelectionViewFooter() {
+    const shouldShowContinueAction = images.length > 0
+
+    return (
+      <footer className="relative shrink-0 overflow-hidden border-t border-white/10">
+        <div className="absolute inset-0" aria-hidden="true">
+          <img
+            src={drawerFooterBackgroundUrl}
+            alt=""
+            className="h-full w-full object-cover object-center"
+          />
+        <div className="absolute inset-0 bg-black/46" />
+          <div className={drawerFooterOverlayClassName} />
+          <div className={drawerFooterHighlightClassName} />
+        </div>
+        <div
+          className={`relative flex items-center px-4 sm:px-5 ${
+            shouldShowContinueAction ? 'min-h-[88px] py-4' : 'py-5'
+          }`}
+        >
+          {shouldShowContinueAction ? (
+            <button
+              type="button"
+              onClick={() => {
+                transitionToView('pdf-flow')
+              }}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)]"
+            >
+              <ProposalPreviewIcon />
+              Continuar
+            </button>
+          ) : null}
+        </div>
+      </footer>
+    )
+  }
+
+  function renderPdfFlowWorkspaceHeader() {
+    return (
+      <div className="flex min-w-0 items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => {
+            transitionToView('selection')
+          }}
+          disabled={isPdfFlowBusy}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/18 bg-white/8 px-3.5 text-sm font-medium text-brand-100 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+        >
+          <BackArrowIcon />
+          <span>Volver</span>
+        </button>
+        <span
+          aria-live="polite"
+          aria-atomic="true"
+          className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center"
+        >
+          {projectAutosaveIndicator === 'saving' ? (
+            <span className="text-brand-300">
+              <AutosaveSpinnerIcon />
+            </span>
+          ) : null}
+          {projectAutosaveIndicator === 'saved' ? (
+            <span className="text-emerald-300">
+              <AutosaveCheckIcon />
+            </span>
+          ) : null}
+          {projectAutosaveIndicator === 'error' ? (
+            <span className="text-red-300">
+              <AutosaveErrorIcon />
+            </span>
+          ) : null}
+        </span>
+      </div>
+    )
+  }
+
+  function renderSelectionViewBody(contentState: SelectionContentState) {
+    if (contentState.kind === 'loading') {
+      return (
+        <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+          <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
+            Cargando proyecto...
+          </div>
+        </div>
+      )
+    }
+
+    if (contentState.kind === 'new') {
+      return (
+        <div className="flex h-full min-h-[320px] flex-col justify-center">
+          <div className="mx-auto w-full max-w-sm">
+            <h3 className="text-center font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+              Creá tu proyecto
+            </h3>
+            <p className="mt-3 text-center text-sm leading-6 text-brand-300">
+              Completá los campos y comenzá a seleccionar tus locaciones.
+            </p>
+
+            <div className="mt-6 space-y-4">
+              <div>
+                <label
+                  htmlFor="new-project-product"
+                  className="mb-2 block text-sm font-medium text-brand-100"
+                >
+                  Producto
+                </label>
+                <input
+                  id="new-project-product"
+                  type="text"
+                  value={newProjectProduct}
+                  onChange={(event) => {
+                    setNewProjectProduct(event.target.value)
+                    if (newProjectError) {
+                      setNewProjectError(null)
+                    }
+                  }}
+                  autoComplete="organization-title"
+                  placeholder="Ej. Campaña verano 2026"
+                  className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="new-project-production-company"
+                  className="mb-2 block text-sm font-medium text-brand-100"
+                >
+                  Productora
+                </label>
+                <input
+                  id="new-project-production-company"
+                  type="text"
+                  value={newProjectProductionCompany}
+                  onChange={(event) => {
+                    setNewProjectProductionCompany(event.target.value)
+                    if (newProjectError) {
+                      setNewProjectError(null)
+                    }
+                  }}
+                  autoComplete="organization"
+                  placeholder="Nombre de la productora"
+                  className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleCreateProject()
+                }}
+                disabled={isCreating || newProjectProduct.trim().length === 0}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-semibold text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              >
+                {isCreating ? 'Creando...' : 'Crear proyecto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (contentState.kind === 'grouped') {
+      return (
+        <div className="space-y-4">
+          {contentState.groups.map((group) => (
+            <SelectedLocationGroup
+              key={group.locationId}
+              locationId={group.locationId}
+              locationCode={group.locationCode}
+              categorySlug={group.categorySlug}
+              locationTitle={group.locationTitle}
+              images={group.images}
+              onNavigate={closeDrawer}
+              onRemoveLocation={handleRemoveLocation}
+            />
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+        <div className="max-w-sm">
+          <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+            {contentState.kind === 'empty-draft'
+              ? 'Todavía no agregaste locaciones'
+              : 'Tu seleccion esta vacia'}
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-brand-300">
+            {contentState.kind === 'empty-draft'
+              ? 'Explorá las locaciones y seleccioná las imágenes que quieras sumar a este proyecto.'
+              : 'Guarda imagenes desde las locaciones para revisarlas aqui mientras navegas.'}
+          </p>
+          <Link
+            to="/#explorar"
+            onClick={closeDrawer}
+            className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+          >
+            Explorar locaciones
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   function renderSelectionViewContent() {
+
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+        <div className="flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-5">
           {projectLoadError ? (
             <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
               {projectLoadError}
@@ -1129,115 +1567,41 @@ export function SelectionDrawer() {
               {draftNotice}
             </div>
           ) : null}
-
-          {isLoadingProjectContent || isHydratingPersistedContext ? (
-            <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-              <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-                Cargando proyecto...
-              </div>
+          {newProjectError && activeProjectId === null ? (
+            <div className="mb-4 rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              {newProjectError}
             </div>
-          ) : groupedSelections.length > 0 ? (
-            <div className="space-y-4">
-              {groupedSelections.map((group) => (
-                <SelectedLocationGroup
-                  key={group.locationId}
-                  locationId={group.locationId}
-                  locationCode={group.locationCode}
-                  categorySlug={group.categorySlug}
-                  locationTitle={group.locationTitle}
-                  images={group.images}
-                  onNavigate={closeDrawer}
-                  onRemoveLocation={handleRemoveLocation}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-              <div className="max-w-sm">
-                <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                  Tu seleccion esta vacia
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-brand-300">
-                  Guarda imagenes desde las locaciones para revisarlas aqui mientras navegas.
-                </p>
-                <Link
-                  to="/#explorar"
-                  onClick={closeDrawer}
-                  className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+          ) : null}
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            {selectionContentTransition ? (
+              <>
+                <div
+                  className={`absolute inset-0 min-h-0 overflow-y-auto overscroll-contain ${getDirectionalDrawerAnimationClass(
+                    selectionContentTransition.direction,
+                    'exit',
+                  )} motion-reduce:animate-none`}
                 >
-                  Explorar locaciones
-                </Link>
+                  {renderSelectionViewBody(selectionContentTransition.from)}
+                </div>
+                <div
+                  className={`absolute inset-0 min-h-0 overflow-y-auto overscroll-contain ${getDirectionalDrawerAnimationClass(
+                    selectionContentTransition.direction,
+                    'enter',
+                  )} motion-reduce:animate-none`}
+                >
+                  {renderSelectionViewBody(selectionContentTransition.to)}
+                </div>
+              </>
+            ) : (
+              <div className="absolute inset-0 min-h-0 overflow-y-auto overscroll-contain">
+                {renderSelectionViewBody(currentSelectionContentState)}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-
-        {images.length > 0 ? (
-          <footer className="relative shrink-0 overflow-hidden border-t border-white/10">
-            <div className="absolute inset-0" aria-hidden="true">
-              <img
-                src={drawerFooterBackgroundUrl}
-                alt=""
-                className="h-full w-full object-cover object-center"
-              />
-              <div className="absolute inset-0 bg-black/46" />
-              <div className={drawerFooterOverlayClassName} />
-              <div className={drawerFooterHighlightClassName} />
-            </div>
-            <div className="relative flex px-4 py-4 sm:px-5">
-              <button
-                type="button"
-                onClick={() => {
-                  transitionToView('pdf-flow')
-                }}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)]"
-              >
-                <ProposalPreviewIcon />
-                Continuar
-              </button>
-            </div>
-          </footer>
-        ) : null}
+        {renderSelectionViewFooter()}
       </div>
     )
-  }
-
-  function renderPdfFlowViewContent() {
-    return (
-      <div className="h-full min-h-0 overflow-hidden">
-        <SelectionPdfFlow
-          onClose={closeDrawer}
-          onSuccessComplete={forceCloseDrawerWithCleanup}
-          onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
-          isDetached={false}
-          embeddedInDrawer
-          onStartProcessing={() => {
-            setIsPdfFlowDetached(true)
-          }}
-          onRestoreAfterError={() => {
-            setIsPdfFlowDetached(false)
-          }}
-          activeProjectId={activeProjectId}
-          activeProject={activeProject}
-          draftProjects={selectableProjects}
-          isLoadingProjects={isLoading}
-          onProjectSelectionChange={handleActiveProjectChange}
-          onPersistedProjectChange={handlePersistedProjectChange}
-          onProjectsRefresh={refreshProjects}
-          onBusyStateChange={setIsPdfFlowBusy}
-          onRegisterProjectFormFlush={(handler) => {
-            projectFormFlushRef.current = handler
-          }}
-          onAutosaveIndicatorChange={setProjectAutosaveIndicator}
-        />
-      </div>
-    )
-  }
-
-  function renderDrawerInternalView(view: DrawerInternalView) {
-    return view === 'selection'
-      ? renderSelectionViewContent()
-      : renderPdfFlowViewContent()
   }
 
   function getDrawerViewAnimationClass(
@@ -1245,15 +1609,13 @@ export function SelectionDrawer() {
     transition: DrawerViewTransition,
   ) {
     if (transition.from === view) {
-      return transition.direction === 'forward'
-        ? 'drawer-view-slide-out-left'
-        : 'drawer-view-slide-out-right'
+      return getDirectionalDrawerAnimationClass(transition.direction, 'exit')
     }
 
-    return transition.direction === 'forward'
-      ? 'drawer-view-slide-in-right'
-      : 'drawer-view-slide-in-left'
+    return getDirectionalDrawerAnimationClass(transition.direction, 'enter')
   }
+
+  const shouldRenderPdfWorkspace = activeView === 'pdf-flow' || isPdfFlowDetached
 
   return (
     <div className="fixed inset-0 z-40 overscroll-none">
@@ -1267,7 +1629,7 @@ export function SelectionDrawer() {
           onClick={closeDrawer}
         />
       ) : null}
-      {!isPdfFlowDetached ? (
+      {!shouldRenderPdfWorkspace ? (
         <aside
           id="selection-drawer"
           role="dialog"
@@ -1295,7 +1657,7 @@ export function SelectionDrawer() {
                     viewTransition,
                   )} motion-reduce:animate-none`}
                 >
-                  {renderDrawerInternalView(viewTransition.from)}
+                  {renderSelectionViewContent()}
                 </div>
                 <div
                   className={`absolute inset-0 min-h-0 overflow-hidden ${getDrawerViewAnimationClass(
@@ -1303,12 +1665,12 @@ export function SelectionDrawer() {
                     viewTransition,
                   )} motion-reduce:animate-none`}
                 >
-                  {renderDrawerInternalView(viewTransition.to)}
+                  {renderSelectionViewContent()}
                 </div>
               </>
             ) : (
               <div className="absolute inset-0 min-h-0 overflow-hidden">
-                {renderDrawerInternalView(activeView)}
+                {renderSelectionViewContent()}
               </div>
             )}
           </div>
@@ -1325,7 +1687,7 @@ export function SelectionDrawer() {
             handleExitComplete()
           }}
           className={
-            isPdfFlowDetached
+            shouldRenderPdfWorkspace
               ? `absolute inset-0 transition-opacity duration-300 ease-out motion-reduce:duration-0 ${
                   isVisible ? 'opacity-100' : 'opacity-0'
                 }`
@@ -1334,21 +1696,21 @@ export function SelectionDrawer() {
                 }`
           }
         >
-          {!isPdfFlowDetached ? renderDrawerHeader() : null}
+          {!shouldRenderPdfWorkspace ? renderDrawerHeader() : null}
 
           <Suspense
             fallback={
               <div
                 className={
-                  isPdfFlowDetached
+                  shouldRenderPdfWorkspace
                     ? 'flex h-full flex-col lg:flex-row'
                     : 'flex h-full min-h-0 items-center justify-center px-4 py-10'
                 }
               >
-                {isPdfFlowDetached ? <div className="hidden min-w-0 flex-1 lg:block" /> : null}
+                {shouldRenderPdfWorkspace ? <div className="hidden min-w-0 flex-1 lg:block" /> : null}
                 <div
                   className={
-                    isPdfFlowDetached
+                    shouldRenderPdfWorkspace
                       ? 'flex h-screen max-h-screen min-h-0 w-full items-center justify-center border-l border-white/10 bg-[#14110f] px-4 py-10 supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] lg:w-[min(100%,460px)]'
                       : ''
                   }
@@ -1360,13 +1722,13 @@ export function SelectionDrawer() {
               </div>
             }
           >
-            <div className={isPdfFlowDetached ? 'h-full' : 'min-h-0 flex-1 overflow-hidden'}>
+            <div className={shouldRenderPdfWorkspace ? 'h-full' : 'min-h-0 flex-1 overflow-hidden'}>
               <SelectionPdfFlow
                 onClose={closeDrawer}
                 onSuccessComplete={forceCloseDrawerWithCleanup}
                 onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
                 isDetached={isPdfFlowDetached}
-                embeddedInDrawer={!isPdfFlowDetached}
+                embeddedInDrawer={false}
                 onStartProcessing={() => {
                   setIsPdfFlowDetached(true)
                 }}
@@ -1378,8 +1740,10 @@ export function SelectionDrawer() {
                 draftProjects={selectableProjects}
                 isLoadingProjects={isLoading}
                 onProjectSelectionChange={handleActiveProjectChange}
-                onPersistedProjectChange={handlePersistedProjectChange}
                 onProjectsRefresh={refreshProjects}
+                workspaceSidebarHeader={
+                  isPdfFlowDetached ? undefined : renderPdfFlowWorkspaceHeader()
+                }
                 onBusyStateChange={setIsPdfFlowBusy}
                 onRegisterProjectFormFlush={(handler) => {
                   projectFormFlushRef.current = handler
