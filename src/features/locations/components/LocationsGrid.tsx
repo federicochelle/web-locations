@@ -17,7 +17,7 @@ export function LocationsGrid({
   return (
     <section className="w-full">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {locations.map((location) => (
+        {locations.map((location, index) => (
           <LocationCard
             key={location.id}
             location={location}
@@ -26,6 +26,8 @@ export function LocationsGrid({
             onToggleFavorite={
               onToggleFavorite ? () => onToggleFavorite(location) : undefined
             }
+            imageLoading={index < 4 ? 'eager' : 'lazy'}
+            imageFetchPriority={index < 2 ? 'high' : 'auto'}
           />
         ))}
       </div>

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
-import { LocationApproxMap } from '@/features/locations/components/LocationApproxMap.tsx'
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
@@ -19,6 +19,13 @@ function formatLocationCode(locationCode: string) {
 }
 
 const MAX_SELECTED_IMAGES = 80
+const LocationApproxMap = lazy(async () => {
+  const module = await import('@/features/locations/components/LocationApproxMap.tsx')
+
+  return {
+    default: module.LocationApproxMap,
+  }
+})
 
 export function LocationDetailPage() {
   const locationState = useLocation()
@@ -192,13 +199,8 @@ export function LocationDetailPage() {
     <div className="space-y-6 pb-16 pt-8 sm:space-y-8 sm:pb-20 sm:pt-10 lg:space-y-10 lg:pb-24 lg:pt-12">
       {isLoading ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
-          <div className="mx-auto grid max-w-[1720px] gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={index}
-                className="aspect-[16/13] animate-pulse rounded-[1.75rem] bg-sand-200 lg:aspect-[16/12]"
-              />
-            ))}
+          <div className="mx-auto max-w-[1720px]">
+            <AppLoading label="Cargando locación..." className="min-h-[46vh]" />
           </div>
         </section>
       ) : null}
@@ -215,49 +217,64 @@ export function LocationDetailPage() {
           <div className="mx-auto space-y-4 max-w-[1720px]">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
               <div className="min-w-0 flex-1 px-1">
-                <div className="flex items-center gap-3">
-                  <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
-                    {formatLocationCode(location.locationCode)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleFavoriteIntent}
-                    disabled={authLoading || pendingIds.includes(location.id)}
-                    aria-label={
-                      pendingIds.includes(location.id)
-                        ? 'Guardando favorito'
-                        : favoriteIds.has(location.id)
-                          ? 'Quitar de favoritos'
-                          : 'Agregar a favoritos'
-                    }
-                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-70 sm:h-10 sm:w-10 ${
-                      favoriteIds.has(location.id)
-                        ? 'border border-white/12 bg-white text-brand-950 hover:bg-brand-100'
-                        : 'bg-brand-500 text-white hover:bg-brand-700'
-                    }`}
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      className="h-5.5 w-5.5"
-                      fill={favoriteIds.has(location.id) ? 'currentColor' : 'none'}
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
+                      {formatLocationCode(location.locationCode)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleFavoriteIntent}
+                      disabled={authLoading || pendingIds.includes(location.id)}
+                      aria-label={
+                        pendingIds.includes(location.id)
+                          ? 'Guardando favorito'
+                          : favoriteIds.has(location.id)
+                            ? 'Quitar de favoritos'
+                            : 'Agregar a favoritos'
+                      }
+                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-70 sm:h-10 sm:w-10 ${
+                        favoriteIds.has(location.id)
+                          ? 'border border-white/12 bg-white text-brand-950 hover:bg-brand-100'
+                          : 'bg-brand-500 text-white hover:bg-brand-700'
+                      }`}
                     >
-                      <path d="M12 20.5c-.3 0-.6-.1-.8-.3C7 16.6 4 13.8 4 10.3 4 7.9 5.9 6 8.3 6c1.5 0 2.9.7 3.7 1.9C12.8 6.7 14.2 6 15.7 6 18.1 6 20 7.9 20 10.3c0 3.5-3 6.3-7.2 9.9-.2.2-.5.3-.8.3Z" />
-                    </svg>
-                  </button>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="h-5.5 w-5.5"
+                        fill={favoriteIds.has(location.id) ? 'currentColor' : 'none'}
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12 20.5c-.3 0-.6-.1-.8-.3C7 16.6 4 13.8 4 10.3 4 7.9 5.9 6 8.3 6c1.5 0 2.9.7 3.7 1.9C12.8 6.7 14.2 6 15.7 6 18.1 6 20 7.9 20 10.3c0 3.5-3 6.3-7.2 9.9-.2.2-.5.3-.8.3Z" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
+                    Seleccioná las imágenes que mejor representen lo que buscás y agregá esta locación a tu proyecto.
+                  </p>
                 </div>
               </div>
               {location.approxLat !== null && location.approxLng !== null ? (
                 <div className="w-full lg:w-[28rem] lg:flex-none">
-                  <LocationApproxMap
-                    approxLat={location.approxLat}
-                    approxLng={location.approxLng}
-                    approxRadius={location.approxRadius}
-                  />
+                  <Suspense
+                    fallback={
+                      <AppLoading
+                        compact
+                        label="Cargando mapa..."
+                        className="h-[17rem]"
+                      />
+                    }
+                  >
+                    <LocationApproxMap
+                      approxLat={location.approxLat}
+                      approxLng={location.approxLng}
+                      approxRadius={location.approxRadius}
+                    />
+                  </Suspense>
                 </div>
               ) : null}
             </div>
@@ -321,10 +338,16 @@ export function LocationDetailPage() {
                           </span>
                         </button>
                       </div>
-                      <div
-                        className="aspect-[16/13] bg-cover bg-center lg:aspect-[16/12]"
-                        style={{ backgroundImage: `url(${image.url})` }}
-                      />
+                      <div className="aspect-[16/13] bg-sand-100 lg:aspect-[16/12]">
+                        <img
+                          src={image.url}
+                          alt={`${formatLocationCode(location.locationCode)} · imagen ${index + 1}`}
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                          fetchPriority={index === 0 ? 'high' : 'auto'}
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
                     </button>
                   )
                 })
@@ -352,6 +375,7 @@ export function LocationDetailPage() {
         }
         initialIndex={lightboxIndex}
         isOpen={isLightboxOpen}
+        imageClassName="rounded-[0.3rem]"
         onToggleSelect={(lightboxImage) => {
           const sourceImage = location?.images.find((image) => image.id === lightboxImage.id)
 

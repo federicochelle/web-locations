@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { CategoryLocationsGrid } from '@/features/locations/components/CategoryLocationsGrid.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocations } from '@/services/locations.service.ts'
@@ -117,14 +118,7 @@ export function CategoryLocationsPage() {
 
       {isLoading ? (
         <section className="w-full">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={index}
-                className="aspect-[16/13] animate-pulse rounded-[0.9rem] bg-sand-200/80 lg:aspect-[16/12]"
-              />
-            ))}
-          </div>
+          <AppLoading label="Cargando locaciones..." />
         </section>
       ) : null}
 

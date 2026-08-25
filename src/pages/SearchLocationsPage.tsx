@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
 import { useAlgoliaLocationSearch } from '@/features/search/algolia/useAlgoliaLocationSearch.ts'
 import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
@@ -383,14 +384,13 @@ export function SearchLocationsPage() {
 
         {isLoading ? (
           <section className="w-full">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="aspect-[16/13] animate-pulse rounded-[0.9rem] bg-sand-200/80 lg:aspect-[16/12]"
-                />
-              ))}
-            </div>
+            <AppLoading
+              label={
+                hasAlgoliaSearch && isSearchInterpretationLoading
+                  ? 'Interpretando búsqueda...'
+                  : 'Cargando resultados...'
+              }
+            />
           </section>
         ) : null}
 
