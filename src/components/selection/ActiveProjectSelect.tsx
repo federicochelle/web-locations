@@ -33,7 +33,7 @@ export function ActiveProjectSelect({
   const shouldRenderTemporaryActiveProject =
     Boolean(activeProject) &&
     !projects.some((project) => project.id === activeProject?.id)
-  const selectValue = activeProjectId ?? PLACEHOLDER_OPTION_VALUE
+  const selectValue = activeProjectId ?? NEW_PROJECT_OPTION_VALUE
 
   return (
     <label className="block min-w-0">
@@ -63,7 +63,7 @@ export function ActiveProjectSelect({
           <option value={PLACEHOLDER_OPTION_VALUE} disabled hidden>
             Seleccionar proyecto
           </option>
-          <option value={NEW_PROJECT_OPTION_VALUE}>Nuevo</option>
+          <option value={NEW_PROJECT_OPTION_VALUE}>Nuevo proyecto</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.title}
