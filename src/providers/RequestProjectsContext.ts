@@ -31,6 +31,7 @@ export type RequestProjectsContextValue = {
   error: string | null
   refreshProjects: () => Promise<void>
   createProject: (values: CreateRequestProjectValues) => Promise<RequestProject | null>
+  replaceProject: (project: RequestProject) => void
   updateProject: (
     projectId: string,
     values: UpdateRequestProjectValues,

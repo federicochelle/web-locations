@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 
 import logoUrl from '../../../logo.webp'
+import { buildWhatsAppUrl } from '@/utils/whatsapp.ts'
 
 const INSTAGRAM_URL =
   'https://www.instagram.com/film_locations_uy?igsh=MWV3anpiNGpxaDdiZA=='
-const WHATSAPP_URL = 'https://www.whatsapp.com/'
 
 function InstagramIcon() {
   return (
@@ -63,7 +63,7 @@ export function Footer() {
             <SocialLink href={INSTAGRAM_URL} label="Instagram">
               <InstagramIcon />
             </SocialLink>
-            <SocialLink href={WHATSAPP_URL} label="WhatsApp">
+            <SocialLink href={buildWhatsAppUrl()} label="WhatsApp">
               <WhatsAppIcon />
             </SocialLink>
           </div>
