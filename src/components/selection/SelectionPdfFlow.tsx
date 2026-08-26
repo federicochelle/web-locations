@@ -34,6 +34,7 @@ import {
   normalizeRequestProjectSnapshotFromProject,
 } from '@/utils/request-project-form-autosave.ts'
 import { canPersistSelectionForProject } from '@/utils/selection-persistence-guard.ts'
+import { buildWhatsAppUrl } from '@/utils/whatsapp.ts'
 
 type SelectionPdfFlowProps = {
   onClose: () => void
@@ -801,6 +802,14 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     navigate('/requests')
   }
 
+  function handleContactByWhatsApp() {
+    const projectName = values.product.trim() || activeProject?.title?.trim() || 'mi proyecto'
+    const message =
+      `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Film Locations Uruguay.`
+
+    window.open(buildWhatsAppUrl(message), '_blank', 'noopener,noreferrer')
+  }
+
   function renderDetachedPreview() {
     return <SelectionPdfPreview payload={livePreviewPayload} hideCover />
   }
@@ -956,7 +965,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   const formSidebarFooter = useMemo(
     () => (
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex w-full flex-col gap-3">
         <button
           type="button"
           onClick={() => {
@@ -1059,10 +1068,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       <SubmissionResultModal
         isOpen={isSuccessModalOpen}
         variant="success"
-        title="Proyecto creado correctamente"
-        description="La solicitud fue enviada y el PDF oficial se descargó correctamente."
+        title="Proyecto enviado correctamente"
+        description="Nuestro equipo recibió tu propuesta y ya está gestionándola. Nos pondremos en contacto contigo para continuar con el proceso."
         primaryActionLabel="Ir a Mis proyectos"
+        secondaryActionLabel="Contactar por WhatsApp"
         onPrimaryAction={handleSuccessModalClose}
+        onSecondaryAction={handleContactByWhatsApp}
         onClose={handleSuccessModalClose}
       />
     </>

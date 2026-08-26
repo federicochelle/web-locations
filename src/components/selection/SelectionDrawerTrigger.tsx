@@ -13,6 +13,7 @@ export function SelectionDrawerTrigger() {
   const location = useLocation()
   const { activeProjectId, images, isDrawerOpen, toggleDrawer } = useImageSelection()
   const { projects } = useRequestProjects()
+  const isProjectDetailRoute = /^\/requests\/[^/]+$/u.test(location.pathname)
   const hasImages = images.length > 0
   const activeProjectName =
     activeProjectId !== null
@@ -28,6 +29,10 @@ export function SelectionDrawerTrigger() {
     '--selection-trigger-bottom': mobileBottomOffset,
     right: 'max(1rem, calc(env(safe-area-inset-right) + 0.25rem))',
   } as CSSProperties & Record<'--selection-trigger-bottom', string>
+
+  if (isProjectDetailRoute) {
+    return null
+  }
 
   return (
     <button
@@ -46,7 +51,7 @@ export function SelectionDrawerTrigger() {
     >
       {activeProjectName ? (
         <span
-          className={`pointer-events-none absolute -bottom-1.5 -left-4 z-20 hidden max-w-[6.9rem] items-center justify-center rounded-full border px-2.5 py-1 text-center text-[0.62rem] font-semibold leading-none shadow-[0_10px_22px_rgba(0,0,0,0.18)] md:inline-flex lg:-bottom-2 lg:-left-5 lg:max-w-[8rem] lg:px-3 lg:py-1.5 lg:text-[0.7rem] ${
+          className={`pointer-events-none absolute -bottom-1.5 -left-10 z-20 hidden max-w-[5.6rem] items-center justify-center rounded-full border px-2.5 py-1 text-center text-[0.62rem] font-semibold leading-none shadow-[0_10px_22px_rgba(0,0,0,0.18)] md:inline-flex lg:-bottom-2 lg:-left-11 lg:max-w-[6.15rem] lg:px-3 lg:py-1.5 lg:text-[0.7rem] ${
             hasImages
               ? 'border-brand-300/35 bg-brand-100 text-brand-950'
               : 'border-white/10 bg-white/10 text-brand-100 backdrop-blur-md'

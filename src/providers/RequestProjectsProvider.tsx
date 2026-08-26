@@ -137,6 +137,14 @@ export function RequestProjectsProvider({
     }
   }, [])
 
+  const replaceProject = useCallback((nextProject: RequestProject) => {
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === nextProject.id ? nextProject : project,
+      ),
+    )
+  }, [])
+
   const updateProject = useCallback(async (
     projectId: string,
     {
@@ -278,6 +286,7 @@ export function RequestProjectsProvider({
       error,
       refreshProjects,
       createProject,
+      replaceProject,
       updateProject,
       removeProject,
       beginProjectEditing,
@@ -298,6 +307,7 @@ export function RequestProjectsProvider({
       isCreating,
       isLoading,
       projects,
+      replaceProject,
       registerProjectEditingExitHandler,
       refreshProjects,
       removeProject,

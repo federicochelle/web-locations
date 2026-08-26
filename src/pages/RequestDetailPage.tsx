@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useLocation, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import drawerFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (3).webp'
 import drawerHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.40 PM.webp'
@@ -9,6 +9,7 @@ import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
+import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
@@ -33,6 +34,7 @@ import {
   mapRequestProjectToPdfFormValues,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
+import { buildPublicLocationPath } from '@/utils/location-public.ts'
 
 function SubmitProposalIcon() {
   return (
@@ -89,6 +91,24 @@ function DownloadPdfIcon() {
   )
 }
 
+function AddLocationsIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 5.5v13" />
+      <path d="M5.5 12h13" />
+    </svg>
+  )
+}
+
 function EditProjectNoticeIcon() {
   return (
     <svg
@@ -104,6 +124,45 @@ function EditProjectNoticeIcon() {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 8v4" />
       <path d="M12 16h.01" />
+    </svg>
+  )
+}
+
+function CancelEditIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}
+
+function RemoveSelectedImageIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9.25 4.75h5.5" />
+      <path d="M5.75 7.25h12.5" />
+      <path d="m8.25 7.25.7 10.1a1.75 1.75 0 0 0 1.75 1.65h2.6a1.75 1.75 0 0 0 1.75-1.65l.7-10.1" />
+      <path d="M10 10.25v5.5" />
+      <path d="M14 10.25v5.5" />
     </svg>
   )
 }
@@ -178,13 +237,16 @@ const drawerPrimaryButtonClassName =
 
 export function RequestDetailPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { id } = useParams()
+  const { setActiveProjectContext } = useImageSelection()
   const {
     activeEditingProjectId,
     beginProjectEditing,
     finishProjectEditing,
     flushAndFinishProjectEditing,
     refreshProjects,
+    replaceProject,
     registerProjectEditingExitHandler,
   } = useRequestProjects()
   const {
@@ -200,6 +262,7 @@ export function RequestDetailPage() {
     notFound,
     hasPendingLocationChanges,
     addLocations,
+    removeSelectedImage,
     refreshProject,
     saveProject,
   } = useRequestProjectDetail(id)
@@ -295,6 +358,32 @@ export function RequestDetailPage() {
       isEditableProject &&
       (isDraft || (isSentProject && isEditingProject)),
   )
+  const canAddLocations = Boolean(
+    project &&
+      isEditableProject &&
+      (!isSentProject || isEditingProject),
+  )
+  const canEditLocationImages = Boolean(
+    project &&
+      (isDraft || (isSentProject && isEditingProject)),
+  )
+  const readOnlyProjectFields = useMemo<Array<keyof SelectionPdfFormValues>>(() => {
+    if (!isSentProject) {
+      return []
+    }
+
+    if (!isEditingProject) {
+      return [
+        'product',
+        'productionCompany',
+        'tentativeStartDate',
+        'tentativeEndDate',
+        'message',
+      ]
+    }
+
+    return ['product', 'productionCompany']
+  }, [isEditingProject, isSentProject])
 
   function handleFieldChange(
     field: keyof SelectionPdfFormValues,
@@ -504,6 +593,7 @@ export function RequestDetailPage() {
           return false
         }
 
+        replaceProject(savedProject)
         persistedDraftSnapshotRef.current = snapshot
         setPersistedDraftSnapshot(snapshot)
 
@@ -601,6 +691,8 @@ export function RequestDetailPage() {
       if (!savedProject) {
         return false
       }
+
+      replaceProject(savedProject)
     }
 
     return true
@@ -723,6 +815,37 @@ export function RequestDetailPage() {
     }
   }
 
+  function handleAddLocations() {
+    if (!project || !canAddLocations) {
+      return
+    }
+
+    setActiveProjectContext(project.id, {
+      hydrate: true,
+      persist: true,
+    })
+    void navigate('/#explorar')
+  }
+
+  function handleOpenDraftLocation(item: RequestProjectLocation) {
+    if (!project || !isDraft) {
+      return
+    }
+
+    setActiveProjectContext(project.id, {
+      hydrate: true,
+      persist: true,
+    })
+
+    void navigate(
+      buildPublicLocationPath({
+        categorySlug: item.location.categorySlug,
+        locationCode: item.location.locationCode,
+        fallbackSlug: item.location.slug,
+      }),
+    )
+  }
+
   function renderProjectIdentityPanel() {
     if (!project) {
       return null
@@ -750,27 +873,29 @@ export function RequestDetailPage() {
                 <RequestProjectStatusBadge status={project.status} />
               </div>
               <div className="ml-auto flex items-center gap-3 pt-1">
-                <span
-                  aria-live="polite"
-                  aria-atomic="true"
-                  className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center"
-                >
-                  {isAutosaveEnabled && draftAutosaveIndicator === 'saving' ? (
-                    <span className="text-brand-300">
-                      <AutosaveSpinnerIcon />
-                    </span>
-                  ) : null}
-                  {isAutosaveEnabled && draftAutosaveIndicator === 'saved' ? (
-                    <span className="text-emerald-300">
-                      <AutosaveCheckIcon />
-                    </span>
-                  ) : null}
-                  {isAutosaveEnabled && draftAutosaveIndicator === 'error' ? (
-                    <span className="text-red-300">
-                      <AutosaveErrorIcon />
-                    </span>
-                  ) : null}
-                </span>
+                {isAutosaveEnabled && draftAutosaveIndicator !== 'hidden' ? (
+                  <span
+                    aria-live="polite"
+                    aria-atomic="true"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/10 text-brand-100/78 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-12px_24px_rgba(0,0,0,0.18),0_10px_22px_rgba(0,0,0,0.14)]"
+                  >
+                    {draftAutosaveIndicator === 'saving' ? (
+                      <span className="text-brand-300">
+                        <AutosaveSpinnerIcon />
+                      </span>
+                    ) : null}
+                    {draftAutosaveIndicator === 'saved' ? (
+                      <span className="text-emerald-300">
+                        <AutosaveCheckIcon />
+                      </span>
+                    ) : null}
+                    {draftAutosaveIndicator === 'error' ? (
+                      <span className="text-red-300">
+                        <AutosaveErrorIcon />
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
                 {project.officialPdf ? (
                   <button
                     type="button"
@@ -793,6 +918,17 @@ export function RequestDetailPage() {
                   >
                     <EditProjectIcon />
                     Editar
+                  </button>
+                ) : null}
+                {isSentProject && isEditingProject ? (
+                  <button
+                    type="button"
+                    onClick={handleCancelEditing}
+                    disabled={isSaving || isSubmitting}
+                    className={`${drawerSecondaryButtonClassName} gap-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    <CancelEditIcon />
+                    Cancelar edición
                   </button>
                 ) : null}
               </div>
@@ -819,6 +955,7 @@ export function RequestDetailPage() {
               errors={formErrors}
               onChange={handleFieldChange}
               disabled={!isFormEditable || isSubmitting}
+              readOnlyFields={readOnlyProjectFields}
               variant="compact"
               columns={2}
               showTentativeDates
@@ -827,20 +964,7 @@ export function RequestDetailPage() {
           </div>
 
           <div className="border-t border-white/10 pt-6">
-            <div className="flex flex-col gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {isSentProject && isEditingProject ? (
-                  <button
-                    type="button"
-                    onClick={handleCancelEditing}
-                    disabled={isSaving || isSubmitting}
-                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/14 bg-white/8 px-4.5 text-sm font-medium text-brand-100 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                  >
-                    Cancelar edición
-                  </button>
-                ) : null}
-              </div>
-            </div>
+            <div className="flex flex-col gap-3" />
           </div>
 
           <div>
@@ -886,6 +1010,7 @@ export function RequestDetailPage() {
     const selectedImages = item.selectedImages
     const visibleImages = selectedImages.slice(0, 4)
     const hiddenImagesCount = Math.max(0, selectedImages.length - 4)
+    const isLocationInteractive = isDraft || (isSentProject && isEditingProject)
 
     return (
       <article
@@ -894,9 +1019,21 @@ export function RequestDetailPage() {
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-display text-[1.65rem] font-semibold leading-none tracking-[-0.03em] text-brand-100">
-              {item.location.title}
-            </p>
+            {isLocationInteractive ? (
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenDraftLocation(item)
+                }}
+                className="cursor-pointer font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100 transition hover:text-brand-300 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                {item.location.title}
+              </button>
+            ) : (
+              <p className="font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100">
+                {item.location.title}
+              </p>
+            )}
           </div>
         </div>
 
@@ -908,26 +1045,45 @@ export function RequestDetailPage() {
                   index === visibleImages.length - 1 && hiddenImagesCount > 0
 
                 return (
-                <button
-                  type="button"
-                  key={image.id}
-                  onClick={() => {
-                    setActiveLightboxLocationId(item.location.id)
-                    setActiveLightboxIndex(index)
-                  }}
-                  className="relative aspect-[4/3] w-[calc(25%-0.5625rem)] min-w-[120px] overflow-hidden rounded-[0.3rem] bg-white/6 sm:min-w-[132px]"
-                >
-                  <img
-                    src={image.imageUrl}
-                    alt={`Imagen seleccionada de ${item.location.locationCode}`}
-                    className="h-full w-full object-cover"
-                  />
-                  {shouldShowOverflowOverlay ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/58 text-[1.75rem] font-semibold tracking-[-0.04em] text-white backdrop-blur-[1px] sm:text-[2rem]">
-                      +{hiddenImagesCount}
-                    </div>
-                  ) : null}
-                </button>
+                  <div
+                    key={image.id}
+                    className="group relative aspect-[4/3] w-[calc(25%-0.5625rem)] min-w-[120px] overflow-hidden rounded-[0.3rem] bg-white/6 sm:min-w-[132px]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveLightboxLocationId(item.location.id)
+                        setActiveLightboxIndex(index)
+                      }}
+                      className="h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                    >
+                      <img
+                        src={image.imageUrl}
+                        alt={`Imagen seleccionada de ${item.location.locationCode}`}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                    {canEditLocationImages ? (
+                      <span className="absolute right-2 top-2 z-20 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void removeSelectedImage(item.location.id, image.id)
+                          }}
+                          disabled={isMutatingLocations}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/14 bg-black/65 text-white backdrop-blur-sm transition hover:bg-black/78 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                          aria-label="Quitar imagen seleccionada"
+                        >
+                          <RemoveSelectedImageIcon />
+                        </button>
+                      </span>
+                    ) : null}
+                    {shouldShowOverflowOverlay ? (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/58 text-[1.75rem] font-semibold tracking-[-0.04em] text-white backdrop-blur-[1px] sm:text-[2rem]">
+                        +{hiddenImagesCount}
+                      </div>
+                    ) : null}
+                  </div>
                 )
               })}
             </div>
@@ -945,14 +1101,45 @@ export function RequestDetailPage() {
     return (
       <div className="space-y-5">
         {locations.length > 0 ? (
-          locations.map((locationItem, index) => (
+          <>
+            {canAddLocations ? (
+              <div className="flex justify-end pb-1">
+                <button
+                  type="button"
+                  onClick={handleAddLocations}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                >
+                  <AddLocationsIcon />
+                  Agregar locaciones
+                </button>
+              </div>
+            ) : null}
+            {locations.map((locationItem, index) => (
             <div
               key={locationItem.id}
               className={index > 0 ? 'border-t border-white/10 pt-5' : ''}
             >
               {renderLocationCard(locationItem)}
             </div>
-          ))
+            ))}
+          </>
+        ) : isDraft ? (
+          <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+            <div className="max-w-sm">
+              <h3 className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+                Todavía no agregaste locaciones
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-brand-300">
+                Explorá las locaciones y seleccioná las imágenes que quieras sumar a este proyecto.
+              </p>
+              <Link
+                to="/#explorar"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              >
+                + Agregar locaciones
+              </Link>
+            </div>
+          </div>
         ) : (
           <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-black/14 px-5 py-10 text-center">
             <p className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">

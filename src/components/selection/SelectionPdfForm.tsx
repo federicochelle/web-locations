@@ -14,6 +14,7 @@ type SelectionPdfFormProps = {
   errors: SelectionPdfFormErrors
   onChange: (field: keyof SelectionPdfFormValues, value: string | null) => void
   disabled?: boolean
+  readOnlyFields?: Array<keyof SelectionPdfFormValues>
   variant?: 'default' | 'compact'
   columns?: 1 | 2
   showTentativeDates?: boolean
@@ -102,6 +103,44 @@ function CalendarIcon() {
       <path d="M4.75 9.25h14.5" />
       <rect x="4.75" y="5.75" width="14.5" height="13.5" rx="2.25" />
     </svg>
+  )
+}
+
+function getStaticFieldValue(
+  fieldName: keyof SelectionPdfFormValues,
+  value: string,
+) {
+  if (fieldName === 'tentativeStartDate' || fieldName === 'tentativeEndDate') {
+    return value ? formatDateValue(value) : '—'
+  }
+
+  return value.trim() ? value : '—'
+}
+
+type StaticFieldProps = {
+  label: string
+  value: string
+  compact: boolean
+  multiline?: boolean
+}
+
+function StaticField({
+  label,
+  value,
+  compact,
+  multiline = false,
+}: StaticFieldProps) {
+  return (
+    <>
+      <label className="mb-2 block text-sm font-medium text-brand-100">
+        {label}
+      </label>
+      <div
+        className={`${multiline ? (compact ? 'min-h-[8.5rem] py-3' : 'min-h-[9.5rem] py-3') : compact ? 'min-h-11' : 'min-h-12'} flex w-full items-start text-sm text-brand-100/88 ${multiline ? 'whitespace-pre-wrap' : 'items-center'} ${compact ? 'px-0' : 'px-0'}`}
+      >
+        {value}
+      </div>
+    </>
   )
 }
 
@@ -492,6 +531,7 @@ export function SelectionPdfForm({
   errors,
   onChange,
   disabled = false,
+  readOnlyFields = [],
   variant = 'default',
   columns = 1,
   showTentativeDates = true,
@@ -499,6 +539,7 @@ export function SelectionPdfForm({
 }: SelectionPdfFormProps) {
   const isCompact = variant === 'compact'
   const useTwoColumns = columns === 2
+  const readOnlyFieldSet = useMemo(() => new Set(readOnlyFields), [readOnlyFields])
   const visibleFields = showTentativeDates
     ? fields
     : fields.filter(
@@ -517,6 +558,7 @@ export function SelectionPdfForm({
             const errorId = `${field.name}-error`
             const hasError = Boolean(errors[field.name])
             const isDateField = field.type === 'date'
+            const isReadOnly = readOnlyFieldSet.has(field.name)
             const fieldValue = (
               typeof values[field.name] === 'string' ? values[field.name] : ''
             ) as string
@@ -527,7 +569,13 @@ export function SelectionPdfForm({
 
             return (
               <div key={field.name}>
-                {field.name === 'productionCompany' ? (
+                {isReadOnly ? (
+                  <StaticField
+                    label={field.label}
+                    value={getStaticFieldValue(field.name, fieldValue)}
+                    compact={isCompact}
+                  />
+                ) : field.name === 'productionCompany' ? (
                   <ProductionCompanyField
                     value={values.productionCompany}
                     selectedCompanyId={values.productionCompanyId}
@@ -589,30 +637,41 @@ export function SelectionPdfForm({
 
         {messageField ? (
           <div className="flex flex-col">
-            <label
-              htmlFor={messageField.name}
-              className="mb-2 block text-sm font-medium text-brand-100"
-            >
-              {messageField.label}
-            </label>
-            <textarea
-              id={messageField.name}
-              name={messageField.name}
-              value={values.message}
-              placeholder={messageField.placeholder}
-              disabled={disabled}
-              rows={isCompact ? 5 : 6}
-              onChange={(event) => {
-                onChange(messageField.name, event.target.value)
-              }}
-              aria-invalid={Boolean(errors[messageField.name])}
-              aria-describedby={errors[messageField.name] ? `${messageField.name}-error` : undefined}
-              className={`${isCompact ? 'rounded-xl px-3.5 py-3' : 'rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
-                errors[messageField.name]
-                  ? 'border-red-300 focus-visible:ring-red-300'
-                  : 'border-white/12'
-              }`}
-            />
+            {readOnlyFieldSet.has(messageField.name) ? (
+              <StaticField
+                label={messageField.label}
+                value={getStaticFieldValue(messageField.name, values.message)}
+                compact={isCompact}
+                multiline
+              />
+            ) : (
+              <>
+                <label
+                  htmlFor={messageField.name}
+                  className="mb-2 block text-sm font-medium text-brand-100"
+                >
+                  {messageField.label}
+                </label>
+                <textarea
+                  id={messageField.name}
+                  name={messageField.name}
+                  value={values.message}
+                  placeholder={messageField.placeholder}
+                  disabled={disabled}
+                  rows={isCompact ? 5 : 6}
+                  onChange={(event) => {
+                    onChange(messageField.name, event.target.value)
+                  }}
+                  aria-invalid={Boolean(errors[messageField.name])}
+                  aria-describedby={errors[messageField.name] ? `${messageField.name}-error` : undefined}
+                  className={`${isCompact ? 'rounded-xl px-3.5 py-3' : 'rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+                    errors[messageField.name]
+                      ? 'border-red-300 focus-visible:ring-red-300'
+                      : 'border-white/12'
+                  }`}
+                />
+              </>
+            )}
             {errors[messageField.name] ? (
               <p id={`${messageField.name}-error`} className="mt-2 text-sm text-red-200">
                 {errors[messageField.name]}
@@ -641,6 +700,7 @@ export function SelectionPdfForm({
         const hasError = Boolean(errors[field.name])
         const isDateField = field.type === 'date'
         const isTextareaField = field.type === 'textarea'
+        const isReadOnly = readOnlyFieldSet.has(field.name)
         const fieldValue = (
           typeof values[field.name] === 'string' ? values[field.name] : ''
         ) as string
@@ -654,7 +714,14 @@ export function SelectionPdfForm({
             key={field.name}
             className={isTextareaField && useTwoColumns ? 'sm:col-span-2' : undefined}
           >
-            {field.name === 'productionCompany' ? (
+            {isReadOnly ? (
+              <StaticField
+                label={field.label}
+                value={getStaticFieldValue(field.name, fieldValue)}
+                compact={isCompact}
+                multiline={isTextareaField}
+              />
+            ) : field.name === 'productionCompany' ? (
               <ProductionCompanyField
                 value={values.productionCompany}
                 selectedCompanyId={values.productionCompanyId}

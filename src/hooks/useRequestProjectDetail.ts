@@ -9,10 +9,13 @@ import {
   getRequestProjectErrorMessage,
   getRequestProjectLocations,
   removeLocationFromRequestProject,
+  syncRequestProjectSelection,
   updateRequestProject,
 } from '@/services/request-projects.service.ts'
+import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 import type { RequestProject, RequestProjectLocation } from '@/types/request-project.ts'
+import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import {
   buildSelectionPdfPayloadFromProject,
   mapRequestProjectToPdfFormValues,
@@ -36,6 +39,28 @@ function createLocationsSnapshot(locations: RequestProjectLocation[]) {
     locations.map((location) => ({
       locationId: location.location.id,
       sortOrder: location.sortOrder ?? null,
+    })),
+  )
+}
+
+function buildSelectionImagesFromLocations(
+  projectLocations: RequestProjectLocation[],
+): SelectedLocationImage[] {
+  return projectLocations.flatMap((location) =>
+    location.selectedImages.map((image) => ({
+      key: getImageSelectionKey({
+        locationId: location.location.id,
+        locationImageId: image.locationImageId,
+        imageUrl: image.imageUrl,
+      }),
+      imageUrl: image.imageUrl,
+      locationImageId: image.locationImageId,
+      sortOrder: image.sortOrder,
+      locationId: location.location.id,
+      locationCode: location.location.locationCode,
+      locationTitle: location.location.title,
+      categorySlug: location.location.categorySlug ?? '',
+      selectedAt: image.createdAt,
     })),
   )
 }
@@ -386,6 +411,73 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     [ensureVersioningBaseline, project?.status, projectId, refreshLocations, refreshProject],
   )
 
+  const removeSelectedImage = useCallback(
+    async (locationId: string, imageId: string) => {
+      if (!projectId) {
+        return false
+      }
+
+      const previousLocations = locations
+      const nextLocations = previousLocations
+        .map((location) => {
+          if (location.location.id !== locationId) {
+            return location
+          }
+
+          return {
+            ...location,
+            selectedImages: location.selectedImages.filter((image) => image.id !== imageId),
+          }
+        })
+        .filter((location) => location.selectedImages.length > 0)
+        .map((location, index) => ({
+          ...location,
+          sortOrder: index,
+        }))
+
+      const nextSelectionImages = buildSelectionImagesFromLocations(nextLocations)
+
+      try {
+        setIsMutatingLocations(true)
+        setError(null)
+
+        if (project?.status === 'confirmed' || project?.status === 'closed') {
+          return false
+        }
+
+        await ensureVersioningBaseline()
+
+        if (project?.status !== 'draft') {
+          setLocations(nextLocations)
+          await syncRequestProjectSelection(projectId, nextSelectionImages, {
+            allowEmptySelection: true,
+          })
+          return true
+        }
+
+        await syncRequestProjectSelection(projectId, nextSelectionImages, {
+          allowEmptySelection: true,
+        })
+        await Promise.all([refreshProject(), refreshLocations()])
+        return true
+      } catch (removeError) {
+        setLocations(previousLocations)
+        setError(getRequestProjectErrorMessage(removeError))
+        return false
+      } finally {
+        setIsMutatingLocations(false)
+      }
+    },
+    [
+      ensureVersioningBaseline,
+      locations,
+      project?.status,
+      projectId,
+      refreshLocations,
+      refreshProject,
+    ],
+  )
+
   return {
     project,
     locations,
@@ -407,5 +499,6 @@ export function useRequestProjectDetail(projectId: string | undefined) {
     addLocation,
     addLocations,
     removeLocation,
+    removeSelectedImage,
   }
 }

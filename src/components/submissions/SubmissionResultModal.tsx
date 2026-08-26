@@ -2,6 +2,24 @@ import { useRef } from 'react'
 
 import { AppModal } from '@/components/ui/AppModal.tsx'
 
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}
+
 type SubmissionResultModalProps = {
   isOpen: boolean
   title: string
@@ -57,7 +75,7 @@ export function SubmissionResultModal({
               {icon}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 text-center">
               <h2
                 id="submission-result-title"
                 className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
@@ -76,10 +94,10 @@ export function SubmissionResultModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-300 text-brand-950 transition hover:bg-brand-100"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-300 text-brand-950 transition hover:bg-brand-100"
             aria-label="Cerrar modal"
           >
-            ×
+            <CloseIcon />
           </button>
         </div>
 

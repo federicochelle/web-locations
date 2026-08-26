@@ -390,6 +390,15 @@ export function SelectionDrawer() {
   }, [currentSelectionContentState])
 
   useEffect(() => {
+    if (activeView === 'pdf-flow' && !isPdfFlowDetached) {
+      return
+    }
+
+    setEmbeddedPdfPreview(null)
+    setEmbeddedPdfFooter(null)
+  }, [activeView, isPdfFlowDetached])
+
+  useEffect(() => {
     if (activeProjectId !== null) {
       setNewProjectError(null)
     }
@@ -415,6 +424,8 @@ export function SelectionDrawer() {
     }
     setActiveView('selection')
     setIsPdfFlowDetached(false)
+    setEmbeddedPdfPreview(null)
+    setEmbeddedPdfFooter(null)
     setProjectLoadError(null)
     setDraftNotice(null)
     lastQueuedSnapshotRef.current = null
@@ -1642,12 +1653,8 @@ export function SelectionDrawer() {
             onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
             isDetached={false}
             embeddedInDrawer
-            onStartProcessing={() => {
-              setIsPdfFlowDetached(true)
-            }}
-            onRestoreAfterError={() => {
-              setIsPdfFlowDetached(false)
-            }}
+            onStartProcessing={() => {}}
+            onRestoreAfterError={() => {}}
             activeProjectId={activeProjectId}
             activeProject={activeProject}
             draftProjects={selectableProjects}

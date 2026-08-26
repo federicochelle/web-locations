@@ -26,11 +26,11 @@ function getStatusLabel(status: RequestProjectStatus) {
     case 'draft':
       return 'Borrador'
     case 'pending':
-      return 'Enviada'
+      return 'Enviado'
     case 'confirmed':
       return 'Confirmado'
     case 'submitted':
-      return 'Enviada'
+      return 'Enviado'
     case 'in_review':
       return 'En revision'
     case 'contacted':
