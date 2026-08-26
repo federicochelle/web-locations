@@ -17,6 +17,7 @@ type SelectionPdfFormProps = {
   variant?: 'default' | 'compact'
   columns?: 1 | 2
   showTentativeDates?: boolean
+  desktopMessageSplit?: boolean
 }
 
 type FieldConfig = {
@@ -494,6 +495,7 @@ export function SelectionPdfForm({
   variant = 'default',
   columns = 1,
   showTentativeDates = true,
+  desktopMessageSplit = false,
 }: SelectionPdfFormProps) {
   const isCompact = variant === 'compact'
   const useTwoColumns = columns === 2
@@ -503,6 +505,124 @@ export function SelectionPdfForm({
         (field) =>
           field.name !== 'tentativeStartDate' && field.name !== 'tentativeEndDate',
       )
+
+  if (useTwoColumns && desktopMessageSplit) {
+    const leftColumnFields = visibleFields.filter((field) => field.name !== 'message')
+    const messageField = visibleFields.find((field) => field.name === 'message')
+
+    return (
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+        <div className={isCompact ? 'grid gap-x-4 gap-y-3 sm:grid-cols-2' : 'grid gap-x-4 gap-y-4 sm:grid-cols-2'}>
+          {leftColumnFields.map((field) => {
+            const errorId = `${field.name}-error`
+            const hasError = Boolean(errors[field.name])
+            const isDateField = field.type === 'date'
+            const fieldValue = (
+              typeof values[field.name] === 'string' ? values[field.name] : ''
+            ) as string
+            const min =
+              field.name === 'tentativeEndDate' && values.tentativeStartDate
+                ? values.tentativeStartDate
+                : undefined
+
+            return (
+              <div key={field.name}>
+                {field.name === 'productionCompany' ? (
+                  <ProductionCompanyField
+                    value={values.productionCompany}
+                    selectedCompanyId={values.productionCompanyId}
+                    error={errors.productionCompany}
+                    disabled={disabled}
+                    compact={isCompact}
+                    onChange={onChange}
+                  />
+                ) : isDateField ? (
+                  <DateInputWithVisualShell
+                    id={field.name}
+                    name={field.name}
+                    label={field.label}
+                    value={fieldValue}
+                    error={errors[field.name]}
+                    disabled={disabled}
+                    min={min}
+                    compact={isCompact}
+                    onChange={onChange}
+                  />
+                ) : (
+                  <>
+                    <label
+                      htmlFor={field.name}
+                      className="mb-2 block text-sm font-medium text-brand-100"
+                    >
+                      {field.label}
+                    </label>
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type={field.type ?? 'text'}
+                      autoComplete={field.autoComplete}
+                      value={fieldValue}
+                      placeholder={field.placeholder}
+                      disabled={disabled}
+                      onChange={(event) => {
+                        onChange(field.name, event.target.value)
+                      }}
+                      aria-invalid={hasError}
+                      aria-describedby={hasError ? errorId : undefined}
+                      className={`${isCompact ? 'min-h-11 rounded-xl px-3.5' : 'min-h-12 rounded-2xl px-4'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+                        hasError
+                          ? 'border-red-300 focus-visible:ring-red-300'
+                          : 'border-white/12'
+                      }`}
+                    />
+                  </>
+                )}
+                {hasError && !isDateField ? (
+                  <p id={errorId} className="mt-2 text-sm text-red-200">
+                    {errors[field.name]}
+                  </p>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+
+        {messageField ? (
+          <div className="flex flex-col">
+            <label
+              htmlFor={messageField.name}
+              className="mb-2 block text-sm font-medium text-brand-100"
+            >
+              {messageField.label}
+            </label>
+            <textarea
+              id={messageField.name}
+              name={messageField.name}
+              value={values.message}
+              placeholder={messageField.placeholder}
+              disabled={disabled}
+              rows={isCompact ? 5 : 6}
+              onChange={(event) => {
+                onChange(messageField.name, event.target.value)
+              }}
+              aria-invalid={Boolean(errors[messageField.name])}
+              aria-describedby={errors[messageField.name] ? `${messageField.name}-error` : undefined}
+              className={`${isCompact ? 'rounded-xl px-3.5 py-3' : 'rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+                errors[messageField.name]
+                  ? 'border-red-300 focus-visible:ring-red-300'
+                  : 'border-white/12'
+              }`}
+            />
+            {errors[messageField.name] ? (
+              <p id={`${messageField.name}-error`} className="mt-2 text-sm text-red-200">
+                {errors[messageField.name]}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div

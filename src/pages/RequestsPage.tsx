@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
-import {
-  RequestProjectForm,
-  type RequestProjectFormValues,
-} from '@/components/requests/RequestProjectForm.tsx'
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { RequestProjectsSectionIllustration } from '@/components/requests/RequestProjectsSectionIllustrations.tsx'
+import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import type { RequestProject } from '@/types/request-project.ts'
@@ -170,13 +166,20 @@ function ProjectsSection({
 export function RequestsPage() {
   usePageTitle('Mis proyectos')
 
-  const navigate = useNavigate()
-  const { createProject, deletingProjectId, error, isCreating, isLoading, projects, removeProject } =
+  const { openDrawer, setActiveProjectContext } = useImageSelection()
+  const {
+    activeEditingProjectId,
+    deletingProjectId,
+    error,
+    flushAndFinishProjectEditing,
+    isLoading,
+    projects,
+    removeProject,
+  } =
     useRequestProjects()
   const [projectPendingDeletion, setProjectPendingDeletion] = useState<RequestProject | null>(null)
   const [successToast, setSuccessToast] = useState<string | null>(null)
   const [activeSegment, setActiveSegment] = useState<'drafts' | 'submitted' | null>(null)
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const draftProjects = projects.filter((project) => project.status === 'draft')
   const sentProjects = projects.filter((project) => project.status !== 'draft')
 
@@ -193,43 +196,6 @@ export function RequestsPage() {
       window.clearTimeout(timeoutId)
     }
   }, [successToast])
-
-  useEffect(() => {
-    if (!isCreateModalOpen) {
-      return
-    }
-
-    const scrollY = window.scrollY
-    const previousBodyOverflow = document.body.style.overflow
-    const previousBodyPosition = document.body.style.position
-    const previousBodyTop = document.body.style.top
-    const previousBodyWidth = document.body.style.width
-    const previousHtmlOverflow = document.documentElement.style.overflow
-
-    document.documentElement.style.overflow = 'hidden'
-    document.body.style.overflow = 'hidden'
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${scrollY}px`
-    document.body.style.width = '100%'
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !isCreating) {
-        setIsCreateModalOpen(false)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow
-      document.body.style.overflow = previousBodyOverflow
-      document.body.style.position = previousBodyPosition
-      document.body.style.top = previousBodyTop
-      document.body.style.width = previousBodyWidth
-      window.removeEventListener('keydown', handleKeyDown)
-      window.scrollTo(0, scrollY)
-    }
-  }, [isCreateModalOpen, isCreating])
 
   useEffect(() => {
     if (activeSegment) {
@@ -264,15 +230,28 @@ export function RequestsPage() {
     setProjectPendingDeletion(null)
   }
 
-  async function handleCreateProject(values: RequestProjectFormValues) {
-    const project = await createProject(values)
+  async function handleOpenNewProjectDrawer() {
+    if (activeEditingProjectId) {
+      const shouldExitEditing = window.confirm(
+        'Estás editando una nueva versión de un proyecto enviado. Si continuás, primero vamos a cerrar esa edición. ¿Querés seguir?',
+      )
 
-    if (!project) {
-      return
+      if (!shouldExitEditing) {
+        return
+      }
+
+      const didExitEditing = await flushAndFinishProjectEditing(activeEditingProjectId)
+
+      if (!didExitEditing) {
+        return
+      }
     }
 
-    setIsCreateModalOpen(false)
-    navigate(`/requests/${project.id}`)
+    setActiveProjectContext(null, {
+      hydrate: false,
+      persist: true,
+    })
+    openDrawer()
   }
 
   const currentSegment = activeSegment ?? 'drafts'
@@ -318,7 +297,7 @@ export function RequestsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setIsCreateModalOpen(true)
+                  void handleOpenNewProjectDrawer()
                 }}
                 aria-label="Nuevo proyecto"
                 className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-sm font-medium text-white transition hover:bg-brand-700 sm:min-h-12 sm:w-auto sm:gap-2 sm:px-5"
@@ -382,7 +361,7 @@ export function RequestsPage() {
                 onEmptyCtaClick={
                   currentSegment === 'drafts'
                     ? () => {
-                        setIsCreateModalOpen(true)
+                        void handleOpenNewProjectDrawer()
                       }
                     : undefined
                 }
@@ -395,87 +374,6 @@ export function RequestsPage() {
         </section>
       ) : null}
       </div>
-
-      {isCreateModalOpen
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[80] bg-black/72 backdrop-blur-sm transition-opacity duration-200"
-              onClick={(event) => {
-                if (event.target === event.currentTarget && !isCreating) {
-                  setIsCreateModalOpen(false)
-                }
-              }}
-              style={{
-                paddingTop: 'max(1rem, env(safe-area-inset-top))',
-                paddingRight: 'max(1rem, env(safe-area-inset-right))',
-                paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-                paddingLeft: 'max(1rem, env(safe-area-inset-left))',
-              }}
-            >
-              <div className="flex min-h-full items-center justify-center">
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="create-project-modal-title"
-                  className="flex w-full max-w-3xl flex-col overflow-y-auto rounded-[1.25rem] border border-white/10 bg-[#1B1B1D] p-5 text-brand-100 shadow-[0_24px_80px_rgba(0,0,0,0.38)] transition-all duration-200 sm:p-6 lg:p-7"
-                  style={{
-                    maxHeight: 'calc(100vh - 2rem)',
-                  }}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                  }}
-                >
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-                    <div className="min-w-0">
-                      <h2
-                        id="create-project-modal-title"
-                        className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
-                      >
-                        Nuevo proyecto
-                      </h2>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreateModalOpen(false)
-                      }}
-                      disabled={isCreating}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-brand-100/72 transition hover:bg-white/6 hover:text-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-                      aria-label="Cerrar modal"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        className="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M6 6L18 18" />
-                        <path d="M18 6L6 18" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="mt-6">
-                    <RequestProjectForm
-                      error={error}
-                      isSubmitting={isCreating}
-                      onCancel={() => {
-                        setIsCreateModalOpen(false)
-                      }}
-                      onSubmit={handleCreateProject}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
 
       {projectPendingDeletion ? (
         <div
