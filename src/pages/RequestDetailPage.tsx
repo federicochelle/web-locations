@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 
-import { ProposalWorkspace } from '@/components/selection/ProposalWorkspace.tsx'
+import drawerFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (3).webp'
+import drawerHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.40 PM.webp'
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
+import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
+  downloadOfficialRequestProjectPdf,
   submitRequestProjectWithOfficialPdf,
 } from '@/services/request-projects.service.ts'
+import type { RequestProjectLocation } from '@/types/request-project.ts'
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
@@ -62,6 +66,25 @@ function EditProjectIcon() {
     >
       <path d="M12 20h9" />
       <path d="m16.5 3.5 4 4L8 20l-5 1 1-5Z" />
+    </svg>
+  )
+}
+
+function DownloadPdfIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 4.5v10" />
+      <path d="m8.5 11.5 3.5 3.5 3.5-3.5" />
+      <path d="M5 18.5h14" />
     </svg>
   )
 }
@@ -138,13 +161,20 @@ function AutosaveErrorIcon() {
   )
 }
 
-function formatReadOnlyValue(value: string | null) {
-  const trimmedValue = value?.trim() ?? ''
-  return trimmedValue.length > 0 ? trimmedValue : '—'
-}
-
 type DraftAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type DraftAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
+
+const drawerPanelOverlayClassName =
+  'absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.32),rgba(5,4,4,0.4)_38%,rgba(5,4,4,0.5))]'
+
+const drawerPanelHighlightClassName =
+  'absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(215,192,162,0.16),transparent_26%),radial-gradient(circle_at_82%_22%,rgba(255,255,255,0.1),transparent_24%),radial-gradient(circle_at_50%_50%,transparent_58%,rgba(0,0,0,0.08)_100%)]'
+
+const drawerSecondaryButtonClassName =
+  'inline-flex min-h-10 items-center justify-center rounded-full border border-white/14 bg-white/8 px-3.5 text-sm font-medium text-brand-100 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-12px_24px_rgba(0,0,0,0.18),0_10px_22px_rgba(0,0,0,0.14)] transition hover:bg-white/12 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-12px_24px_rgba(0,0,0,0.16),0_12px_24px_rgba(0,0,0,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]'
+
+const drawerPrimaryButtonClassName =
+  'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/60 bg-white/10 px-4.5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]'
 
 export function RequestDetailPage() {
   const location = useLocation()
@@ -188,6 +218,9 @@ export function RequestDetailPage() {
   const [isEditNoticeModalOpen, setIsEditNoticeModalOpen] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
   const [isSubmittingOfficial, setIsSubmittingOfficial] = useState(false)
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
+  const [activeLightboxLocationId, setActiveLightboxLocationId] = useState<string | null>(null)
+  const [activeLightboxIndex, setActiveLightboxIndex] = useState(0)
   const [persistedDraftSnapshot, setPersistedDraftSnapshot] = useState<string | null>(null)
   const [, setDraftAutosaveStatus] = useState<DraftAutosaveStatus>('idle')
   const [draftAutosaveIndicator, setDraftAutosaveIndicator] = useState<DraftAutosaveIndicatorState>('hidden')
@@ -342,6 +375,10 @@ export function RequestDetailPage() {
         hasPendingLocationChanges
       ),
   )
+  const activeLightboxLocation =
+    activeLightboxLocationId
+      ? locations.find((location) => location.location.id === activeLightboxLocationId) ?? null
+      : null
 
   useEffect(() => {
     if (
@@ -669,64 +706,101 @@ export function RequestDetailPage() {
     }
   }
 
-  function renderReadOnlyProjectDetails() {
+  async function handleDownloadOfficialPdf() {
+    if (!project?.officialPdf) {
+      return
+    }
+
+    try {
+      const downloadResult = await downloadOfficialRequestProjectPdf(project)
+      downloadSelectionPdf(downloadResult.blob, downloadResult.fileName)
+    } catch (downloadError) {
+      setValidationError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : 'No pudimos descargar el PDF oficial.',
+      )
+    }
+  }
+
+  function renderProjectIdentityPanel() {
     if (!project) {
       return null
     }
 
-    const primaryFields = [
-      {
-        label: 'Producto',
-        value: formatReadOnlyValue(project.title),
-      },
-      {
-        label: 'Productora',
-        value: formatReadOnlyValue(project.productionCompany),
-      },
-      {
-        label: 'Fecha desde',
-        value: formatReadOnlyValue(project.tentativeStartDate),
-      },
-      {
-        label: 'Fecha hasta',
-        value: formatReadOnlyValue(project.tentativeEndDate),
-      },
-    ] as const
-
-    const messageValue = formatReadOnlyValue(project.message)
-
     return (
-      <div className="space-y-8">
-        <div className="grid gap-x-8 gap-y-7 sm:grid-cols-2">
-          {primaryFields.map((field) => (
-            <div key={field.label}>
-              <p className="mb-3 block text-sm font-medium text-brand-100">
-                {field.label}
-              </p>
-              <p className="text-[0.98rem] font-medium leading-6 text-brand-100">
-                {field.value}
-              </p>
+      <section className="overflow-hidden rounded-[0.3rem] border border-white/10 bg-white/4">
+        <div className="relative overflow-hidden border-b border-white/10">
+          <div className="absolute inset-0" aria-hidden="true">
+            <img
+              src={drawerHeaderBackgroundUrl}
+              alt=""
+              className="h-full w-full object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-black/46" />
+            <div className={drawerPanelOverlayClassName} />
+            <div className={drawerPanelHighlightClassName} />
+          </div>
+          <div className="relative px-5 py-5 sm:px-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 flex items-center gap-3">
+                <h1 className="font-display text-[2rem] font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-[2.35rem]">
+                  Datos del proyecto
+                </h1>
+                <RequestProjectStatusBadge status={project.status} />
+              </div>
+              <div className="ml-auto flex items-center gap-3 pt-1">
+                <span
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center"
+                >
+                  {isAutosaveEnabled && draftAutosaveIndicator === 'saving' ? (
+                    <span className="text-brand-300">
+                      <AutosaveSpinnerIcon />
+                    </span>
+                  ) : null}
+                  {isAutosaveEnabled && draftAutosaveIndicator === 'saved' ? (
+                    <span className="text-emerald-300">
+                      <AutosaveCheckIcon />
+                    </span>
+                  ) : null}
+                  {isAutosaveEnabled && draftAutosaveIndicator === 'error' ? (
+                    <span className="text-red-300">
+                      <AutosaveErrorIcon />
+                    </span>
+                  ) : null}
+                </span>
+                {project.officialPdf ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleDownloadOfficialPdf()
+                    }}
+                    className={`${drawerSecondaryButtonClassName} gap-2`}
+                  >
+                    <DownloadPdfIcon />
+                    Descargar PDF
+                  </button>
+                ) : null}
+                {isSentProject && !isEditingProject && isEditableProject ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditNoticeModalOpen(true)
+                    }}
+                    className={`${drawerSecondaryButtonClassName} gap-2 font-semibold`}
+                  >
+                    <EditProjectIcon />
+                    Editar
+                  </button>
+                ) : null}
+              </div>
             </div>
-          ))}
+          </div>
         </div>
 
-        <div>
-          <p className="mb-3 block text-sm font-medium text-brand-100">
-            Mensaje
-          </p>
-          <p className="whitespace-pre-wrap text-[0.98rem] font-medium leading-7 text-brand-100">
-            {messageValue}
-          </p>
-        </div>
-
-      </div>
-    )
-  }
-
-  function renderProjectSidebarBody() {
-    return (
-      <div className="flex min-h-full flex-col">
-        <div className="space-y-6">
+        <div className="space-y-6 px-5 py-5 sm:px-6">
           {successMessage ? (
             <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
               {successMessage}
@@ -739,123 +813,173 @@ export function RequestDetailPage() {
             </div>
           ) : null}
 
-          {isSentProject && !isEditingProject
-            ? renderReadOnlyProjectDetails()
-            : (
-              <SelectionPdfForm
-                values={values}
-                errors={formErrors}
-                onChange={handleFieldChange}
-                disabled={!isFormEditable || isSubmitting}
-                variant="compact"
-                columns={2}
-                showTentativeDates
-              />
-            )}
-        </div>
-      </div>
-    )
-  }
+          <div className="pt-6">
+            <SelectionPdfForm
+              values={values}
+              errors={formErrors}
+              onChange={handleFieldChange}
+              disabled={!isFormEditable || isSubmitting}
+              variant="compact"
+              columns={2}
+              showTentativeDates
+              desktopMessageSplit
+            />
+          </div>
 
-  function renderProjectSidebarFooter() {
-    if (!isEditableProject) {
-      return null
-    }
-
-    return (
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          type="submit"
-          disabled={isSaving || isSubmitting || !canSubmitCurrentProject}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-        >
-          <SubmitProposalIcon />
-          {isSubmitting
-            ? isDraft
-              ? 'Enviando proyecto...'
-              : 'Enviando nueva version...'
-            : isDraft
-              ? 'Enviar proyecto'
-              : 'Enviar nueva version'}
-        </button>
-      </div>
-    )
-  }
-
-  function renderProjectDetailWorkspace() {
-    return (
-      <section className="relative left-1/2 w-screen -translate-x-1/2">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void handleSubmitProject()
-          }}
-        >
-          <ProposalWorkspace
-            preview={<SelectionPdfPreview payload={currentPdfPayload} hideCover />}
-            sidebarTitle={isDraft ? 'Detalle del borrador' : 'Detalle del proyecto'}
-            rootClassName="lg:items-stretch"
-            previewSectionClassName="px-0 py-0 sm:px-0 lg:h-[100dvh] lg:self-stretch lg:overflow-y-auto lg:px-0 lg:py-0"
-            previewInnerClassName="max-w-none"
-            sidebarClassName="lg:border-l lg:border-white/10"
-            sidebarBodyInnerClassName="h-full"
-            sidebarHeader={(
-              <div className="flex min-w-0 items-center justify-between gap-3">
-                <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                  <h2 className="min-w-0 font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
-                    {isDraft ? 'Detalle del borrador' : 'Detalle del proyecto'}
-                  </h2>
-                  <span
-                    aria-live="polite"
-                    aria-atomic="true"
-                    className="inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center"
-                  >
-                    {isAutosaveEnabled && draftAutosaveIndicator === 'saving' ? (
-                      <span className="text-brand-300">
-                        <AutosaveSpinnerIcon />
-                      </span>
-                    ) : null}
-                    {isAutosaveEnabled && draftAutosaveIndicator === 'saved' ? (
-                      <span className="text-emerald-300">
-                        <AutosaveCheckIcon />
-                      </span>
-                    ) : null}
-                    {isAutosaveEnabled && draftAutosaveIndicator === 'error' ? (
-                      <span className="text-red-300">
-                        <AutosaveErrorIcon />
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-                {project ? <RequestProjectStatusBadge status={project.status} /> : null}
-                {isSentProject && !isEditingProject && isEditableProject ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditNoticeModalOpen(true)
-                    }}
-                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2.5 rounded-full border border-white/14 bg-white/8 px-4.5 text-sm font-semibold text-brand-100 transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                  >
-                    <EditProjectIcon />
-                    Editar
-                  </button>
-                ) : null}
+          <div className="border-t border-white/10 pt-6">
+            <div className="flex flex-col gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {isSentProject && isEditingProject ? (
                   <button
                     type="button"
                     onClick={handleCancelEditing}
                     disabled={isSaving || isSubmitting}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/8 text-brand-100 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-                    aria-label="Cancelar edicion"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/14 bg-white/8 px-4.5 text-sm font-medium text-brand-100 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
                   >
-                    <span className="text-lg leading-none">×</span>
+                    Cancelar edición
                   </button>
                 ) : null}
               </div>
-            )}
-            sidebarBody={renderProjectSidebarBody()}
-            sidebarFooter={renderProjectSidebarFooter()}
-          />
+            </div>
+          </div>
+
+          <div>
+            {renderLocationsPanel()}
+          </div>
+        </div>
+
+        {isEditableProject ? (
+          <footer className="relative overflow-hidden border-t border-white/10">
+            <div className="absolute inset-0" aria-hidden="true">
+              <img
+                src={drawerFooterBackgroundUrl}
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-black/46" />
+              <div className={drawerPanelOverlayClassName} />
+              <div className={drawerPanelHighlightClassName} />
+            </div>
+            <div className="relative px-5 py-5 sm:px-6">
+              <button
+                type="submit"
+                disabled={isSaving || isSubmitting || !canSubmitCurrentProject}
+                className={drawerPrimaryButtonClassName}
+              >
+                <SubmitProposalIcon />
+                {isSubmitting
+                  ? isDraft
+                    ? 'Enviando solicitud...'
+                    : 'Enviando nueva version...'
+                  : isDraft
+                    ? 'Enviar solicitud'
+                    : 'Enviar nueva version'}
+              </button>
+            </div>
+          </footer>
+        ) : null}
+      </section>
+    )
+  }
+
+  function renderLocationCard(item: RequestProjectLocation) {
+    const selectedImages = item.selectedImages
+    const visibleImages = selectedImages.slice(0, 4)
+    const hiddenImagesCount = Math.max(0, selectedImages.length - 4)
+
+    return (
+      <article
+        key={item.id}
+        className="py-5 first:pt-0 last:pb-0"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-display text-[1.65rem] font-semibold leading-none tracking-[-0.03em] text-brand-100">
+              {item.location.title}
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-5">
+          {selectedImages.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {visibleImages.map((image, index) => {
+                const shouldShowOverflowOverlay =
+                  index === visibleImages.length - 1 && hiddenImagesCount > 0
+
+                return (
+                <button
+                  type="button"
+                  key={image.id}
+                  onClick={() => {
+                    setActiveLightboxLocationId(item.location.id)
+                    setActiveLightboxIndex(index)
+                  }}
+                  className="relative aspect-[4/3] w-[calc(25%-0.5625rem)] min-w-[120px] overflow-hidden rounded-[0.3rem] bg-white/6 sm:min-w-[132px]"
+                >
+                  <img
+                    src={image.imageUrl}
+                    alt={`Imagen seleccionada de ${item.location.locationCode}`}
+                    className="h-full w-full object-cover"
+                  />
+                  {shouldShowOverflowOverlay ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/58 text-[1.75rem] font-semibold tracking-[-0.04em] text-white backdrop-blur-[1px] sm:text-[2rem]">
+                      +{hiddenImagesCount}
+                    </div>
+                  ) : null}
+                </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="rounded-[1rem] border border-dashed border-white/10 bg-black/14 px-4 py-6 text-sm text-brand-300">
+              Esta locación todavía no tiene imágenes seleccionadas.
+            </div>
+          )}
+        </div>
+      </article>
+    )
+  }
+
+  function renderLocationsPanel() {
+    return (
+      <div className="space-y-5">
+        {locations.length > 0 ? (
+          locations.map((locationItem, index) => (
+            <div
+              key={locationItem.id}
+              className={index > 0 ? 'border-t border-white/10 pt-5' : ''}
+            >
+              {renderLocationCard(locationItem)}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-black/14 px-5 py-10 text-center">
+            <p className="font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
+              Todavía no hay locaciones
+            </p>
+            <p className="mt-3 text-sm leading-6 text-brand-300">
+              Este proyecto no tiene locaciones seleccionadas por el momento.
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderProjectDetailLayout() {
+    return (
+      <section className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSubmitProject()
+          }}
+          className="mx-auto w-full max-w-[1680px]"
+        >
+          <div className="space-y-6 lg:space-y-7">
+            <div className="w-full">{renderProjectIdentityPanel()}</div>
+          </div>
         </form>
       </section>
     )
@@ -868,25 +992,29 @@ export function RequestDetailPage() {
   return (
     <>
       <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
-        <div className="w-full">
-          <section className="w-full">
-            {isLoading ? (
-              <div className="space-y-4">
-                <div className="h-8 animate-pulse rounded bg-sand-200" />
-                <div className="h-28 animate-pulse rounded-[1.5rem] bg-sand-200" />
-                <div className="h-28 animate-pulse rounded-[1.5rem] bg-sand-200" />
+        {isLoading ? (
+          <div className="mx-auto w-full max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+            <div className="space-y-6 lg:space-y-7">
+              <div className="space-y-4 rounded-[1.75rem] border border-white/10 bg-white/4 p-6">
+                <div className="h-12 animate-pulse rounded bg-white/10" />
+                <div className="h-28 animate-pulse rounded-[1rem] bg-white/10" />
+                <div className="h-56 animate-pulse rounded-[1rem] bg-white/10" />
+                <div className="h-64 animate-pulse rounded-[1rem] bg-white/10" />
+                <div className="h-64 animate-pulse rounded-[1rem] bg-white/10" />
               </div>
-            ) : null}
+            </div>
+          </div>
+        ) : null}
 
-            {!isLoading && error ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-                {error}
-              </div>
-            ) : null}
+        {!isLoading && error ? (
+          <div className="mx-auto w-full max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+              {error}
+            </div>
+          </div>
+        ) : null}
 
-          {!isLoading && !error && project ? renderProjectDetailWorkspace() : null}
-          </section>
-        </div>
+        {!isLoading && !error && project ? renderProjectDetailLayout() : null}
       </div>
       <RequestProjectFavoritesModal
         favorites={availableFavorites}
@@ -1013,6 +1141,45 @@ export function RequestDetailPage() {
           </div>
         </div>
       </AppModal>
+      <AppModal
+        open={isPdfPreviewOpen}
+        onClose={() => {
+          setIsPdfPreviewOpen(false)
+        }}
+        panelClassName="max-w-5xl overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none"
+      >
+        <div className="relative max-h-[80vh] overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="sticky top-3 z-10 mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsPdfPreviewOpen(false)
+              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/14 bg-[#14110f]/82 text-brand-100 backdrop-blur-sm transition hover:bg-[#14110f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+              aria-label="Cerrar vista previa del PDF"
+            >
+              <span className="text-lg leading-none">×</span>
+            </button>
+          </div>
+          <SelectionPdfPreview payload={currentPdfPayload} hideCover />
+        </div>
+      </AppModal>
+      <ImageLightbox
+        images={
+          activeLightboxLocation?.selectedImages.map((image, index) => ({
+            id: image.id,
+            url: image.imageUrl,
+            alt: `${activeLightboxLocation.location.title} · imagen ${index + 1}`,
+          })) ?? []
+        }
+        initialIndex={activeLightboxIndex}
+        isOpen={Boolean(activeLightboxLocation)}
+        imageClassName="rounded-[0.3rem]"
+        onClose={() => {
+          setActiveLightboxLocationId(null)
+          setActiveLightboxIndex(0)
+        }}
+      />
     </>
   )
 }

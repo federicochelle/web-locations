@@ -53,6 +53,8 @@ type SelectionPdfFlowProps = {
   onBusyStateChange?: (isBusy: boolean) => void
   onRegisterProjectFormFlush?: (handler: (() => Promise<boolean>) | null) => void
   onAutosaveIndicatorChange?: (state: DrawerAutosaveIndicatorState) => void
+  onEmbeddedPreviewChange?: (preview: ReactNode | null) => void
+  onEmbeddedFooterChange?: (footer: ReactNode | null) => void
 }
 
 const initialValues: SelectionPdfFormValues = {
@@ -193,6 +195,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onBusyStateChange,
     onRegisterProjectFormFlush,
     onAutosaveIndicatorChange,
+    onEmbeddedPreviewChange,
+    onEmbeddedFooterChange,
   } = props
   const navigate = useNavigate()
   const { images, clearSelection } = useImageSelection()
@@ -225,6 +229,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const latestNormalizedValuesRef = useRef<ReturnType<typeof normalizeRequestProjectFormValues> | null>(null)
   const persistedSnapshotRef = useRef<string | null>(null)
   const hydratedProjectIdRef = useRef<string | null>(null)
+  const submitProposalRef = useRef<() => Promise<void>>(async () => {})
 
   const livePreviewPayload = useMemo(
     () => buildSelectionPdfPayloadFromImages(values, images),
@@ -244,6 +249,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       (activeProject.status === 'draft' || activeProject.id === activeEditingProjectId),
   )
   const isProjectLocked = Boolean(activeProject && !isProjectAutosaveEnabled)
+  const embeddedPreview = useMemo(
+    () => <SelectionPdfPreview payload={livePreviewPayload} hideCover />,
+    [livePreviewPayload],
+  )
 
   const hasSelectedImages = images.length > 0
   const isBusy = isSubmittingProposal || isLoadingModalOpen
@@ -784,6 +793,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     }
   }
 
+  submitProposalRef.current = handleSubmitProposal
+
   function handleSuccessModalClose() {
     resetFlowState()
     onSuccessComplete()
@@ -943,13 +954,13 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     )
   }
 
-  function renderFormSidebarFooter() {
-    return (
+  const formSidebarFooter = useMemo(
+    () => (
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
           onClick={() => {
-            void handleSubmitProposal()
+            void submitProposalRef.current()
           }}
           disabled={!hasSelectedImages || isBusy || isProjectLocked}
           className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
@@ -958,31 +969,55 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           {isSentProject ? 'Enviar nueva version' : 'Solicitar'}
         </button>
       </div>
-    )
-  }
+    ),
+    [hasSelectedImages, isBusy, isProjectLocked, isSentProject],
+  )
+
+  useEffect(() => {
+    if (!onEmbeddedPreviewChange) {
+      return
+    }
+
+    if (embeddedInDrawer && !isDetached) {
+      onEmbeddedPreviewChange(embeddedPreview)
+      return () => {
+        onEmbeddedPreviewChange(null)
+      }
+    }
+
+    onEmbeddedPreviewChange(null)
+  }, [embeddedInDrawer, embeddedPreview, isDetached, onEmbeddedPreviewChange])
+
+  useEffect(() => {
+    if (!onEmbeddedFooterChange) {
+      return
+    }
+
+    if (embeddedInDrawer && !isDetached) {
+      onEmbeddedFooterChange(formSidebarFooter)
+      return () => {
+        onEmbeddedFooterChange(null)
+      }
+    }
+
+    onEmbeddedFooterChange(null)
+  }, [embeddedInDrawer, formSidebarFooter, isDetached, onEmbeddedFooterChange])
 
   return (
     <>
       {!isDetached ? embeddedInDrawer ? (
         <div className="flex h-full min-h-0 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-            <div className="space-y-6">
-              {renderFormSidebarBody()}
-              <SelectionPdfPreview payload={livePreviewPayload} hideCover />
-            </div>
+            <div className="space-y-6">{renderFormSidebarBody()}</div>
           </div>
-
-          <footer className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-5">
-            {renderFormSidebarFooter()}
-          </footer>
         </div>
       ) : (
         <ProposalWorkspace
-          preview={<SelectionPdfPreview payload={livePreviewPayload} hideCover />}
+          preview={embeddedPreview}
           sidebarTitle="Datos del proyecto"
           sidebarHeader={workspaceSidebarHeader ?? renderProjectHeader()}
           sidebarBody={renderFormSidebarBody()}
-          sidebarFooter={renderFormSidebarFooter()}
+          sidebarFooter={formSidebarFooter}
           previewSectionClassName="bg-white/[0.035] backdrop-blur-xl"
           closeDisabled={isBusy}
           onClose={onClose}
@@ -1002,7 +1037,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           }
           sidebarFooter={
             step === 'form'
-              ? renderFormSidebarFooter()
+              ? formSidebarFooter
               : isLoadingModalOpen
                 ? null
                 : renderDetachedFooter()

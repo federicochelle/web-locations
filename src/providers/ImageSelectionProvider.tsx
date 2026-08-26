@@ -28,9 +28,20 @@ type SetActiveProjectContextOptions = {
   persist?: boolean
 }
 
+type PendingPersistedContextEvent =
+  | {
+      mode: 'new'
+    }
+  | {
+      mode: 'project'
+      projectId: string
+      hydrate: boolean
+    }
+
 type ImageSelectionContextValue = {
   activeProjectId: string | null
   images: SelectedLocationImage[]
+  pendingSelectionImages: SelectedLocationImage[]
   isDrawerOpen: boolean
   isHydratingActiveProjectSelection: boolean
   addImage: (image: SelectedLocationImage) => void
@@ -45,6 +56,7 @@ type ImageSelectionContextValue = {
     projectId: string | null,
     options?: SetActiveProjectContextOptions,
   ) => void
+  clearPendingSelectionIntent: () => void
   openDrawer: () => void
   closeDrawer: () => void
   toggleDrawer: () => void
@@ -99,6 +111,9 @@ export function ImageSelectionProvider({
   const [projectSelections, setProjectSelections] = useState(
     initialSelectionCache.projectSelections,
   )
+  const [pendingSelectionImages, setPendingSelectionImages] = useState<
+    SelectedLocationImage[]
+  >([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(
     initialActiveProjectId,
   )
@@ -107,6 +122,7 @@ export function ImageSelectionProvider({
     useState(Boolean(initialActiveProjectId))
   const activeProjectIdRef = useRef<string | null>(initialActiveProjectId)
   const hydrationRequestIdRef = useRef(0)
+  const pendingPersistedContextEventRef = useRef<PendingPersistedContextEvent | null>(null)
 
   const images = activeProjectId
     ? projectSelections[activeProjectId] ?? []
@@ -174,6 +190,9 @@ export function ImageSelectionProvider({
       setIsHydratingActiveProjectSelection(false)
 
       if (shouldPersist) {
+        pendingPersistedContextEventRef.current = {
+          mode: 'new',
+        }
         persistSelectionActiveContext({ mode: 'new' })
       }
 
@@ -183,6 +202,11 @@ export function ImageSelectionProvider({
     setIsHydratingActiveProjectSelection(shouldHydrate)
 
     if (shouldPersist) {
+      pendingPersistedContextEventRef.current = {
+        mode: 'project',
+        projectId: normalizedProjectId,
+        hydrate: shouldHydrate,
+      }
       persistSelectionActiveContext({ mode: 'project', projectId: normalizedProjectId })
     }
 
@@ -196,6 +220,25 @@ export function ImageSelectionProvider({
       const customEvent = event as CustomEvent<{ context?: SelectionActiveContext }>
       const nextContext = customEvent.detail?.context ?? restoreSelectionActiveContext()
       const nextProjectId = resolveContextProjectId(nextContext)
+      const pendingPersistedContextEvent = pendingPersistedContextEventRef.current
+
+      if (nextContext?.mode === 'new') {
+        if (pendingPersistedContextEvent?.mode === 'new') {
+          pendingPersistedContextEventRef.current = null
+          return
+        }
+      } else if (nextContext?.mode === 'project') {
+        if (
+          pendingPersistedContextEvent?.mode === 'project' &&
+          pendingPersistedContextEvent.projectId === nextContext.projectId
+        ) {
+          pendingPersistedContextEventRef.current = null
+
+          if (!pendingPersistedContextEvent.hydrate) {
+            return
+          }
+        }
+      }
 
       setActiveProjectContext(nextProjectId, {
         hydrate: Boolean(nextProjectId),
@@ -244,10 +287,15 @@ export function ImageSelectionProvider({
       return
     }
 
-    setGlobalImages((currentImages) =>
+    setPendingSelectionImages((currentImages) =>
       normalizeImages([...currentImages, normalizedImage]),
     )
-  }, [])
+    setActiveProjectContext(null, {
+      hydrate: false,
+      persist: true,
+    })
+    setIsDrawerOpen(true)
+  }, [setActiveProjectContext])
 
   const replaceSelection = useCallback((
     nextImages: SelectedLocationImage[],
@@ -312,22 +360,38 @@ export function ImageSelectionProvider({
     [images],
   )
 
+  const clearPendingSelectionIntent = useCallback(() => {
+    setPendingSelectionImages([])
+  }, [])
+
   const openDrawer = useCallback(() => {
     setIsDrawerOpen(true)
   }, [])
 
   const closeDrawer = useCallback(() => {
+    if (!activeProjectIdRef.current) {
+      setPendingSelectionImages([])
+    }
     setIsDrawerOpen(false)
   }, [])
 
   const toggleDrawer = useCallback(() => {
-    setIsDrawerOpen((currentValue) => !currentValue)
+    setIsDrawerOpen((currentValue) => {
+      const nextValue = !currentValue
+
+      if (!nextValue && !activeProjectIdRef.current) {
+        setPendingSelectionImages([])
+      }
+
+      return nextValue
+    })
   }, [])
 
   const value = useMemo<ImageSelectionContextValue>(
     () => ({
       activeProjectId,
       images,
+      pendingSelectionImages,
       isDrawerOpen,
       isHydratingActiveProjectSelection,
       addImage,
@@ -336,6 +400,7 @@ export function ImageSelectionProvider({
       clearSelection,
       isSelected,
       setActiveProjectContext,
+      clearPendingSelectionIntent,
       openDrawer,
       closeDrawer,
       toggleDrawer,
@@ -344,12 +409,14 @@ export function ImageSelectionProvider({
       activeProjectId,
       addImage,
       clearSelection,
+      clearPendingSelectionIntent,
       closeDrawer,
       images,
       isDrawerOpen,
       isHydratingActiveProjectSelection,
       isSelected,
       openDrawer,
+      pendingSelectionImages,
       removeImage,
       replaceSelection,
       setActiveProjectContext,
