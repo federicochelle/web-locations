@@ -1,12 +1,11 @@
-import { useId, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
-import { AppModal } from '@/components/ui/AppModal.tsx'
+import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
 import { AuthPageShell } from '@/components/auth/AuthPageShell.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { requestPasswordReset } from '@/services/auth.service.ts'
 import { isValidEmail } from '@/utils/auth-validation.ts'
-import logoUrl from '../../logo.webp'
 
 const RESET_NOTICE_TITLE = 'Revisá tu correo'
 const RESET_NOTICE_DESCRIPTION =
@@ -30,8 +29,7 @@ function isRateLimitedResetError(error: unknown) {
 export function ForgotPasswordPage() {
   usePageTitle('Recuperar contraseña')
 
-  const resetNoticeTitleId = useId()
-  const resetNoticeDescriptionId = useId()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -125,47 +123,15 @@ export function ForgotPasswordPage() {
         </form>
       </AuthPageShell>
 
-      <AppModal
-        open={isResetNoticeOpen}
-        onClose={() => {}}
-        titleId={resetNoticeTitleId}
-        descriptionId={resetNoticeDescriptionId}
-        closeOnEscape={false}
-        closeOnOverlayClick={false}
-        panelClassName="max-w-[30rem] border-brand-300/30 bg-[linear-gradient(180deg,rgba(27,27,29,0.98),rgba(17,17,19,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
-      >
-        <div className="px-5 py-6 sm:px-7 sm:py-7">
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex flex-col items-center text-center"
-          >
-            <img
-              src={logoUrl}
-              alt="Film Locations UY"
-              className="mb-5 h-auto w-24 sm:w-28"
-            />
-            <h2
-              id={resetNoticeTitleId}
-              className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-white"
-            >
-              {RESET_NOTICE_TITLE}
-            </h2>
-            <p
-              id={resetNoticeDescriptionId}
-              className="mt-4 max-w-md text-sm leading-6 text-brand-100/74 sm:text-base"
-            >
-              {RESET_NOTICE_DESCRIPTION}
-            </p>
-            <Link
-              to="/login"
-              className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-brand-300/35 bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 sm:w-auto sm:min-w-48"
-            >
-              Ir a iniciar sesión
-            </Link>
-          </div>
-        </div>
-      </AppModal>
+      <AuthStatusModal
+        isOpen={isResetNoticeOpen}
+        title={RESET_NOTICE_TITLE}
+        message={RESET_NOTICE_DESCRIPTION}
+        primaryLabel="Ir a iniciar sesión"
+        onPrimaryAction={() => {
+          navigate('/login')
+        }}
+      />
     </>
   )
 }

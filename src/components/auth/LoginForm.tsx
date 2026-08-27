@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
+import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { getAuthErrorMessage, signIn } from '@/services/auth.service.ts'
 import { isValidEmail } from '@/utils/auth-validation.ts'
@@ -11,6 +12,26 @@ type LoginFormValues = {
 }
 
 type LoginFormErrors = Partial<Record<keyof LoginFormValues, string>>
+
+type LoginStatusModalState =
+  | {
+      title: string
+      message: string
+      primaryLabel: string
+    }
+  | null
+
+const EMAIL_CONFIRMED_MODAL = {
+  title: 'Correo confirmado',
+  message: 'Tu correo fue confirmado correctamente. Ya podés iniciar sesión en Film Locations UY.',
+  primaryLabel: 'Continuar',
+} satisfies NonNullable<LoginStatusModalState>
+
+const PASSWORD_RESET_MODAL = {
+  title: 'Contraseña actualizada',
+  message: 'Tu contraseña fue actualizada correctamente. Ya podés iniciar sesión con tu nueva contraseña.',
+  primaryLabel: 'Continuar',
+} satisfies NonNullable<LoginStatusModalState>
 
 function validateForm(values: LoginFormValues) {
   const errors: LoginFormErrors = {}
@@ -31,6 +52,7 @@ function validateForm(values: LoginFormValues) {
 export function LoginForm() {
   const [searchParams] = useSearchParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { isAuthenticated, loading, profile, role } = useAuth()
   const [values, setValues] = useState<LoginFormValues>({
     email: '',
@@ -40,18 +62,7 @@ export function LoginForm() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAwaitingAuthResolution, setIsAwaitingAuthResolution] = useState(false)
-
-  const notice = useMemo(() => {
-    if (searchParams.get('confirmed') === '1') {
-      return 'Tu correo electrónico fue confirmado. Ya podés iniciar sesión.'
-    }
-
-    if (searchParams.get('reset') === 'success') {
-      return 'Tu contraseña fue actualizada. Iniciá sesión con la nueva.'
-    }
-
-    return null
-  }, [searchParams])
+  const [statusModal, setStatusModal] = useState<LoginStatusModalState>(null)
 
   const authNavigationState = location.state
   const returnTo =
@@ -64,6 +75,32 @@ export function LoginForm() {
     typeof authNavigationState.from.pathname === 'string'
       ? `${authNavigationState.from.pathname}${typeof authNavigationState.from.search === 'string' ? authNavigationState.from.search : ''}${typeof authNavigationState.from.hash === 'string' ? authNavigationState.from.hash : ''}`
       : null
+
+  useEffect(() => {
+    const isConfirmed = searchParams.get('confirmed') === '1'
+    const isResetSuccess = searchParams.get('reset') === 'success'
+
+    if (!isConfirmed && !isResetSuccess) {
+      return
+    }
+
+    setStatusModal(isResetSuccess ? PASSWORD_RESET_MODAL : EMAIL_CONFIRMED_MODAL)
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('confirmed')
+    nextParams.delete('reset')
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextParams.toString() ? `?${nextParams.toString()}` : '',
+      },
+      {
+        replace: true,
+        state: location.state,
+      },
+    )
+  }, [location.pathname, location.state, navigate, searchParams])
 
   useEffect(() => {
     if (!isAwaitingAuthResolution || loading) {
@@ -129,94 +166,98 @@ export function LoginForm() {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      {notice ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
-        >
-          {notice}
-        </div>
-      ) : null}
-
-      {submitError ? (
-        <div
-          role="alert"
-          className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-        >
-          {submitError}
-        </div>
-      ) : null}
-
-      <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
-          Email
-        </span>
-        <input
-          type="email"
-          value={values.email}
-          onChange={(event) => handleChange('email', event.target.value)}
-          className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
-          placeholder="tu@email.com"
-          autoComplete="email"
-          disabled={isSubmitting}
-        />
-        {errors.email ? <p className="text-sm text-red-200">{errors.email}</p> : null}
-      </label>
-
-      <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
-          Contraseña
-        </span>
-        <input
-          type="password"
-          value={values.password}
-          onChange={(event) => handleChange('password', event.target.value)}
-          className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
-          placeholder="Ingresá tu contraseña"
-          autoComplete="current-password"
-          disabled={isSubmitting}
-        />
-        {errors.password ? (
-          <p className="text-sm text-red-200">{errors.password}</p>
+    <>
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        {submitError ? (
+          <div
+            role="alert"
+            className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+          >
+            {submitError}
+          </div>
         ) : null}
-      </label>
 
-      <div className="flex items-center justify-end">
-        <Link
-          to="/forgot-password"
-          className="text-sm font-medium text-brand-100/68 transition hover:text-brand-300"
-        >
-          ¿Olvidaste tu contraseña?
-        </Link>
-      </div>
-
-      <button
-        type="submit"
-        disabled={isSubmitting || isAwaitingAuthResolution}
-        className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {isSubmitting || isAwaitingAuthResolution ? (
-          <span
-            aria-hidden="true"
-            className="h-4 w-4 animate-spin rounded-full border-2 border-brand-950/25 border-t-brand-950 motion-reduce:animate-none"
+        <label className="block space-y-2">
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+            Email
+          </span>
+          <input
+            type="email"
+            value={values.email}
+            onChange={(event) => handleChange('email', event.target.value)}
+            className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
+            placeholder="tu@email.com"
+            autoComplete="email"
+            disabled={isSubmitting}
           />
-        ) : null}
-        {isSubmitting || isAwaitingAuthResolution
-          ? 'Ingresando...'
-          : 'Iniciar sesión'}
-      </button>
-      <p className="text-sm text-brand-100/58">
-        ¿Aún no tenés cuenta?{' '}
-        <Link
-          to="/register"
-          state={location.state}
-          className="font-medium text-brand-300 transition hover:text-brand-100"
+          {errors.email ? <p className="text-sm text-red-200">{errors.email}</p> : null}
+        </label>
+
+        <label className="block space-y-2">
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+            Contraseña
+          </span>
+          <input
+            type="password"
+            value={values.password}
+            onChange={(event) => handleChange('password', event.target.value)}
+            className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
+            placeholder="Ingresá tu contraseña"
+            autoComplete="current-password"
+            disabled={isSubmitting}
+          />
+          {errors.password ? (
+            <p className="text-sm text-red-200">{errors.password}</p>
+          ) : null}
+        </label>
+
+        <div className="flex items-center justify-end">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-medium text-brand-100/68 transition hover:text-brand-300"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting || isAwaitingAuthResolution}
+          className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Registrate
-        </Link>
-      </p>
-    </form>
+          {isSubmitting || isAwaitingAuthResolution ? (
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 animate-spin rounded-full border-2 border-brand-950/25 border-t-brand-950 motion-reduce:animate-none"
+            />
+          ) : null}
+          {isSubmitting || isAwaitingAuthResolution
+            ? 'Ingresando...'
+            : 'Iniciar sesión'}
+        </button>
+        <p className="text-sm text-brand-100/58">
+          ¿Aún no tenés cuenta?{' '}
+          <Link
+            to="/register"
+            state={location.state}
+            className="font-medium text-brand-300 transition hover:text-brand-100"
+          >
+            Registrate
+          </Link>
+        </p>
+      </form>
+
+      {statusModal ? (
+        <AuthStatusModal
+          isOpen
+          title={statusModal.title}
+          message={statusModal.message}
+          primaryLabel={statusModal.primaryLabel}
+          onPrimaryAction={() => {
+            setStatusModal(null)
+          }}
+        />
+      ) : null}
+    </>
   )
 }

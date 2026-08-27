@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { PhoneInput } from '@/components/ui/PhoneInput.tsx'
 import { useSignOutAction } from '@/hooks/useSignOutAction.ts'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
@@ -7,11 +8,16 @@ import {
   getAuthErrorMessage,
   updateUserProfile,
 } from '@/services/auth.service.ts'
+import {
+  getPhoneError,
+  normalizePhoneForInput,
+  normalizePhoneForStorage,
+} from '@/utils/phone.ts'
 
 type ProfileFormValues = {
   fullName: string
   companyName: string
-  phone: string
+  phone?: string
 }
 
 export function ProfilePage() {
@@ -36,7 +42,7 @@ export function ProfilePage() {
     setValues({
       fullName: profile.fullName ?? '',
       companyName: profile.companyName ?? '',
-      phone: profile.phone ?? '',
+      phone: normalizePhoneForInput(profile.phone),
     })
   }, [profile])
 
@@ -52,6 +58,13 @@ export function ProfilePage() {
       return
     }
 
+    const phoneError = getPhoneError(values.phone)
+
+    if (phoneError) {
+      setSubmitError(phoneError)
+      return
+    }
+
     try {
       setIsSubmitting(true)
       setSubmitError(null)
@@ -60,7 +73,7 @@ export function ProfilePage() {
       await updateUserProfile(user.id, {
         fullName: values.fullName.trim(),
         companyName: values.companyName.trim() || null,
-        phone: values.phone.trim() || null,
+        phone: normalizePhoneForStorage(values.phone),
       })
 
       await refreshProfile()
@@ -160,20 +173,19 @@ export function ProfilePage() {
                   <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
                     Telefono
                   </span>
-                  <input
-                    type="tel"
+                  <PhoneInput
                     value={values.phone}
-                    onChange={(event) => {
+                    onChange={(nextValue) => {
                       setValues((current) => ({
                         ...current,
-                        phone: event.target.value,
+                        phone: nextValue,
                       }))
                       setSubmitError(null)
                     }}
-                    className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
-                    placeholder="Tu telefono"
+                    placeholder="099 123 456"
                     autoComplete="tel"
                     disabled={isSubmitting}
+                    variant="profile"
                   />
                 </label>
               </div>
