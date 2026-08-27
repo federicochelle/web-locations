@@ -10,6 +10,16 @@ import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
 const SEARCH_RESULTS_PAGE_SIZE = 20
+const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+
+function getCriticalImageCount(totalImages: number) {
+  const maxCriticalImages =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 2
+      : 4
+
+  return Math.min(totalImages, maxCriticalImages)
+}
 
 function parsePageParam(value: string | null) {
   const parsedValue = Number.parseInt(value ?? '1', 10)
@@ -74,6 +84,8 @@ export function SearchLocationsPage() {
   const [legacyPage, setLegacyPage] = useState(initialPage)
   const [legacyTotalCount, setLegacyTotalCount] = useState(0)
   const [legacyTotalPages, setLegacyTotalPages] = useState(0)
+  const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)
+  const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
 
   const normalizedCategorySlug = categoryQuery?.trim() ?? ''
   const normalizedDepartmentSlug = departmentQuery?.trim() ?? ''
@@ -150,6 +162,7 @@ export function SearchLocationsPage() {
   const currentPage = hasAlgoliaSearch ? page : legacyPage
   const currentTotalCount = hasAlgoliaSearch ? algoliaTotalHits : legacyTotalCount
   const currentTotalPages = hasAlgoliaSearch ? totalPages : legacyTotalPages
+  const criticalImageCount = getCriticalImageCount(locations.length)
 
   function buildSearchParams(nextPage: number, nextQuery: string) {
     const nextSearchParams = new URLSearchParams()
@@ -239,6 +252,8 @@ export function SearchLocationsPage() {
       setLegacyPage(initialPage)
       setLegacyTotalCount(0)
       setLegacyTotalPages(0)
+      setResolvedCriticalImagesCount(0)
+      setIsWaitingForCriticalImages(false)
       return
     }
 
@@ -248,6 +263,8 @@ export function SearchLocationsPage() {
       try {
         setIsLegacyLoading(true)
         setLegacyError(null)
+        setResolvedCriticalImagesCount(0)
+        setIsWaitingForCriticalImages(false)
 
         // Legacy compatibility path for old URLs without a free-text query.
         const result = await getLocations({
@@ -300,6 +317,39 @@ export function SearchLocationsPage() {
     normalizedDepartmentSlug,
     normalizedFeatureSlugs,
   ])
+
+  useEffect(() => {
+    if (!hasAlgoliaSearch) {
+      return
+    }
+
+    setResolvedCriticalImagesCount(0)
+    setIsWaitingForCriticalImages(false)
+  }, [hasAlgoliaSearch, currentPage, trimmedSearchQuery, normalizedDepartmentSlug])
+
+  useEffect(() => {
+    if (isLoading || error || locations.length === 0 || criticalImageCount === 0) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    if (resolvedCriticalImagesCount >= criticalImageCount) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    setIsWaitingForCriticalImages(true)
+
+    const timeoutId = window.setTimeout(() => {
+      setIsWaitingForCriticalImages(false)
+    }, CRITICAL_IMAGE_TIMEOUT_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [criticalImageCount, error, isLoading, locations.length, resolvedCriticalImagesCount])
+
+  const isPageLoading = isLoading || isWaitingForCriticalImages
 
   useEffect(() => {
     if (currentPage <= 1) {
@@ -375,14 +425,14 @@ export function SearchLocationsPage() {
               Busqueda: "{trimmedSearchQuery}"
             </p>
           ) : null}
-          {!isLoading && !error ? (
+          {!isPageLoading && !error ? (
             <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
               {currentTotalCount} resultados
             </p>
           ) : null}
         </section>
 
-        {isLoading ? (
+        {isPageLoading ? (
           <section className="w-full">
             <AppLoading
               label={
@@ -394,14 +444,14 @@ export function SearchLocationsPage() {
           </section>
         ) : null}
 
-        {!isLoading && error ? (
+        {!isPageLoading && error ? (
           <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
             <h2 className="text-lg font-semibold">No se pudieron cargar los resultados</h2>
             <p className="mt-2 text-sm">{error}</p>
           </section>
         ) : null}
 
-        {!isLoading && !error && locations.length === 0 ? (
+        {!isPageLoading && !error && locations.length === 0 ? (
           <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
             <h2 className="text-lg font-semibold text-brand-950">No encontramos resultados</h2>
             <p className="mt-2 text-sm text-sand-700">
@@ -411,9 +461,25 @@ export function SearchLocationsPage() {
         ) : null}
 
         {!isLoading && !error && locations.length > 0 ? (
-          <>
-            <LocationsGrid locations={locations} />
+          <div
+            className={
+              isWaitingForCriticalImages
+                ? 'pointer-events-none invisible max-h-0 overflow-hidden'
+                : ''
+            }
+            aria-hidden={isWaitingForCriticalImages}
+          >
+            <LocationsGrid
+              locations={locations}
+              onCriticalImageSettled={() => {
+                setResolvedCriticalImagesCount((currentCount) => currentCount + 1)
+              }}
+            />
+          </div>
+        ) : null}
 
+        {!isPageLoading && !error && locations.length > 0 ? (
+          <>
             {currentTotalPages > 1 ? (
               <SearchResultsPagination
                 currentPage={currentPage}

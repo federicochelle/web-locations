@@ -11,19 +11,36 @@ import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getCategories } from '@/services/categories.service.ts'
 import type { Category } from '@/types/location.ts'
 
+const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+
+function getCriticalImageCount(totalImages: number) {
+  const maxCriticalImages =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 2
+      : 4
+
+  return Math.min(totalImages, maxCriticalImages)
+}
+
 export function HomePage() {
   usePageTitle('Home')
   const [categories, setCategories] = useState<Category[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isDataLoading, setIsDataLoading] = useState(true)
+  const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)
+  const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const categoryCards = buildHomeCategoryCards(categories)
+  const criticalImageCount = getCriticalImageCount(categoryCards.length)
 
   useEffect(() => {
     let isMounted = true
 
     async function loadCategories() {
       try {
-        setIsLoading(true)
+        setIsDataLoading(true)
         setError(null)
+        setResolvedCriticalImagesCount(0)
+        setIsWaitingForCriticalImages(false)
 
         const nextCategories = await getCategories()
 
@@ -44,7 +61,7 @@ export function HomePage() {
         )
       } finally {
         if (isMounted) {
-          setIsLoading(false)
+          setIsDataLoading(false)
         }
       }
     }
@@ -55,6 +72,36 @@ export function HomePage() {
       isMounted = false
     }
   }, [])
+
+  useEffect(() => {
+    if (isDataLoading || error || categoryCards.length === 0 || criticalImageCount === 0) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    if (resolvedCriticalImagesCount >= criticalImageCount) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    setIsWaitingForCriticalImages(true)
+
+    const timeoutId = window.setTimeout(() => {
+      setIsWaitingForCriticalImages(false)
+    }, CRITICAL_IMAGE_TIMEOUT_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    categoryCards.length,
+    criticalImageCount,
+    error,
+    isDataLoading,
+    resolvedCriticalImagesCount,
+  ])
+
+  const isLoading = isDataLoading || isWaitingForCriticalImages
 
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
@@ -83,10 +130,21 @@ export function HomePage() {
           </section>
         ) : null}
 
-        {!isLoading && !error && categories.length > 0 ? (
-          <section id="explorar">
+        {!isDataLoading && !error && categoryCards.length > 0 ? (
+          <section
+            id="explorar"
+            className={
+              isWaitingForCriticalImages
+                ? 'pointer-events-none invisible max-h-0 overflow-hidden'
+                : ''
+            }
+            aria-hidden={isWaitingForCriticalImages}
+          >
             <HomeCategoriesGrid
-              categories={buildHomeCategoryCards(categories)}
+              categories={categoryCards}
+              onCriticalImageSettled={() => {
+                setResolvedCriticalImagesCount((currentCount) => currentCount + 1)
+              }}
             />
           </section>
         ) : null}
