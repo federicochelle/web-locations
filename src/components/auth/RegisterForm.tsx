@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import {
   AUTH_MIN_PASSWORD_LENGTH,
@@ -7,18 +7,19 @@ import {
   REGISTRATION_TERMS_VERSION,
   signUp,
 } from '@/services/auth.service.ts'
-import { AppModal } from '@/components/ui/AppModal.tsx'
+import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
+import { PhoneInput } from '@/components/ui/PhoneInput.tsx'
 import {
   getMinPasswordError,
   getPasswordConfirmationError,
   isValidEmail,
 } from '@/utils/auth-validation.ts'
-import logoUrl from '../../../logo.webp'
+import { getPhoneError, normalizePhoneForStorage } from '@/utils/phone.ts'
 
 type RegisterFormValues = {
   fullName: string
   email: string
-  phone: string
+  phone?: string
   password: string
   confirmPassword: string
   acceptedTerms: boolean
@@ -41,6 +42,12 @@ function validateForm(values: RegisterFormValues) {
     errors.email = 'Ingresá tu correo electrónico.'
   } else if (!isValidEmail(values.email)) {
     errors.email = 'Ingresá un correo electrónico válido.'
+  }
+
+  const phoneError = getPhoneError(values.phone)
+
+  if (phoneError) {
+    errors.phone = phoneError
   }
 
   const passwordError = getMinPasswordError(
@@ -70,8 +77,7 @@ function validateForm(values: RegisterFormValues) {
 
 export function RegisterForm() {
   const location = useLocation()
-  const registrationNoticeTitleId = useId()
-  const registrationNoticeDescriptionId = useId()
+  const navigate = useNavigate()
   const [values, setValues] = useState<RegisterFormValues>({
     fullName: '',
     email: '',
@@ -120,7 +126,7 @@ export function RegisterForm() {
       await signUp({
         fullName: values.fullName.trim(),
         email: values.email.trim(),
-        phone: values.phone.trim() || null,
+        phone: normalizePhoneForStorage(values.phone),
         password: values.password,
         termsAcceptedAt: new Date().toISOString(),
         termsVersion: REGISTRATION_TERMS_VERSION,
@@ -194,15 +200,21 @@ export function RegisterForm() {
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
             Teléfono
           </span>
-          <input
-            type="tel"
+          <PhoneInput
             value={values.phone}
-            onChange={(event) => handleChange('phone', event.target.value)}
-            className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
+            onChange={(nextValue) => handleChange('phone', nextValue)}
+            disabled={isSubmitting}
             placeholder="099 123 456"
             autoComplete="tel"
-            disabled={isSubmitting}
+            ariaInvalid={Boolean(errors.phone)}
+            ariaDescribedBy={errors.phone ? 'register-phone-error' : undefined}
+            variant="auth"
           />
+          {errors.phone ? (
+            <p id="register-phone-error" className="text-sm text-red-200">
+              {errors.phone}
+            </p>
+          ) : null}
         </label>
 
         <label className="block space-y-2">
@@ -298,48 +310,15 @@ export function RegisterForm() {
         </p>
       </form>
 
-      <AppModal
-        open={isRegistrationNoticeOpen}
-        onClose={() => {}}
-        titleId={registrationNoticeTitleId}
-        descriptionId={registrationNoticeDescriptionId}
-        closeOnEscape={false}
-        closeOnOverlayClick={false}
-        panelClassName="max-w-[30rem] border-brand-300/30 bg-[linear-gradient(180deg,rgba(27,27,29,0.98),rgba(17,17,19,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
-      >
-        <div className="px-5 py-6 sm:px-7 sm:py-7">
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex flex-col items-center text-center"
-          >
-            <img
-              src={logoUrl}
-              alt="Film Locations UY"
-              className="mb-5 h-auto w-24 sm:w-28"
-            />
-            <h2
-              id={registrationNoticeTitleId}
-              className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-white"
-            >
-              {REGISTRATION_NOTICE_TITLE}
-            </h2>
-            <p
-              id={registrationNoticeDescriptionId}
-              className="mt-4 max-w-md text-sm leading-6 text-brand-100/74 sm:text-base"
-            >
-              {REGISTRATION_NOTICE_DESCRIPTION}
-            </p>
-            <Link
-              to="/login"
-              state={location.state}
-              className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-brand-300/35 bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 sm:w-auto sm:min-w-48"
-            >
-              Ir a iniciar sesión
-            </Link>
-          </div>
-        </div>
-      </AppModal>
+      <AuthStatusModal
+        isOpen={isRegistrationNoticeOpen}
+        title={REGISTRATION_NOTICE_TITLE}
+        message={REGISTRATION_NOTICE_DESCRIPTION}
+        primaryLabel="Ir a iniciar sesión"
+        onPrimaryAction={() => {
+          navigate('/login', { state: location.state })
+        }}
+      />
     </>
   )
 }

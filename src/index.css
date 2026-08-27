@@ -202,6 +202,101 @@
   }
 }
 
+.app-phone-input {
+  --PhoneInputCountryFlag-height: 1rem;
+  --PhoneInputCountryFlag-borderColor: rgba(255, 255, 255, 0.14);
+  --PhoneInputCountrySelectArrow-color: var(--color-brand-300);
+  --PhoneInputCountrySelectArrow-opacity: 1;
+  --PhoneInput-color--focus: var(--color-brand-300);
+  display: flex;
+  min-height: 3.25rem;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151517;
+  padding: 0 1rem;
+  color: var(--color-brand-100);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.app-phone-input:focus-within {
+  border-color: var(--color-brand-300);
+  background: #1b1b1f;
+}
+
+.app-phone-input--profile {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-phone-input--profile:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.app-phone-input.PhoneInput--disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.app-phone-input .PhoneInputCountry {
+  position: relative;
+  flex-shrink: 0;
+  margin: 0;
+  align-self: stretch;
+}
+
+.app-phone-input .PhoneInputCountrySelect {
+  width: 4.5rem;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 0.85rem;
+}
+
+.app-phone-input .PhoneInputCountryIcon {
+  width: 1.4rem;
+  height: auto;
+  box-shadow: none;
+}
+
+.app-phone-input .PhoneInputCountrySelectArrow {
+  margin-left: 0.45rem;
+  border-width: 0.22rem;
+}
+
+.app-phone-input .PhoneInputInput {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-100);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.app-phone-input .PhoneInputInput::placeholder {
+  color: rgba(242, 231, 216, 0.32);
+}
+
+.app-phone-input .PhoneInputInput:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-brand-100);
+  box-shadow: 0 0 0 1000px #151517 inset;
+}
+
+.app-phone-input--profile .PhoneInputInput:-webkit-autofill {
+  box-shadow: 0 0 0 1000px rgba(24, 24, 26, 1) inset;
+}
+
+.app-phone-input .PhoneInputCountrySelect:focus-visible,
+.app-phone-input .PhoneInputInput:focus-visible {
+  outline: none;
+}
+
 #root {
   min-height: 100vh;
 }

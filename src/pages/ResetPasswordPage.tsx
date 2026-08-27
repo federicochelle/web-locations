@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
 import { AuthPageShell } from '@/components/auth/AuthPageShell.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
@@ -22,6 +23,10 @@ import {
   clearPasswordRecoveryPending,
   hasPasswordRecoveryPending,
 } from '@/utils/password-recovery-session.ts'
+
+const INVALID_RECOVERY_TITLE = 'Enlace no válido'
+const INVALID_RECOVERY_MESSAGE =
+  'Este enlace de recuperación no es válido, ya fue utilizado o expiró. Solicitá uno nuevo para cambiar tu contraseña.'
 
 type RecoveryUrlContext =
   | { kind: 'pkce'; code: string }
@@ -240,34 +245,6 @@ export function ResetPasswordPage() {
         </div>
       ) : null}
 
-      {!isCheckingLink && !isRecoveryReady ? (
-        <div className="space-y-5">
-          {submitError ? (
-            <div
-              role="alert"
-              className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-            >
-              {submitError}
-            </div>
-          ) : null}
-
-          <div className="space-y-3">
-            <Link
-              to="/forgot-password"
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100"
-            >
-              Solicitar un nuevo enlace
-            </Link>
-            <Link
-              to="/login"
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6"
-            >
-              Volver a iniciar sesión
-            </Link>
-          </div>
-        </div>
-      ) : null}
-
       {!isCheckingLink && isRecoveryReady ? (
         <form className="space-y-5" onSubmit={handleSubmit}>
           {submitError ? (
@@ -331,6 +308,22 @@ export function ResetPasswordPage() {
             {isSubmitting ? 'Guardando contraseña...' : 'Guardar nueva contraseña'}
           </button>
         </form>
+      ) : null}
+
+      {!isCheckingLink && !isRecoveryReady ? (
+        <AuthStatusModal
+          isOpen
+          title={INVALID_RECOVERY_TITLE}
+          message={INVALID_RECOVERY_MESSAGE}
+          primaryLabel="Solicitar nuevo enlace"
+          onPrimaryAction={() => {
+            navigate('/forgot-password', { replace: true })
+          }}
+          secondaryLabel="Volver a iniciar sesión"
+          onSecondaryAction={() => {
+            navigate('/login', { replace: true })
+          }}
+        />
       ) : null}
     </AuthPageShell>
   )
