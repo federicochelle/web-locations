@@ -34,6 +34,14 @@ type ResetPasswordModalState = {
   primaryLabel: string
 }
 
+function isSamePasswordError(error: unknown) {
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+
+  return 'code' in error && error.code === 'same_password'
+}
+
 function getResetPasswordErrorModal(message: string): ResetPasswordModalState {
   if (message.includes('expiró') || message.includes('no es válido') || message.includes('utilizado')) {
     return {
@@ -260,6 +268,14 @@ export function ResetPasswordPage() {
 
       navigate('/login?reset=success', { replace: true })
     } catch (error) {
+      if (isSamePasswordError(error)) {
+        await signOutLocal()
+        clearPasswordRecoveryPending()
+
+        navigate('/login?reset=success', { replace: true })
+        return
+      }
+
       setErrorModal(getResetPasswordErrorModal(getAuthErrorMessage(error)))
     } finally {
       setIsSubmitting(false)
