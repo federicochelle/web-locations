@@ -12,6 +12,10 @@ import {
   onAuthStateChange,
   signOut as signOutFromService,
 } from '@/services/auth.service.ts'
+import {
+  clearPasswordRecoveryPending,
+  markPasswordRecoveryPending,
+} from '@/utils/password-recovery-session.ts'
 import type {
   SubscriptionPlan,
   UserProfile,
@@ -136,7 +140,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const {
       data: { subscription },
-    } = onAuthStateChange((_, nextSession) => {
+    } = onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY' && nextSession) {
+        markPasswordRecoveryPending()
+      }
+
+      if (event === 'SIGNED_OUT') {
+        clearPasswordRecoveryPending()
+      }
+
       void hydrateFromSession(nextSession)
     })
 

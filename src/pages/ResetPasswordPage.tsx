@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { AuthPageShell } from '@/components/auth/AuthPageShell.tsx'
+import { useAuth } from '@/hooks/useAuth.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import {
   AUTH_MIN_PASSWORD_LENGTH,
@@ -9,6 +10,7 @@ import {
   getAuthErrorMessage,
   getSession,
   onAuthStateChange,
+  signOutLocal,
   updatePassword,
   verifyOtpWithTokenHash,
 } from '@/services/auth.service.ts'
@@ -16,6 +18,10 @@ import {
   getMinPasswordError,
   getPasswordConfirmationError,
 } from '@/utils/auth-validation.ts'
+import {
+  clearPasswordRecoveryPending,
+  hasPasswordRecoveryPending,
+} from '@/utils/password-recovery-session.ts'
 
 type RecoveryUrlContext =
   | { kind: 'pkce'; code: string }
@@ -52,6 +58,7 @@ export function ResetPasswordPage() {
   usePageTitle('Restablecer contraseña')
 
   const navigate = useNavigate()
+  const { session } = useAuth()
   const [searchParams] = useSearchParams()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -86,12 +93,21 @@ export function ResetPasswordPage() {
         return
       }
 
+      clearPasswordRecoveryPending()
       setIsRecoveryReady(false)
       setIsCheckingLink(false)
       setSubmitError(message)
     }
 
     if (recoveryUrlContext.kind === 'invalid') {
+      if (hasPasswordRecoveryPending() && session) {
+        markRecoveryReady()
+
+        return () => {
+          isMounted = false
+        }
+      }
+
       markRecoveryInvalid('El enlace no es válido o expiró. Solicitá uno nuevo.')
 
       return () => {
@@ -167,7 +183,7 @@ export function ResetPasswordPage() {
         window.clearTimeout(recoveryTimeoutId)
       }
     }
-  }, [recoveryUrlContext])
+  }, [recoveryUrlContext, session])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -201,6 +217,8 @@ export function ResetPasswordPage() {
       await updatePassword({
         password,
       })
+      await signOutLocal()
+      clearPasswordRecoveryPending()
 
       navigate('/login?reset=success', { replace: true })
     } catch (error) {

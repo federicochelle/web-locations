@@ -244,6 +244,14 @@ export async function signOut() {
   }
 }
 
+export async function signOutLocal() {
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 export async function requestPasswordReset({
   email,
 }: RequestPasswordResetInput) {
