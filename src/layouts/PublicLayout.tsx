@@ -1,4 +1,5 @@
-import { Outlet, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { Footer } from '@/components/layout/Footer.tsx'
 import { Header } from '@/components/layout/Header.tsx'
@@ -7,13 +8,27 @@ import { ScrollManager } from '@/components/routing/ScrollManager.tsx'
 import { SelectionDrawer } from '@/components/selection/SelectionDrawer.tsx'
 import { SelectionDrawerTrigger } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
+import { hasPasswordRecoveryPending } from '@/utils/password-recovery-session.ts'
 import logoUrl from '../../logo.webp'
 
 export function PublicLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { isAuthenticated, loading } = useAuth()
   const isNotFoundRoute = location.pathname === '/404'
   const shouldShowHeaderOnMobile = isNotFoundRoute
+
+  useEffect(() => {
+    if (loading || !isAuthenticated) {
+      return
+    }
+
+    if (location.pathname !== '/' || !hasPasswordRecoveryPending()) {
+      return
+    }
+
+    navigate('/reset-password', { replace: true })
+  }, [isAuthenticated, loading, location.pathname, navigate])
 
   return (
     <div className="relative flex min-h-screen flex-col bg-transparent pb-[calc(76px+env(safe-area-inset-bottom))] text-brand-950 md:pb-0">
