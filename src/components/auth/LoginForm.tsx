@@ -3,7 +3,11 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 
 import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
-import { getAuthErrorMessage, signIn } from '@/services/auth.service.ts'
+import {
+  getAuthErrorMessage,
+  signIn,
+  signOutLocal,
+} from '@/services/auth.service.ts'
 import { isValidEmail } from '@/utils/auth-validation.ts'
 
 type LoginFormValues = {
@@ -63,6 +67,7 @@ export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAwaitingAuthResolution, setIsAwaitingAuthResolution] = useState(false)
   const [statusModal, setStatusModal] = useState<LoginStatusModalState>(null)
+  const [isHandlingConfirmedEmail, setIsHandlingConfirmedEmail] = useState(false)
 
   const authNavigationState = location.state
   const returnTo =
@@ -84,26 +89,58 @@ export function LoginForm() {
       return
     }
 
-    setStatusModal(isResetSuccess ? PASSWORD_RESET_MODAL : EMAIL_CONFIRMED_MODAL)
+    let isActive = true
 
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('confirmed')
-    nextParams.delete('reset')
+    async function processStatusParams() {
+      if (isConfirmed) {
+        setIsHandlingConfirmedEmail(true)
 
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextParams.toString() ? `?${nextParams.toString()}` : '',
-      },
-      {
-        replace: true,
-        state: location.state,
-      },
-    )
+        try {
+          await signOutLocal()
+        } catch {
+          if (!isActive) {
+            return
+          }
+
+          setSubmitError('No pudimos preparar el inicio de sesión. Intentá nuevamente.')
+          setIsHandlingConfirmedEmail(false)
+          return
+        }
+      }
+
+      if (!isActive) {
+        return
+      }
+
+      setStatusModal(isResetSuccess ? PASSWORD_RESET_MODAL : EMAIL_CONFIRMED_MODAL)
+
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('confirmed')
+      nextParams.delete('reset')
+
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextParams.toString() ? `?${nextParams.toString()}` : '',
+        },
+        {
+          replace: true,
+          state: location.state,
+        },
+      )
+
+      setIsHandlingConfirmedEmail(false)
+    }
+
+    void processStatusParams()
+
+    return () => {
+      isActive = false
+    }
   }, [location.pathname, location.state, navigate, searchParams])
 
   useEffect(() => {
-    if (!isAwaitingAuthResolution || loading) {
+    if (!isAwaitingAuthResolution || loading || isHandlingConfirmedEmail) {
       return
     }
 
@@ -120,7 +157,15 @@ export function LoginForm() {
     }
 
     window.location.replace(returnTo ?? '/')
-  }, [isAuthenticated, isAwaitingAuthResolution, loading, profile, returnTo, role])
+  }, [
+    isAuthenticated,
+    isAwaitingAuthResolution,
+    isHandlingConfirmedEmail,
+    loading,
+    profile,
+    returnTo,
+    role,
+  ])
 
   function handleChange<Field extends keyof LoginFormValues>(
     field: Field,
