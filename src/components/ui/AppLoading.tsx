@@ -11,16 +11,12 @@ export function AppLoading({
   className = '',
   compact = false,
 }: AppLoadingProps) {
-  const iconSizeClassName = compact ? 'h-12 w-12' : 'h-14 w-14'
-  const logoSizeClassName = compact ? 'h-6 w-6' : 'h-7 w-7'
-  const containerClassName = compact
-    ? 'min-h-[10rem] rounded-[1.5rem] px-5 py-6'
-    : 'min-h-[14rem] rounded-[1.75rem] px-6 py-8'
+  const iconSizeClassName = compact ? 'h-16 w-16' : 'h-20 w-20'
+  const logoSizeClassName = compact ? 'h-12 w-12' : 'h-14 w-14'
+  const containerClassName = compact ? 'min-h-[10rem] px-5 py-6' : 'min-h-[14rem] px-6 py-8'
 
   return (
-    <div
-      className={`flex w-full flex-col items-center justify-center gap-4 border border-white/10 bg-white/6 text-center shadow-[0_18px_34px_rgba(0,0,0,0.12)] ${containerClassName} ${className}`.trim()}
-    >
+    <div className={`flex w-full flex-col items-center justify-center gap-4 text-center ${containerClassName} ${className}`.trim()}>
       <div
         className={`relative flex items-center justify-center rounded-full border border-white/10 bg-black/18 ${iconSizeClassName}`}
       >
