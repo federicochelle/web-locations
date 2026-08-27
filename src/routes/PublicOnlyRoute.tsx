@@ -6,8 +6,15 @@ import { getDefaultRouteByRole } from '@/utils/auth-routing.ts'
 export function PublicOnlyRoute() {
   const location = useLocation()
   const { isAuthenticated, loading, role } = useAuth()
+  const isEmailConfirmationLanding =
+    location.pathname === '/login' &&
+    new URLSearchParams(location.search).get('confirmed') === '1'
 
   if (loading) {
+    return <Outlet />
+  }
+
+  if (isEmailConfirmationLanding) {
     return <Outlet />
   }
 
