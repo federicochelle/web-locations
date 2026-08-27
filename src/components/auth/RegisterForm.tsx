@@ -26,10 +26,39 @@ type RegisterFormValues = {
 }
 
 type RegisterFormErrors = Partial<Record<keyof RegisterFormValues, string>>
+type RegisterModalState = {
+  title: string
+  message: string
+  primaryLabel: string
+}
 
 const REGISTRATION_NOTICE_TITLE = 'Revisá tu correo'
 const REGISTRATION_NOTICE_DESCRIPTION =
   'Si el correo ingresado puede registrarse, te enviamos un enlace para confirmar tu cuenta. Revisá también la carpeta de spam o correo no deseado.'
+
+function getRegisterErrorModal(message: string): RegisterModalState {
+  if (message.includes('Ya existe una cuenta registrada')) {
+    return {
+      title: 'No pudimos crear la cuenta',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  if (message.includes('contraseña')) {
+    return {
+      title: 'Revisá los datos',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  return {
+    title: 'No pudimos completar la solicitud',
+    message,
+    primaryLabel: 'Cerrar',
+  }
+}
 
 function validateForm(values: RegisterFormValues) {
   const errors: RegisterFormErrors = {}
@@ -87,8 +116,8 @@ export function RegisterForm() {
     acceptedTerms: false,
   })
   const [errors, setErrors] = useState<RegisterFormErrors>({})
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [isRegistrationNoticeOpen, setIsRegistrationNoticeOpen] = useState(false)
+  const [errorModal, setErrorModal] = useState<RegisterModalState | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   function handleChange<Field extends keyof RegisterFormValues>(
@@ -104,8 +133,6 @@ export function RegisterForm() {
       ...currentErrors,
       [field]: undefined,
     }))
-
-    setSubmitError(null)
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -120,8 +147,8 @@ export function RegisterForm() {
 
     try {
       setIsSubmitting(true)
-      setSubmitError(null)
       setIsRegistrationNoticeOpen(false)
+      setErrorModal(null)
 
       await signUp({
         fullName: values.fullName.trim(),
@@ -142,7 +169,7 @@ export function RegisterForm() {
         acceptedTerms: false,
       })
     } catch (error) {
-      setSubmitError(getAuthErrorMessage(error))
+      setErrorModal(getRegisterErrorModal(getAuthErrorMessage(error)))
     } finally {
       setIsSubmitting(false)
     }
@@ -151,15 +178,6 @@ export function RegisterForm() {
   return (
     <>
       <form className="space-y-5" onSubmit={handleSubmit}>
-        {submitError ? (
-          <div
-            role="alert"
-            className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-          >
-            {submitError}
-          </div>
-        ) : null}
-
         <label className="block space-y-2">
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
             Nombre completo
@@ -319,6 +337,18 @@ export function RegisterForm() {
           navigate('/login', { state: location.state })
         }}
       />
+
+      {errorModal ? (
+        <AuthStatusModal
+          isOpen
+          title={errorModal.title}
+          message={errorModal.message}
+          primaryLabel={errorModal.primaryLabel}
+          onPrimaryAction={() => {
+            setErrorModal(null)
+          }}
+        />
+      ) : null}
     </>
   )
 }
