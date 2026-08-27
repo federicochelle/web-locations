@@ -212,7 +212,7 @@
   min-height: 3.25rem;
   width: 100%;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #151517;
@@ -243,19 +243,45 @@
   opacity: 0.7;
 }
 
-.app-phone-input .PhoneInputCountry {
+.app-phone-input__country {
   position: relative;
   flex-shrink: 0;
   margin: 0;
   align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: fit-content;
 }
 
-.app-phone-input .PhoneInputCountrySelect {
-  width: 4.5rem;
+.app-phone-input__country-select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
   height: 100%;
   margin: 0;
+  border: 0;
   cursor: pointer;
   border-radius: 0.85rem;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: transparent;
+}
+
+.app-phone-input__country-select[disabled],
+.app-phone-input__country-select[readonly] {
+  cursor: default;
+}
+
+.app-phone-input__country-display {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  padding-right: 0.05rem;
 }
 
 .app-phone-input .PhoneInputCountryIcon {
@@ -264,9 +290,26 @@
   box-shadow: none;
 }
 
-.app-phone-input .PhoneInputCountrySelectArrow {
-  margin-left: 0.45rem;
-  border-width: 0.22rem;
+.app-phone-input__country-calling-code {
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(242, 231, 216, 0.84);
+}
+
+.app-phone-input__country-arrow {
+  display: block;
+  flex-shrink: 0;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: 0.05rem;
+  border-style: solid;
+  border-color: var(--color-brand-300);
+  border-top-width: 0;
+  border-bottom-width: 0.14rem;
+  border-left-width: 0;
+  border-right-width: 0.14rem;
+  transform: rotate(45deg);
 }
 
 .app-phone-input .PhoneInputInput {
@@ -292,7 +335,7 @@
   box-shadow: 0 0 0 1000px rgba(24, 24, 26, 1) inset;
 }
 
-.app-phone-input .PhoneInputCountrySelect:focus-visible,
+.app-phone-input__country-select:focus-visible,
 .app-phone-input .PhoneInputInput:focus-visible {
   outline: none;
 }
