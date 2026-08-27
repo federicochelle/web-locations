@@ -16,6 +16,8 @@ export function HomeAboutSection() {
         <img
           src={aboutBackgroundImage.src}
           alt={aboutBackgroundImage.alt}
+          loading="lazy"
+          decoding="async"
           className="cinematic-bg-motion h-full w-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-black/46" />

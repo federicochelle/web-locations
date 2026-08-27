@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 
 import image0 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM.webp'
 import image1 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (1).webp'
@@ -14,6 +14,7 @@ type MosaicTile = {
   src: string
   alt: string
   widthClassName: string
+  visibilityClassName?: string
 }
 
 type MosaicRow = {
@@ -27,47 +28,50 @@ const tiles: MosaicTile[] = [
   {
     src: image0,
     alt: 'Locacion destacada 1',
-    widthClassName: 'w-[46vw] sm:w-[38vw] lg:w-[40vw]',
+    widthClassName: 'w-[64vw] sm:w-[38vw] lg:w-[40vw]',
+    visibilityClassName: 'hidden sm:block',
   },
   {
     src: image1,
     alt: 'Locacion destacada 2',
-    widthClassName: 'w-[36vw] sm:w-[30vw] lg:w-[31vw]',
+    widthClassName: 'w-[64vw] sm:w-[30vw] lg:w-[31vw]',
   },
   {
     src: image2,
     alt: 'Locacion destacada 3',
-    widthClassName: 'w-[44vw] sm:w-[36vw] lg:w-[37vw]',
+    widthClassName: 'w-[64vw] sm:w-[36vw] lg:w-[37vw]',
   },
   {
     src: image3,
     alt: 'Locacion destacada 4',
-    widthClassName: 'w-[42vw] sm:w-[35vw] lg:w-[36vw]',
+    widthClassName: 'w-[64vw] sm:w-[35vw] lg:w-[36vw]',
   },
   {
     src: image4,
     alt: 'Locacion destacada 5',
-    widthClassName: 'w-[48vw] sm:w-[39vw] lg:w-[41vw]',
+    widthClassName: 'w-[64vw] sm:w-[39vw] lg:w-[41vw]',
   },
   {
     src: image5,
     alt: 'Locacion destacada 6',
-    widthClassName: 'w-[38vw] sm:w-[31vw] lg:w-[32vw]',
+    widthClassName: 'w-[64vw] sm:w-[31vw] lg:w-[32vw]',
+    visibilityClassName: 'hidden sm:block',
   },
   {
     src: image6,
     alt: 'Locacion destacada 7',
-    widthClassName: 'w-[45vw] sm:w-[37vw] lg:w-[39vw]',
+    widthClassName: 'w-[64vw] sm:w-[37vw] lg:w-[39vw]',
   },
   {
     src: image7,
     alt: 'Locacion destacada 8',
-    widthClassName: 'w-[34vw] sm:w-[28vw] lg:w-[29vw]',
+    widthClassName: 'w-[64vw] sm:w-[28vw] lg:w-[29vw]',
   },
   {
     src: image8,
     alt: 'Locacion destacada 9',
-    widthClassName: 'w-[43vw] sm:w-[35vw] lg:w-[37vw]',
+    widthClassName: 'w-[64vw] sm:w-[35vw] lg:w-[37vw]',
+    visibilityClassName: 'hidden sm:block',
   },
 ]
 
@@ -76,7 +80,7 @@ const rows: MosaicRow[] = [
     id: 'row-1',
     direction: 'left',
     duration: '57s',
-    tiles: [tiles[0], tiles[1], tiles[2]],
+    tiles: [tiles[2], tiles[1], tiles[0]],
   },
   {
     id: 'row-2',
@@ -97,6 +101,50 @@ function isPriorityTile(rowId: string, tileIndex: number, sequenceIndex: number)
 }
 
 function MosaicTrack({ row }: { row: MosaicRow }) {
+  const [shouldLoadDeferredSequence, setShouldLoadDeferredSequence] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const enableDeferredSequence = () => {
+      setShouldLoadDeferredSequence(true)
+    }
+
+    if (document.readyState === 'complete') {
+      if ('requestIdleCallback' in window) {
+        const idleCallbackId = window.requestIdleCallback(() => {
+          enableDeferredSequence()
+        })
+
+        return () => {
+          window.cancelIdleCallback(idleCallbackId)
+        }
+      }
+
+      enableDeferredSequence()
+      return
+    }
+
+    function handleWindowLoad() {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => {
+          enableDeferredSequence()
+        })
+        return
+      }
+
+      enableDeferredSequence()
+    }
+
+    window.addEventListener('load', handleWindowLoad, { once: true })
+
+    return () => {
+      window.removeEventListener('load', handleWindowLoad)
+    }
+  }, [])
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div
@@ -115,22 +163,25 @@ function MosaicTrack({ row }: { row: MosaicRow }) {
           >
             {row.tiles.map((tile, index) => {
               const isPriority = isPriorityTile(row.id, index, sequenceIndex)
+              const shouldLoadImage = sequenceIndex === 0 || shouldLoadDeferredSequence
 
               return (
                 <div
                   key={`${row.id}-${sequenceIndex}-${tile.src}-${index}`}
-                  className={`relative h-full shrink-0 overflow-hidden ${tile.widthClassName}`}
+                  className={`relative h-full shrink-0 overflow-hidden aspect-[16/10] ${tile.widthClassName} ${tile.visibilityClassName ?? ''} sm:aspect-auto`}
                 >
-                  <img
-                    src={tile.src}
-                    alt={tile.alt}
-                    width={1600}
-                    height={900}
-                    loading={isPriority ? 'eager' : 'lazy'}
-                    decoding="async"
-                    fetchPriority={isPriority ? 'high' : 'auto'}
-                    className="h-full w-full object-cover"
-                  />
+                  {shouldLoadImage ? (
+                    <img
+                      src={tile.src}
+                      alt={tile.alt}
+                      width={1600}
+                      height={900}
+                      loading={isPriority ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchPriority={isPriority ? 'high' : 'low'}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : null}
                 </div>
               )
             })}
