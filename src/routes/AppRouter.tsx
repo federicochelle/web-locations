@@ -39,6 +39,16 @@ const CategoryLocationsPage = lazy(() =>
     default: module.CategoryLocationsPage,
   })),
 )
+const TermsPage = lazy(() =>
+  import('@/pages/TermsPage.tsx').then((module) => ({
+    default: module.TermsPage,
+  })),
+)
+const PrivacyPage = lazy(() =>
+  import('@/pages/PrivacyPage.tsx').then((module) => ({
+    default: module.PrivacyPage,
+  })),
+)
 const LocationDetailPage = lazy(() =>
   import('@/pages/LocationDetailPage.tsx').then((module) => ({
     default: module.LocationDetailPage,
@@ -127,6 +137,14 @@ const router = createBrowserRouter([
           {
             path: 'categorias/:slug',
             element: withRouteSuspense(<CategoryLocationsPage />),
+          },
+          {
+            path: 'terminos',
+            element: withRouteSuspense(<TermsPage />),
+          },
+          {
+            path: 'privacidad',
+            element: withRouteSuspense(<PrivacyPage />),
           },
           {
             element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
