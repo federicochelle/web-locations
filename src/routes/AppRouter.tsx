@@ -89,8 +89,11 @@ const RequestDetailPage = lazy(() =>
     default: module.RequestDetailPage,
   })),
 )
-function withRouteSuspense(element: React.ReactNode) {
-  return <Suspense fallback={<RouteLoadingFallback />}>{element}</Suspense>
+function withRouteSuspense(
+  element: React.ReactNode,
+  fallback: React.ReactNode = <RouteLoadingFallback />,
+) {
+  return <Suspense fallback={fallback}>{element}</Suspense>
 }
 
 const router = createBrowserRouter([
@@ -136,7 +139,10 @@ const router = createBrowserRouter([
           },
           {
             path: 'categorias/:slug',
-            element: withRouteSuspense(<CategoryLocationsPage />),
+            element: withRouteSuspense(
+              <CategoryLocationsPage />,
+              <RouteLoadingFallback label="Cargando locaciones..." />,
+            ),
           },
           {
             path: 'terminos',

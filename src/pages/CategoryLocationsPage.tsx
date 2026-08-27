@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 
-import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { CategoryLocationsGrid } from '@/features/locations/components/CategoryLocationsGrid.tsx'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
@@ -95,9 +95,12 @@ export function CategoryLocationsPage() {
           return
         }
 
+        const nextCriticalImageCount = getCriticalImageCount(result.locations.length)
+
         setLocations(result.locations)
         setActiveCategoryName(result.activeCategory?.name ?? null)
         setCategoryExists(result.categoryExists)
+        setIsWaitingForCriticalImages(nextCriticalImageCount > 0)
       } catch (loadError) {
         if (!isMounted) {
           return
@@ -141,8 +144,6 @@ export function CategoryLocationsPage() {
       return
     }
 
-    setIsWaitingForCriticalImages(true)
-
     const timeoutId = window.setTimeout(() => {
       setIsWaitingForCriticalImages(false)
     }, CRITICAL_IMAGE_TIMEOUT_MS)
@@ -170,9 +171,7 @@ export function CategoryLocationsPage() {
       </section>
 
       {isLoading ? (
-        <section className="w-full">
-          <AppLoading label="Cargando locaciones..." />
-        </section>
+        <RouteLoadingFallback label="Cargando locaciones..." />
       ) : null}
 
       {!isLoading && error ? (

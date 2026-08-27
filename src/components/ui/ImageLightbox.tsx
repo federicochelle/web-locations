@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { getCloudflareLightboxImageUrl } from '@/utils/cloudflare-images.ts'
+
 type ImageLightboxImage = {
   id: string
   url: string
@@ -102,6 +104,7 @@ export function ImageLightbox({
   }
 
   const activeImage = images[activeIndex]
+  const activeImageUrl = getCloudflareLightboxImageUrl(activeImage?.url)
 
   function goToPrevious() {
     setActiveIndex((currentIndex) =>
@@ -224,7 +227,7 @@ export function ImageLightbox({
             ) : null}
 
             <img
-              src={activeImage.url}
+              src={activeImageUrl ?? activeImage.url}
               alt={activeImage.alt ?? `Imagen ${activeIndex + 1}`}
               className={`max-h-full max-w-full object-contain shadow-[0_24px_80px_rgba(0,0,0,0.4)] transition-transform duration-200 ${imageClassName}`.trim()}
             />

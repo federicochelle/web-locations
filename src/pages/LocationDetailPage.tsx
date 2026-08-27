@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
@@ -11,11 +11,23 @@ import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
+import { getCloudflareCardImageUrl } from '@/utils/cloudflare-images.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
 
+const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+
 function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
+}
+
+function getCriticalImageCount(totalImages: number) {
+  const maxCriticalImages =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 2
+      : 4
+
+  return Math.min(totalImages, maxCriticalImages)
 }
 
 const MAX_SELECTED_IMAGES = 80
@@ -26,6 +38,93 @@ const LocationApproxMap = lazy(async () => {
     default: module.LocationApproxMap,
   }
 })
+
+type InlineGalleryImageProps = {
+  index: number
+  imageUrl: string
+  alt: string
+  loading: 'eager' | 'lazy'
+  fetchPriority: 'high' | 'auto'
+  canReveal: boolean
+  onSettled: (index: number) => void
+}
+
+function InlineGalleryImage({
+  index,
+  imageUrl,
+  alt,
+  loading,
+  fetchPriority,
+  canReveal,
+  onSettled,
+}: InlineGalleryImageProps) {
+  const optimizedImageUrl = getCloudflareCardImageUrl(imageUrl)
+  const [isImageLoaded, setIsImageLoaded] = useState(false)
+  const [hasImageError, setHasImageError] = useState(false)
+  const imageRef = useRef<HTMLImageElement | null>(null)
+  const hasReportedSettlementRef = useRef(false)
+
+  useEffect(() => {
+    setIsImageLoaded(false)
+    setHasImageError(false)
+    hasReportedSettlementRef.current = false
+  }, [optimizedImageUrl])
+
+  useEffect(() => {
+    if (imageRef.current?.complete && imageRef.current.naturalWidth > 0) {
+      setIsImageLoaded(true)
+      reportSettledOnce()
+    }
+  }, [optimizedImageUrl])
+
+  useEffect(() => {
+    if (!optimizedImageUrl) {
+      reportSettledOnce()
+    }
+  }, [optimizedImageUrl])
+
+  function reportSettledOnce() {
+    if (hasReportedSettlementRef.current) {
+      return
+    }
+
+    hasReportedSettlementRef.current = true
+    onSettled(index)
+  }
+
+  return (
+    <div
+      className={`aspect-[16/13] bg-brand-950 transition-opacity duration-200 ease-out lg:aspect-[16/12] ${
+        canReveal ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      {optimizedImageUrl && !hasImageError ? (
+        <img
+          ref={imageRef}
+          src={optimizedImageUrl}
+          alt={alt}
+          loading={loading}
+          fetchPriority={fetchPriority}
+          decoding="async"
+          onLoad={(event) => {
+            if (event.currentTarget.complete) {
+              setIsImageLoaded(true)
+              reportSettledOnce()
+            }
+          }}
+          onError={() => {
+            setHasImageError(true)
+            setIsImageLoaded(false)
+            reportSettledOnce()
+          }}
+          className={`h-full w-full object-cover transition duration-200 ease-out ${
+            isImageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      ) : null}
+    </div>
+  )
+}
 
 export function LocationDetailPage() {
   const locationState = useLocation()
@@ -43,9 +142,19 @@ export function LocationDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const [selectionLimitMessage, setSelectionLimitMessage] = useState<string | null>(null)
+  const [settledInlineImageIndexes, setSettledInlineImageIndexes] = useState<Set<number>>(
+    () => new Set(),
+  )
+  const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
   const { isAuthenticated, loading: authLoading } = useAuth()
   const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
   const { images, addImage, removeImage, isSelected } = useImageSelection()
+  const criticalInlineImageCount = getCriticalImageCount(location?.images.length ?? 0)
+  let lastRevealableImageIndex = -1
+
+  while (settledInlineImageIndexes.has(lastRevealableImageIndex + 1)) {
+    lastRevealableImageIndex += 1
+  }
 
   usePageTitle(location?.locationCode ?? 'Detalle de locacion')
 
@@ -103,7 +212,9 @@ export function LocationDetailPage() {
           return
         }
 
+        setSettledInlineImageIndexes(new Set())
         setLocation(nextLocation)
+        setIsWaitingForCriticalImages(getCriticalImageCount(nextLocation.images.length) > 0)
       } catch (loadError) {
         if (!isMounted) {
           return
@@ -133,6 +244,48 @@ export function LocationDetailPage() {
       setSelectionLimitMessage(null)
     }
   }, [images.length, selectionLimitMessage])
+
+  useEffect(() => {
+    if (
+      isLoading ||
+      error ||
+      notFound ||
+      !location ||
+      location.images.length === 0 ||
+      criticalInlineImageCount === 0
+    ) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    let resolvedCriticalImagesCount = 0
+
+    for (let index = 0; index < criticalInlineImageCount; index += 1) {
+      if (settledInlineImageIndexes.has(index)) {
+        resolvedCriticalImagesCount += 1
+      }
+    }
+
+    if (resolvedCriticalImagesCount >= criticalInlineImageCount) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsWaitingForCriticalImages(false)
+    }, CRITICAL_IMAGE_TIMEOUT_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    criticalInlineImageCount,
+    error,
+    isLoading,
+    location,
+    notFound,
+    settledInlineImageIndexes,
+  ])
 
   function handleFavoriteIntent() {
     if (!location || authLoading) {
@@ -195,9 +348,11 @@ export function LocationDetailPage() {
     return <Navigate replace to="/404" />
   }
 
+  const isPageLoading = isLoading || isWaitingForCriticalImages
+
   return (
     <div className="space-y-6 pb-16 pt-8 sm:space-y-8 sm:pb-20 sm:pt-10 lg:space-y-10 lg:pb-24 lg:pt-12">
-      {isLoading ? (
+      {isPageLoading ? (
         <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
           <div className="mx-auto max-w-[1720px]">
             <AppLoading label="Cargando locación..." className="min-h-[46vh]" />
@@ -205,7 +360,7 @@ export function LocationDetailPage() {
         </section>
       ) : null}
 
-      {!isLoading && error ? (
+      {!isPageLoading && error ? (
         <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
           <h2 className="text-lg font-semibold">No se pudo cargar la locacion</h2>
           <p className="mt-2 text-sm">{error}</p>
@@ -213,7 +368,14 @@ export function LocationDetailPage() {
       ) : null}
 
       {!isLoading && !error && location ? (
-        <section className="relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14">
+        <section
+          className={`relative left-1/2 w-screen -translate-x-1/2 px-4 sm:px-6 lg:px-10 2xl:px-14 ${
+            isWaitingForCriticalImages
+              ? 'pointer-events-none invisible max-h-0 overflow-hidden'
+              : ''
+          }`}
+          aria-hidden={isWaitingForCriticalImages}
+        >
           <div className="mx-auto space-y-4 max-w-[1720px]">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
               <div className="min-w-0 flex-1 px-1">
@@ -338,16 +500,25 @@ export function LocationDetailPage() {
                           </span>
                         </button>
                       </div>
-                      <div className="aspect-[16/13] bg-sand-100 lg:aspect-[16/12]">
-                        <img
-                          src={image.url}
-                          alt={`${formatLocationCode(location.locationCode)} · imagen ${index + 1}`}
-                          loading={index === 0 ? 'eager' : 'lazy'}
-                          fetchPriority={index === 0 ? 'high' : 'auto'}
-                          decoding="async"
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
+                      <InlineGalleryImage
+                        index={index}
+                        imageUrl={image.url}
+                        alt={`${formatLocationCode(location.locationCode)} · imagen ${index + 1}`}
+                        loading={index < criticalInlineImageCount ? 'eager' : 'lazy'}
+                        fetchPriority={index === 0 ? 'high' : 'auto'}
+                        canReveal={index <= lastRevealableImageIndex}
+                        onSettled={(settledIndex) => {
+                          setSettledInlineImageIndexes((currentIndexes) => {
+                            if (currentIndexes.has(settledIndex)) {
+                              return currentIndexes
+                            }
+
+                            const nextIndexes = new Set(currentIndexes)
+                            nextIndexes.add(settledIndex)
+                            return nextIndexes
+                          })
+                        }}
+                      />
                     </button>
                   )
                 })
