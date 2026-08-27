@@ -37,6 +37,38 @@ const PASSWORD_RESET_MODAL = {
   primaryLabel: 'Continuar',
 } satisfies NonNullable<LoginStatusModalState>
 
+function getLoginErrorModal(message: string): NonNullable<LoginStatusModalState> {
+  if (message.includes('confirmar tu correo electrónico')) {
+    return {
+      title: 'Confirmá tu correo',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  if (message.includes('no son correctos') || message.includes('correo electrónico')) {
+    return {
+      title: 'No pudimos iniciar sesión',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  if (message.includes('resolver tu perfil') || message.includes('preparar el inicio')) {
+    return {
+      title: 'No pudimos completar la solicitud',
+      message,
+      primaryLabel: 'Cerrar',
+    }
+  }
+
+  return {
+    title: 'No pudimos iniciar sesión',
+    message,
+    primaryLabel: 'Cerrar',
+  }
+}
+
 function validateForm(values: LoginFormValues) {
   const errors: LoginFormErrors = {}
 
@@ -63,7 +95,6 @@ export function LoginForm() {
     password: '',
   })
   const [errors, setErrors] = useState<LoginFormErrors>({})
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAwaitingAuthResolution, setIsAwaitingAuthResolution] = useState(false)
   const [statusModal, setStatusModal] = useState<LoginStatusModalState>(null)
@@ -102,7 +133,9 @@ export function LoginForm() {
             return
           }
 
-          setSubmitError('No pudimos preparar el inicio de sesión. Intentá nuevamente.')
+          setStatusModal(
+            getLoginErrorModal('No pudimos preparar el inicio de sesión. Intentá nuevamente.'),
+          )
           setIsHandlingConfirmedEmail(false)
           return
         }
@@ -146,13 +179,17 @@ export function LoginForm() {
 
     if (!isAuthenticated) {
       setIsAwaitingAuthResolution(false)
-      setSubmitError('No pudimos iniciar la sesión. Intentá nuevamente.')
+      setStatusModal(
+        getLoginErrorModal('No pudimos iniciar la sesión. Intentá nuevamente.'),
+      )
       return
     }
 
     if (!profile || !role) {
       setIsAwaitingAuthResolution(false)
-      setSubmitError('La sesión se abrió, pero no pudimos resolver tu perfil.')
+      setStatusModal(
+        getLoginErrorModal('La sesión se abrió, pero no pudimos resolver tu perfil.'),
+      )
       return
     }
 
@@ -180,8 +217,6 @@ export function LoginForm() {
       ...currentErrors,
       [field]: undefined,
     }))
-
-    setSubmitError(null)
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -196,7 +231,6 @@ export function LoginForm() {
 
     try {
       setIsSubmitting(true)
-      setSubmitError(null)
 
       await signIn({
         email: values.email.trim(),
@@ -204,7 +238,7 @@ export function LoginForm() {
       })
       setIsAwaitingAuthResolution(true)
     } catch (error) {
-      setSubmitError(getAuthErrorMessage(error))
+      setStatusModal(getLoginErrorModal(getAuthErrorMessage(error)))
     } finally {
       setIsSubmitting(false)
     }
@@ -213,15 +247,6 @@ export function LoginForm() {
   return (
     <>
       <form className="space-y-5" onSubmit={handleSubmit}>
-        {submitError ? (
-          <div
-            role="alert"
-            className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-          >
-            {submitError}
-          </div>
-        ) : null}
-
         <label className="block space-y-2">
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
             Email

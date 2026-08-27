@@ -28,6 +28,36 @@ const INVALID_RECOVERY_TITLE = 'Enlace no válido'
 const INVALID_RECOVERY_MESSAGE =
   'Este enlace de recuperación no es válido, ya fue utilizado o expiró. Solicitá uno nuevo para cambiar tu contraseña.'
 
+type ResetPasswordModalState = {
+  title: string
+  message: string
+  primaryLabel: string
+}
+
+function getResetPasswordErrorModal(message: string): ResetPasswordModalState {
+  if (message.includes('expiró') || message.includes('no es válido') || message.includes('utilizado')) {
+    return {
+      title: 'Enlace no válido',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  if (message.includes('contraseña')) {
+    return {
+      title: 'No pudimos actualizar la contraseña',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  return {
+    title: 'No pudimos completar la solicitud',
+    message,
+    primaryLabel: 'Cerrar',
+  }
+}
+
 type RecoveryUrlContext =
   | { kind: 'pkce'; code: string }
   | { kind: 'token_hash'; tokenHash: string }
@@ -69,10 +99,13 @@ export function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [isCheckingLink, setIsCheckingLink] = useState(true)
   const [isRecoveryReady, setIsRecoveryReady] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorModal, setErrorModal] = useState<ResetPasswordModalState | null>(null)
+  const [invalidRecoveryMessage, setInvalidRecoveryMessage] = useState(
+    INVALID_RECOVERY_MESSAGE,
+  )
 
   const recoveryUrlContext = useMemo(
     () => getRecoveryUrlContext(searchParams),
@@ -90,7 +123,7 @@ export function ResetPasswordPage() {
 
       setIsRecoveryReady(true)
       setIsCheckingLink(false)
-      setSubmitError(null)
+      setErrorModal(null)
     }
 
     function markRecoveryInvalid(message: string) {
@@ -101,7 +134,7 @@ export function ResetPasswordPage() {
       clearPasswordRecoveryPending()
       setIsRecoveryReady(false)
       setIsCheckingLink(false)
-      setSubmitError(message)
+      setInvalidRecoveryMessage(message)
     }
 
     if (recoveryUrlContext.kind === 'invalid') {
@@ -217,7 +250,7 @@ export function ResetPasswordPage() {
 
     try {
       setIsSubmitting(true)
-      setSubmitError(null)
+      setErrorModal(null)
 
       await updatePassword({
         password,
@@ -227,7 +260,7 @@ export function ResetPasswordPage() {
 
       navigate('/login?reset=success', { replace: true })
     } catch (error) {
-      setSubmitError(getAuthErrorMessage(error))
+      setErrorModal(getResetPasswordErrorModal(getAuthErrorMessage(error)))
     } finally {
       setIsSubmitting(false)
     }
@@ -247,15 +280,6 @@ export function ResetPasswordPage() {
 
       {!isCheckingLink && isRecoveryReady ? (
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {submitError ? (
-            <div
-              role="alert"
-              className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-            >
-              {submitError}
-            </div>
-          ) : null}
-
           <label className="block space-y-2">
             <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
               Nueva contraseña
@@ -266,7 +290,6 @@ export function ResetPasswordPage() {
               onChange={(event) => {
                 setPassword(event.target.value)
                 setPasswordError(null)
-                setSubmitError(null)
               }}
               className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f]"
               placeholder={`Mínimo ${AUTH_MIN_PASSWORD_LENGTH} caracteres`}
@@ -288,7 +311,6 @@ export function ResetPasswordPage() {
               onChange={(event) => {
                 setConfirmPassword(event.target.value)
                 setConfirmPasswordError(null)
-                setSubmitError(null)
               }}
               className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f]"
               placeholder="Repetí tu nueva contraseña"
@@ -314,7 +336,7 @@ export function ResetPasswordPage() {
         <AuthStatusModal
           isOpen
           title={INVALID_RECOVERY_TITLE}
-          message={INVALID_RECOVERY_MESSAGE}
+          message={invalidRecoveryMessage}
           primaryLabel="Solicitar nuevo enlace"
           onPrimaryAction={() => {
             navigate('/forgot-password', { replace: true })
@@ -322,6 +344,18 @@ export function ResetPasswordPage() {
           secondaryLabel="Volver a iniciar sesión"
           onSecondaryAction={() => {
             navigate('/login', { replace: true })
+          }}
+        />
+      ) : null}
+
+      {errorModal ? (
+        <AuthStatusModal
+          isOpen
+          title={errorModal.title}
+          message={errorModal.message}
+          primaryLabel={errorModal.primaryLabel}
+          onPrimaryAction={() => {
+            setErrorModal(null)
           }}
         />
       ) : null}

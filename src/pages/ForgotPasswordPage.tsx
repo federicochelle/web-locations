@@ -15,6 +15,28 @@ const RESET_REQUEST_RATE_LIMIT_MESSAGE =
 const RESET_REQUEST_GENERIC_ERROR_MESSAGE =
   'Ocurrió un error al procesar tu solicitud. Intentá nuevamente.'
 
+type ForgotPasswordModalState = {
+  title: string
+  message: string
+  primaryLabel: string
+}
+
+function getForgotPasswordErrorModal(message: string): ForgotPasswordModalState {
+  if (message === RESET_REQUEST_RATE_LIMIT_MESSAGE) {
+    return {
+      title: 'Esperá un momento',
+      message,
+      primaryLabel: 'Entendido',
+    }
+  }
+
+  return {
+    title: 'No pudimos completar la solicitud',
+    message,
+    primaryLabel: 'Cerrar',
+  }
+}
+
 function isRateLimitedResetError(error: unknown) {
   if (typeof error !== 'object' || error === null) {
     return false
@@ -32,8 +54,8 @@ export function ForgotPasswordPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [isResetNoticeOpen, setIsResetNoticeOpen] = useState(false)
+  const [errorModal, setErrorModal] = useState<ForgotPasswordModalState | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -52,8 +74,8 @@ export function ForgotPasswordPage() {
     try {
       setIsSubmitting(true)
       setEmailError(null)
-      setSubmitError(null)
       setIsResetNoticeOpen(false)
+      setErrorModal(null)
 
       await requestPasswordReset({
         email: email.trim(),
@@ -61,10 +83,12 @@ export function ForgotPasswordPage() {
 
       setIsResetNoticeOpen(true)
     } catch (error) {
-      setSubmitError(
-        isRateLimitedResetError(error)
-          ? RESET_REQUEST_RATE_LIMIT_MESSAGE
-          : RESET_REQUEST_GENERIC_ERROR_MESSAGE,
+      setErrorModal(
+        getForgotPasswordErrorModal(
+          isRateLimitedResetError(error)
+            ? RESET_REQUEST_RATE_LIMIT_MESSAGE
+            : RESET_REQUEST_GENERIC_ERROR_MESSAGE,
+        ),
       )
     } finally {
       setIsSubmitting(false)
@@ -75,15 +99,6 @@ export function ForgotPasswordPage() {
     <>
       <AuthPageShell title="Recuperar contraseña">
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {submitError ? (
-            <div
-              role="alert"
-              className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-            >
-              {submitError}
-            </div>
-          ) : null}
-
           <label className="block space-y-2">
             <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
               Correo electrónico
@@ -94,7 +109,6 @@ export function ForgotPasswordPage() {
               onChange={(event) => {
                 setEmail(event.target.value)
                 setEmailError(null)
-                setSubmitError(null)
               }}
               className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
               placeholder="tu@email.com"
@@ -132,6 +146,18 @@ export function ForgotPasswordPage() {
           navigate('/login')
         }}
       />
+
+      {errorModal ? (
+        <AuthStatusModal
+          isOpen
+          title={errorModal.title}
+          message={errorModal.message}
+          primaryLabel={errorModal.primaryLabel}
+          onPrimaryAction={() => {
+            setErrorModal(null)
+          }}
+        />
+      ) : null}
     </>
   )
 }
