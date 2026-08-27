@@ -270,7 +270,7 @@ export async function updatePassword({ password }: UpdatePasswordInput) {
   })
 
   if (error) {
-    throw new Error(error.message)
+    throw toAppError(error)
   }
 
   return data
