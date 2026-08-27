@@ -16,11 +16,15 @@ import type {
 } from '@/types/auth.ts'
 
 export const AUTH_MIN_PASSWORD_LENGTH = 8
+export const REGISTRATION_TERMS_VERSION = '2026-08-27'
 
 type SignUpInput = {
   fullName: string
   email: string
+  phone: string | null
   password: string
+  termsAcceptedAt: string
+  termsVersion: string
 }
 
 type SignInInput = {
@@ -75,6 +79,21 @@ type SubscriptionRow = {
 
 function buildRedirectUrl(path: string) {
   return new URL(path, window.location.origin).toString()
+}
+
+function toAppError(error: {
+  message: string
+  status?: number
+  code?: string
+  name?: string
+}) {
+  const appError = new Error(error.message)
+
+  return Object.assign(appError, {
+    status: error.status,
+    code: error.code,
+    name: error.name ?? appError.name,
+  })
 }
 
 function mapAuthErrorMessage(message: string) {
@@ -175,13 +194,23 @@ export function getAuthErrorMessage(error: unknown) {
   return 'Ocurrio un error al procesar tu solicitud. Intenta nuevamente.'
 }
 
-export async function signUp({ fullName, email, password }: SignUpInput) {
+export async function signUp({
+  fullName,
+  email,
+  phone,
+  password,
+  termsAcceptedAt,
+  termsVersion,
+}: SignUpInput) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
+        phone,
+        terms_accepted_at: termsAcceptedAt,
+        terms_version: termsVersion,
       },
       emailRedirectTo: buildRedirectUrl('/login?confirmed=1'),
     },
@@ -223,7 +252,7 @@ export async function requestPasswordReset({
   })
 
   if (error) {
-    throw new Error(error.message)
+    throw toAppError(error)
   }
 }
 
