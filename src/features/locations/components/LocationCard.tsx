@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
 import { FavoriteButton } from '@/components/ui/FavoriteButton.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
+import { getCloudflareCardImageUrl } from '@/utils/cloudflare-images.ts'
 import { buildPublicLocationPath } from '@/utils/location-public.ts'
 
 type LocationCardProps = {
@@ -14,6 +15,7 @@ type LocationCardProps = {
   onToggleFavorite?: () => void
   imageLoading?: 'eager' | 'lazy'
   imageFetchPriority?: 'high' | 'auto'
+  onImageSettled?: () => void
 }
 
 function formatLocationCode(locationCode: string) {
@@ -27,20 +29,46 @@ export function LocationCard({
   onToggleFavorite,
   imageLoading = 'lazy',
   imageFetchPriority = 'auto',
+  onImageSettled,
 }: LocationCardProps) {
   const { isAuthenticated, loading } = useAuth()
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
+  const [isImageLoaded, setIsImageLoaded] = useState(false)
+  const [hasImageError, setHasImageError] = useState(false)
+  const hasReportedSettlementRef = useRef(false)
   const detailPath = buildPublicLocationPath({
     categorySlug: location.categorySlug,
     locationCode: location.locationCode,
     fallbackSlug: location.slug,
   })
+  const coverImageUrl = getCloudflareCardImageUrl(location.coverImageUrl)
   const detailLocationState = {
     from: {
       pathname: detailPath,
       search: '',
       hash: '',
     },
+  }
+
+  useEffect(() => {
+    setIsImageLoaded(false)
+    setHasImageError(false)
+    hasReportedSettlementRef.current = false
+  }, [coverImageUrl])
+
+  useEffect(() => {
+    if (!coverImageUrl) {
+      reportImageSettledOnce()
+    }
+  }, [coverImageUrl])
+
+  function reportImageSettledOnce() {
+    if (hasReportedSettlementRef.current) {
+      return
+    }
+
+    hasReportedSettlementRef.current = true
+    onImageSettled?.()
   }
 
   return (
@@ -77,15 +105,34 @@ export function LocationCard({
         }}
         state={isAuthenticated ? undefined : detailLocationState}
       >
-        <div className="aspect-[16/13] bg-sand-100 lg:aspect-[16/12]">
-          {location.coverImageUrl ? (
+        <div className="aspect-[16/13] bg-brand-950 lg:aspect-[16/12]">
+          {coverImageUrl && !hasImageError ? (
             <img
-              src={location.coverImageUrl}
+              src={coverImageUrl}
               alt={formatLocationCode(location.locationCode)}
               loading={imageLoading}
               fetchPriority={imageFetchPriority}
               decoding="async"
-              className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]"
+              onLoad={(event) => {
+                if (event.currentTarget.complete) {
+                  setIsImageLoaded(true)
+                  reportImageSettledOnce()
+                }
+              }}
+              onError={() => {
+                setHasImageError(true)
+                setIsImageLoaded(false)
+                reportImageSettledOnce()
+              }}
+              ref={(node) => {
+                if (node?.complete && node.naturalWidth > 0) {
+                  setIsImageLoaded(true)
+                  reportImageSettledOnce()
+                }
+              }}
+              className={`h-full w-full object-cover transition duration-200 ease-out group-hover:scale-[1.06] ${
+                isImageLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
             />
           ) : (
             <div className="h-full w-full bg-[linear-gradient(135deg,rgba(155,120,88,0.55),rgba(32,23,18,0.92))]" />

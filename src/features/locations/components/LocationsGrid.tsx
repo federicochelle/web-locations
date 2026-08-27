@@ -6,6 +6,7 @@ type LocationsGridProps = {
   favoriteIds?: Set<string>
   pendingFavoriteIds?: string[]
   onToggleFavorite?: (location: PublicLocationCard) => void
+  onCriticalImageSettled?: () => void
 }
 
 export function LocationsGrid({
@@ -13,7 +14,15 @@ export function LocationsGrid({
   favoriteIds,
   pendingFavoriteIds,
   onToggleFavorite,
+  onCriticalImageSettled,
 }: LocationsGridProps) {
+  const criticalImageCount = Math.min(
+    locations.length,
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 2
+      : 4,
+  )
+
   return (
     <section className="w-full">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -28,6 +37,7 @@ export function LocationsGrid({
             }
             imageLoading={index < 4 ? 'eager' : 'lazy'}
             imageFetchPriority={index < 2 ? 'high' : 'auto'}
+            onImageSettled={index < criticalImageCount ? onCriticalImageSettled : undefined}
           />
         ))}
       </div>

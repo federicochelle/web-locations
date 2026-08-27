@@ -7,6 +7,17 @@ import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
+const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+
+function getCriticalImageCount(totalImages: number) {
+  const maxCriticalImages =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 2
+      : 4
+
+  return Math.min(totalImages, maxCriticalImages)
+}
+
 export function CategoryLocationsPage() {
   const { slug } = useParams()
   const [searchParams] = useSearchParams()
@@ -16,7 +27,9 @@ export function CategoryLocationsPage() {
   const [locations, setLocations] = useState<PublicLocationCard[]>([])
   const [activeCategoryName, setActiveCategoryName] = useState<string | null>(null)
   const [categoryExists, setCategoryExists] = useState(true)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isDataLoading, setIsDataLoading] = useState(true)
+  const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)
+  const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const trimmedSearchQuery = searchQuery?.trim() ?? ''
   const normalizedFeatureSlugs = useMemo(
@@ -42,6 +55,7 @@ export function CategoryLocationsPage() {
   }, [slug])
   const hasActiveSearch = trimmedSearchQuery.length > 0
   const headingTitle = activeCategoryName ?? fallbackCategoryName
+  const criticalImageCount = getCriticalImageCount(locations.length)
 
   const activeHeadingParts = [
     `Categoria: ${headingTitle}`,
@@ -59,15 +73,17 @@ export function CategoryLocationsPage() {
           setLocations([])
           setActiveCategoryName(null)
           setCategoryExists(false)
-          setIsLoading(false)
+          setIsDataLoading(false)
         }
         return
       }
 
       try {
-        setIsLoading(true)
+        setIsDataLoading(true)
         setError(null)
         setCategoryExists(true)
+        setResolvedCriticalImagesCount(0)
+        setIsWaitingForCriticalImages(false)
 
         const result = await getLocations({
           categorySlug: slug,
@@ -96,7 +112,7 @@ export function CategoryLocationsPage() {
         )
       } finally {
         if (isMounted) {
-          setIsLoading(false)
+          setIsDataLoading(false)
         }
       }
     }
@@ -107,6 +123,43 @@ export function CategoryLocationsPage() {
       isMounted = false
     }
   }, [normalizedFeatureSlugs, slug, trimmedSearchQuery])
+
+  useEffect(() => {
+    if (
+      isDataLoading ||
+      error ||
+      !categoryExists ||
+      locations.length === 0 ||
+      criticalImageCount === 0
+    ) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    if (resolvedCriticalImagesCount >= criticalImageCount) {
+      setIsWaitingForCriticalImages(false)
+      return
+    }
+
+    setIsWaitingForCriticalImages(true)
+
+    const timeoutId = window.setTimeout(() => {
+      setIsWaitingForCriticalImages(false)
+    }, CRITICAL_IMAGE_TIMEOUT_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    categoryExists,
+    criticalImageCount,
+    error,
+    isDataLoading,
+    locations.length,
+    resolvedCriticalImagesCount,
+  ])
+
+  const isLoading = isDataLoading || isWaitingForCriticalImages
 
   return (
     <div className="space-y-8 pb-16 pt-8 sm:space-y-10 sm:pb-20 sm:pt-10 lg:space-y-12 lg:pb-24 lg:pt-12">
@@ -149,8 +202,22 @@ export function CategoryLocationsPage() {
         </section>
       ) : null}
 
-      {!isLoading && !error && categoryExists && locations.length > 0 ? (
-        <CategoryLocationsGrid locations={locations} />
+      {!isDataLoading && !error && categoryExists && locations.length > 0 ? (
+        <section
+          className={
+            isWaitingForCriticalImages
+              ? 'pointer-events-none invisible max-h-0 overflow-hidden'
+              : ''
+          }
+          aria-hidden={isWaitingForCriticalImages}
+        >
+          <CategoryLocationsGrid
+            locations={locations}
+            onCriticalImageSettled={() => {
+              setResolvedCriticalImagesCount((currentCount) => currentCount + 1)
+            }}
+          />
+        </section>
       ) : null}
     </div>
   )
