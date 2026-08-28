@@ -1,16 +1,42 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Navigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
+import { SearchResultsPagination } from '@/components/navigation/SearchResultsPagination.tsx'
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
-import { useAlgoliaLocationSearch } from '@/features/search/algolia/useAlgoliaLocationSearch.ts'
+import {
+  searchAlgoliaLocationCards,
+  useAlgoliaLocationSearch,
+} from '@/features/search/algolia/useAlgoliaLocationSearch.ts'
 import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { getCategories } from '@/services/categories.service.ts'
+import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
-import type { PublicLocationCard } from '@/types/location.ts'
+import type { Category, PublicLocationCard } from '@/types/location.ts'
 
 const SEARCH_RESULTS_PAGE_SIZE = 20
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+const GENERIC_INTENT_TERMS = new Set([
+  'algo',
+  'ambiente',
+  'antiguo',
+  'espacio',
+  'grande',
+  'lindo',
+  'locacion',
+  'lugar',
+  'sitio',
+])
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase('es-UY')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
 
 function getCriticalImageCount(totalImages: number) {
   const maxCriticalImages =
@@ -26,47 +52,92 @@ function parsePageParam(value: string | null) {
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 1
 }
 
-type SearchResultsPaginationProps = {
-  currentPage: number
-  totalPages: number
-  onNextPage: () => void
-  onPreviousPage: () => void
+function dedupeLocations(locations: PublicLocationCard[]) {
+  return [...new Map(locations.map((location) => [location.id, location])).values()]
 }
 
-function SearchResultsPagination({
-  currentPage,
-  totalPages,
-  onNextPage,
-  onPreviousPage,
-}: SearchResultsPaginationProps) {
-  return (
-    <section className="rounded-[1.5rem] border border-white/10 bg-[#14110f] p-4 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-brand-100/68">
-          Página {currentPage}
-          {totalPages > 0 ? ` de ${totalPages}` : ''}
-        </p>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onPreviousPage}
-            disabled={currentPage <= 1}
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Anterior
-          </button>
-          <button
-            type="button"
-            onClick={onNextPage}
-            disabled={totalPages > 0 ? currentPage >= totalPages : false}
-            className="inline-flex min-h-11 items-center justify-center rounded-full bg-brand-300 px-4 text-sm font-medium text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Siguiente
-          </button>
-        </div>
-      </div>
-    </section>
-  )
+function prioritizeLocationsByDepartment(
+  locations: PublicLocationCard[],
+  departmentName: string,
+) {
+  if (!departmentName) {
+    return locations
+  }
+
+  const normalizedDepartmentName = departmentName.trim().toLocaleLowerCase('es-UY')
+
+  if (!normalizedDepartmentName) {
+    return locations
+  }
+
+  const matchingDepartmentLocations: PublicLocationCard[] = []
+  const remainingLocations: PublicLocationCard[] = []
+
+  for (const location of locations) {
+    if (location.departmentName.trim().toLocaleLowerCase('es-UY') === normalizedDepartmentName) {
+      matchingDepartmentLocations.push(location)
+      continue
+    }
+
+    remainingLocations.push(location)
+  }
+
+  return [...matchingDepartmentLocations, ...remainingLocations]
+}
+
+function buildCategoryIntentCandidates(categories: Category[]) {
+  return categories
+    .flatMap((category) => {
+      const candidates = [category.name, category.slug.replace(/-/g, ' ')]
+        .map((candidate) => candidate.trim())
+        .filter((candidate, index, values) => candidate.length > 0 && values.indexOf(candidate) === index)
+
+      return candidates.map((candidate) => ({
+        categoryName: category.name.trim(),
+        normalizedCandidate: normalizeSearchText(candidate),
+      }))
+    })
+    .sort(
+      (left, right) =>
+        right.normalizedCandidate.split(' ').length - left.normalizedCandidate.split(' ').length,
+    )
+}
+
+function detectPrimaryIntent(
+  coreQuery: string,
+  categories: Category[],
+) {
+  const normalizedCoreQuery = normalizeSearchText(coreQuery)
+
+  if (!normalizedCoreQuery) {
+    return null
+  }
+
+  const paddedCoreQuery = ` ${normalizedCoreQuery} `
+  const categoryCandidates = buildCategoryIntentCandidates(categories)
+
+  for (const candidate of categoryCandidates) {
+    if (
+      candidate.normalizedCandidate &&
+      paddedCoreQuery.includes(` ${candidate.normalizedCandidate} `)
+    ) {
+      return candidate.categoryName
+    }
+  }
+
+  const terms = normalizedCoreQuery.split(' ').filter((term) => term.length > 0)
+
+  if (terms.length <= 1) {
+    return null
+  }
+
+  const [firstTerm] = terms
+
+  if (!firstTerm || firstTerm.length < 4 || GENERIC_INTENT_TERMS.has(firstTerm)) {
+    return null
+  }
+
+  return firstTerm
 }
 
 export function SearchLocationsPage() {
@@ -77,15 +148,19 @@ export function SearchLocationsPage() {
   const featuresQuery = searchParams.get('features')
   const initialPage = parsePageParam(searchParams.get('page'))
   const currentSearchParams = searchParams.toString()
+  const previousSearchSignatureRef = useRef<string | null>(null)
 
   const [legacyLocations, setLegacyLocations] = useState<PublicLocationCard[]>([])
   const [isLegacyLoading, setIsLegacyLoading] = useState(false)
   const [legacyError, setLegacyError] = useState<string | null>(null)
-  const [legacyPage, setLegacyPage] = useState(initialPage)
   const [legacyTotalCount, setLegacyTotalCount] = useState(0)
   const [legacyTotalPages, setLegacyTotalPages] = useState(0)
   const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)
   const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
+  const [resolvedDepartmentName, setResolvedDepartmentName] = useState<string | null>(null)
+  const [isDepartmentResolutionLoading, setIsDepartmentResolutionLoading] = useState(false)
+  const [departmentResolutionError, setDepartmentResolutionError] = useState<string | null>(null)
+  const [suggestedLocations, setSuggestedLocations] = useState<PublicLocationCard[]>([])
 
   const normalizedCategorySlug = categoryQuery?.trim() ?? ''
   const normalizedDepartmentSlug = departmentQuery?.trim() ?? ''
@@ -98,14 +173,15 @@ export function SearchLocationsPage() {
         .filter((featureSlug) => featureSlug.length > 0),
     [featuresQuery],
   )
-
-  const hasAlgoliaSearch = trimmedSearchQuery.length > 0
-  const hasLegacyCategory = normalizedCategorySlug.length > 0
-  const hasLegacyDepartment = normalizedDepartmentSlug.length > 0
-  const hasLegacyFeatures = normalizedFeatureSlugs.length > 0
-  const hasLegacySearch =
-    !hasAlgoliaSearch && (hasLegacyCategory || hasLegacyDepartment || hasLegacyFeatures)
-  const hasValidSearch = hasAlgoliaSearch || hasLegacySearch
+  const hasSearchQuery = trimmedSearchQuery.length > 0
+  const hasAlgoliaSearch = hasSearchQuery
+  const shouldUseLegacyResults = !hasAlgoliaSearch
+  const currentSearchSignature = JSON.stringify({
+    category: normalizedCategorySlug,
+    department: normalizedDepartmentSlug,
+    features: normalizedFeatureSlugs,
+    q: trimmedSearchQuery,
+  })
   const {
     coreQuery,
     optionalTerms,
@@ -117,24 +193,81 @@ export function SearchLocationsPage() {
     usedAi,
     durationMs: searchInterpretationDurationMs,
   } = useLocationSearchInterpretation({
-    enabled: hasAlgoliaSearch,
+    enabled: hasSearchQuery,
     query: trimmedSearchQuery,
   })
   const effectiveSearchQuery = coreQuery.trim() || trimmedSearchQuery
+  const isAwaitingDepartmentResolution =
+    hasAlgoliaSearch &&
+    normalizedDepartmentSlug.length > 0 &&
+    isDepartmentResolutionLoading
   const isAwaitingSearchInterpretation = hasAlgoliaSearch && shouldUseAi && isSearchInterpretationLoading
+  const legacySearchQuery = hasSearchQuery ? effectiveSearchQuery : ''
+  const isAwaitingLegacySearchInterpretation =
+    shouldUseLegacyResults && hasSearchQuery && shouldUseAi && isSearchInterpretationLoading
+
+  useEffect(() => {
+    if (!hasAlgoliaSearch || normalizedDepartmentSlug.length === 0) {
+      setResolvedDepartmentName(null)
+      setIsDepartmentResolutionLoading(false)
+      setDepartmentResolutionError(null)
+      return
+    }
+
+    let isCancelled = false
+
+    async function resolveDepartmentName() {
+      try {
+        setIsDepartmentResolutionLoading(true)
+        setDepartmentResolutionError(null)
+        const nextDepartmentName = await getPublicDepartmentNameBySlug(normalizedDepartmentSlug)
+
+        if (isCancelled) {
+          return
+        }
+
+        setResolvedDepartmentName(nextDepartmentName)
+
+        if (!nextDepartmentName) {
+          setDepartmentResolutionError('No pudimos resolver el departamento seleccionado.')
+        }
+      } catch (resolveError) {
+        if (isCancelled) {
+          return
+        }
+
+        setResolvedDepartmentName(null)
+        setDepartmentResolutionError(
+          resolveError instanceof Error
+            ? resolveError.message
+            : 'No pudimos resolver el departamento seleccionado.',
+        )
+      } finally {
+        if (!isCancelled) {
+          setIsDepartmentResolutionLoading(false)
+        }
+      }
+    }
+
+    void resolveDepartmentName()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [hasAlgoliaSearch, normalizedDepartmentSlug])
 
   const {
+    currentRequestKey: currentAlgoliaRequestKey,
     error: algoliaError,
     hits: algoliaHits,
     loading: isAlgoliaLoading,
-    nextPage,
     page,
-    previousPage,
+    settledRequestKey: settledAlgoliaRequestKey,
     totalHits: algoliaTotalHits,
     totalPages,
   } = useAlgoliaLocationSearch({
-    departmentSlug: normalizedDepartmentSlug,
-    enabled: hasAlgoliaSearch && !isAwaitingSearchInterpretation,
+    departmentName: resolvedDepartmentName ?? '',
+    enabled: hasAlgoliaSearch && !isAwaitingDepartmentResolution && !isAwaitingSearchInterpretation,
     initialPage,
     initialQuery: effectiveSearchQuery,
     optionalTerms,
@@ -156,13 +289,24 @@ export function SearchLocationsPage() {
     })
   }, [algoliaHits, hasAlgoliaSearch, legacyLocations])
   const isLoading = hasAlgoliaSearch
-    ? isSearchInterpretationLoading || isAlgoliaLoading
-    : isLegacyLoading
-  const error = hasAlgoliaSearch ? algoliaError : legacyError
-  const currentPage = hasAlgoliaSearch ? page : legacyPage
+    ? isAwaitingDepartmentResolution || isSearchInterpretationLoading || isAlgoliaLoading
+    : isAwaitingLegacySearchInterpretation || isLegacyLoading
+  const error = hasAlgoliaSearch ? departmentResolutionError ?? algoliaError : legacyError
+  const currentPage = hasAlgoliaSearch ? page : initialPage
   const currentTotalCount = hasAlgoliaSearch ? algoliaTotalHits : legacyTotalCount
   const currentTotalPages = hasAlgoliaSearch ? totalPages : legacyTotalPages
   const criticalImageCount = getCriticalImageCount(locations.length)
+  const hasSettledCurrentSearch = hasAlgoliaSearch
+    ? Boolean(currentAlgoliaRequestKey) &&
+      currentAlgoliaRequestKey === settledAlgoliaRequestKey
+    : !isLoading
+  const isPendingCurrentSearch = hasAlgoliaSearch && !hasSettledCurrentSearch
+  const shouldShowGlobalLoading = isLoading || isPendingCurrentSearch
+  const shouldShowEmptyState =
+    !shouldShowGlobalLoading &&
+    !error &&
+    hasSettledCurrentSearch &&
+    locations.length === 0
 
   function buildSearchParams(nextPage: number, nextQuery: string) {
     const nextSearchParams = new URLSearchParams()
@@ -191,7 +335,7 @@ export function SearchLocationsPage() {
     return nextSearchParams
   }
 
-  usePageTitle('Resultados de busqueda')
+  usePageTitle('Resultados de búsqueda')
 
   useEffect(() => {
     if (!import.meta.env.DEV || !hasAlgoliaSearch) {
@@ -219,47 +363,37 @@ export function SearchLocationsPage() {
   ])
 
   useEffect(() => {
-    const nextSearchParams = buildSearchParams(currentPage, trimmedSearchQuery)
+    const previousSearchSignature = previousSearchSignatureRef.current
+    previousSearchSignatureRef.current = currentSearchSignature
+
+    if (previousSearchSignature === null || previousSearchSignature === currentSearchSignature) {
+      return
+    }
+
+    if (initialPage === 1) {
+      return
+    }
+
+    const nextSearchParams = buildSearchParams(1, trimmedSearchQuery)
     const nextSearchParamsString = nextSearchParams.toString()
 
     if (currentSearchParams !== nextSearchParamsString) {
       setSearchParams(nextSearchParams, { replace: true })
     }
-  }, [
-    currentPage,
-    currentSearchParams,
-    hasAlgoliaSearch,
-    normalizedCategorySlug,
-    normalizedDepartmentSlug,
-    normalizedFeatureSlugs,
-    setSearchParams,
-    trimmedSearchQuery,
-  ])
+  }, [currentSearchParams, currentSearchSignature, initialPage, setSearchParams, trimmedSearchQuery])
 
   useEffect(() => {
-    if (hasAlgoliaSearch) {
-      return
-    }
-
-    setLegacyPage(initialPage)
-  }, [hasAlgoliaSearch, initialPage])
-
-  useEffect(() => {
-    if (!hasLegacySearch) {
-      setLegacyLocations([])
-      setLegacyError(null)
-      setIsLegacyLoading(false)
-      setLegacyPage(initialPage)
-      setLegacyTotalCount(0)
-      setLegacyTotalPages(0)
-      setResolvedCriticalImagesCount(0)
-      setIsWaitingForCriticalImages(false)
+    if (!shouldUseLegacyResults) {
       return
     }
 
     let isMounted = true
 
     async function loadLegacyLocations() {
+      if (isAwaitingLegacySearchInterpretation) {
+        return
+      }
+
       try {
         setIsLegacyLoading(true)
         setLegacyError(null)
@@ -272,7 +406,7 @@ export function SearchLocationsPage() {
           departmentSlug: normalizedDepartmentSlug || null,
           page: initialPage,
           pageSize: SEARCH_RESULTS_PAGE_SIZE,
-          search: '',
+          search: legacySearchQuery,
           featureSlugs: normalizedFeatureSlugs,
         })
 
@@ -281,7 +415,6 @@ export function SearchLocationsPage() {
         }
 
         setLegacyLocations(result.locations)
-        setLegacyPage(result.page)
         setLegacyTotalCount(result.totalCount)
         setLegacyTotalPages(result.totalPages)
       } catch (loadError) {
@@ -290,13 +423,12 @@ export function SearchLocationsPage() {
         }
 
         setLegacyLocations([])
-        setLegacyPage(initialPage)
         setLegacyTotalCount(0)
         setLegacyTotalPages(0)
         setLegacyError(
           loadError instanceof Error
             ? loadError.message
-            : 'No se pudieron cargar los resultados de la busqueda.',
+            : 'No se pudieron cargar los resultados de la búsqueda.',
         )
       } finally {
         if (isMounted) {
@@ -311,8 +443,10 @@ export function SearchLocationsPage() {
       isMounted = false
     }
   }, [
-    hasLegacySearch,
+    shouldUseLegacyResults,
+    isAwaitingLegacySearchInterpretation,
     initialPage,
+    legacySearchQuery,
     normalizedCategorySlug,
     normalizedDepartmentSlug,
     normalizedFeatureSlugs,
@@ -326,6 +460,105 @@ export function SearchLocationsPage() {
     setResolvedCriticalImagesCount(0)
     setIsWaitingForCriticalImages(false)
   }, [hasAlgoliaSearch, currentPage, trimmedSearchQuery, normalizedDepartmentSlug])
+
+  useEffect(() => {
+    if (!shouldShowEmptyState) {
+      setSuggestedLocations([])
+      return
+    }
+
+    let isCancelled = false
+
+    async function loadSuggestedLocations() {
+      try {
+        const primarySuggestions = await searchAlgoliaLocationCards({
+          hitsPerPage: 12,
+          optionalTerms,
+          query: effectiveSearchQuery,
+        })
+
+        if (isCancelled) {
+          return
+        }
+
+        let nextSuggestedLocations = dedupeLocations(
+          prioritizeLocationsByDepartment(
+            primarySuggestions,
+            resolvedDepartmentName ?? '',
+          ),
+        )
+
+        if (nextSuggestedLocations.length < 4) {
+          const categories = await getCategories()
+          const primaryIntent = detectPrimaryIntent(effectiveSearchQuery, categories)
+
+          if (isCancelled) {
+            return
+          }
+
+          if (
+            primaryIntent &&
+            normalizeSearchText(primaryIntent) !== normalizeSearchText(effectiveSearchQuery)
+          ) {
+            const intentSuggestions = await searchAlgoliaLocationCards({
+              hitsPerPage: 12,
+              query: primaryIntent,
+            })
+
+            if (isCancelled) {
+              return
+            }
+
+            nextSuggestedLocations = dedupeLocations([
+              ...nextSuggestedLocations,
+              ...prioritizeLocationsByDepartment(
+                intentSuggestions,
+                resolvedDepartmentName ?? '',
+              ),
+            ])
+          }
+        }
+
+        if (nextSuggestedLocations.length === 0) {
+          const fallbackLocationsResult = await getLocations({
+            page: 1,
+            pageSize: 12,
+          })
+
+          if (isCancelled) {
+            return
+          }
+
+          nextSuggestedLocations = dedupeLocations([
+            ...nextSuggestedLocations,
+            ...prioritizeLocationsByDepartment(
+              fallbackLocationsResult.locations,
+              resolvedDepartmentName ?? '',
+            ),
+          ])
+        }
+
+        setSuggestedLocations(nextSuggestedLocations.slice(0, 4))
+      } catch {
+        if (isCancelled) {
+          return
+        }
+
+        setSuggestedLocations([])
+      }
+    }
+
+    void loadSuggestedLocations()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [
+    effectiveSearchQuery,
+    optionalTerms,
+    resolvedDepartmentName,
+    shouldShowEmptyState,
+  ])
 
   useEffect(() => {
     if (isLoading || error || locations.length === 0 || criticalImageCount === 0) {
@@ -349,9 +582,11 @@ export function SearchLocationsPage() {
     }
   }, [criticalImageCount, error, isLoading, locations.length, resolvedCriticalImagesCount])
 
-  const isPageLoading = isLoading || isWaitingForCriticalImages
-
   useEffect(() => {
+    if (isLoading) {
+      return
+    }
+
     if (currentPage <= 1) {
       return
     }
@@ -382,57 +617,43 @@ export function SearchLocationsPage() {
     currentPage,
     currentSearchParams,
     currentTotalPages,
-    hasAlgoliaSearch,
+    isLoading,
     setSearchParams,
     trimmedSearchQuery,
   ])
 
   function goToPreviousPage() {
-    if (hasAlgoliaSearch) {
-      previousPage()
-      return
-    }
-
-    const nextSearchParams = buildSearchParams(Math.max(1, initialPage - 1), trimmedSearchQuery)
+    const nextSearchParams = buildSearchParams(Math.max(1, currentPage - 1), trimmedSearchQuery)
     setSearchParams(nextSearchParams)
   }
 
   function goToNextPage() {
-    if (hasAlgoliaSearch) {
-      nextPage()
-      return
-    }
-
     const boundedNextPage =
-      currentTotalPages > 0 ? Math.min(currentTotalPages, initialPage + 1) : initialPage + 1
+      currentTotalPages > 0 ? Math.min(currentTotalPages, currentPage + 1) : currentPage + 1
     const nextSearchParams = buildSearchParams(boundedNextPage, trimmedSearchQuery)
     setSearchParams(nextSearchParams)
   }
 
-  if (!hasValidSearch) {
-    return <Navigate replace to="/" />
-  }
-
   return (
-    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
+    <div className="relative left-1/2 w-screen -translate-x-1/2">
       <div className="mx-auto max-w-[1720px] space-y-8 px-4 pb-16 pt-8 sm:space-y-10 sm:px-6 sm:pb-20 sm:pt-10 lg:space-y-12 lg:px-10 lg:pb-24 lg:pt-12 2xl:px-14">
         <section className="max-w-4xl space-y-3">
           <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
             Resultados de búsqueda
           </h1>
-          {hasAlgoliaSearch ? (
+          {hasSearchQuery && !shouldShowEmptyState ? (
             <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
               Busqueda: "{trimmedSearchQuery}"
             </p>
           ) : null}
-          {!isPageLoading && !error ? (
+          {!shouldShowGlobalLoading && !error && !shouldShowEmptyState ? (
             <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
               {currentTotalCount} resultados
             </p>
           ) : null}
         </section>
 
-        {isPageLoading ? (
+        {shouldShowGlobalLoading ? (
           <section className="w-full">
             <AppLoading
               label={
@@ -444,23 +665,32 @@ export function SearchLocationsPage() {
           </section>
         ) : null}
 
-        {!isPageLoading && error ? (
+        {!shouldShowGlobalLoading && error ? (
           <section className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-900 shadow-sm">
             <h2 className="text-lg font-semibold">No se pudieron cargar los resultados</h2>
             <p className="mt-2 text-sm">{error}</p>
           </section>
         ) : null}
 
-        {!isPageLoading && !error && locations.length === 0 ? (
-          <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-semibold text-brand-950">No encontramos resultados</h2>
-            <p className="mt-2 text-sm text-sand-700">
-              No encontramos locaciones publicadas para esta busqueda.
-            </p>
+        {shouldShowEmptyState ? (
+          <section className="space-y-6 sm:space-y-8">
+            <div className="max-w-5xl">
+              <h2 className="text-sm font-medium leading-6 tracking-[-0.01em] text-brand-100/68 sm:text-[0.95rem] lg:text-[1rem]">
+                No encontramos resultados para "{rawQuery}"
+                {suggestedLocations.length > 0
+                  ? ' pero también te puede interesar:'
+                  : ''}
+                
+              </h2>
+            </div>
+
+            {suggestedLocations.length > 0 ? (
+              <LocationsGrid locations={suggestedLocations} />
+            ) : null}
           </section>
         ) : null}
 
-        {!isLoading && !error && locations.length > 0 ? (
+        {!shouldShowGlobalLoading && !error && hasSettledCurrentSearch && locations.length > 0 ? (
           <div
             className={
               isWaitingForCriticalImages
@@ -478,7 +708,7 @@ export function SearchLocationsPage() {
           </div>
         ) : null}
 
-        {!isPageLoading && !error && locations.length > 0 ? (
+        {!shouldShowGlobalLoading && !error && hasSettledCurrentSearch && locations.length > 0 ? (
           <>
             {currentTotalPages > 1 ? (
               <SearchResultsPagination

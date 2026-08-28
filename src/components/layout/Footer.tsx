@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import logoUrl from '../../../logo.webp'
 import { buildWhatsAppUrl } from '@/utils/whatsapp.ts'
@@ -75,9 +76,19 @@ export function Footer() {
           <p>© 2026 Film Locations Uruguay. Todos los derechos reservados.</p>
 
           <div className="flex items-center justify-center gap-3 lg:justify-end">
-            <span>Politica de privacidad</span>
+            <Link
+              to="/privacidad"
+              className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+            >
+              Politica de privacidad
+            </Link>
             <span aria-hidden="true">·</span>
-            <span>Terminos y condiciones</span>
+            <Link
+              to="/terminos"
+              className="transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+            >
+              Terminos y condiciones
+            </Link>
           </div>
         </div>
       </div>

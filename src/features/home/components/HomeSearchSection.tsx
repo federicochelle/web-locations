@@ -1,35 +1,93 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { HeroBackgroundMosaic } from '@/features/home/components/HeroBackgroundMosaic.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
+import { getPublicDepartments } from '@/services/departments.service.ts'
+import type { Department } from '@/types/location.ts'
 
 export function HomeSearchSection() {
   const navigate = useNavigate()
   const { isAuthenticated, loading } = useAuth()
   const [searchText, setSearchText] = useState('')
-  const [department, setDepartment] = useState('Montevideo')
+  const [department, setDepartment] = useState('')
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [isDepartmentPopoverOpen, setIsDepartmentPopoverOpen] = useState(false)
+  const departmentPopoverRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadDepartments() {
+      try {
+        const nextDepartments = await getPublicDepartments()
+        console.log('[hero-departments]', nextDepartments)
+
+        if (!isMounted) {
+          return
+        }
+
+        setDepartments(nextDepartments)
+      } catch (error) {
+        console.error('[hero-departments-error]', error)
+        if (!isMounted) {
+          return
+        }
+
+        setDepartments([])
+      }
+    }
+
+    void loadDepartments()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isDepartmentPopoverOpen) {
+      return
+    }
+
+    function handlePointerDown(event: MouseEvent | TouchEvent) {
+      if (!departmentPopoverRef.current) {
+        return
+      }
+
+      const target = event.target
+
+      if (target instanceof Node && !departmentPopoverRef.current.contains(target)) {
+        setIsDepartmentPopoverOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+    }
+  }, [isDepartmentPopoverOpen])
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-  event.preventDefault()
+    event.preventDefault()
 
-  const trimmedSearchText = searchText.trim()
-  const params = new URLSearchParams()
+    const trimmedSearchText = searchText.trim()
+    const params = new URLSearchParams()
 
-  if (trimmedSearchText) {
-    params.set('q', trimmedSearchText)
+    if (trimmedSearchText) {
+      params.set('q', trimmedSearchText)
+    }
+
+    if (department) {
+      params.set('department', department)
+    }
+
+    const nextSearch = params.toString()
+    navigate(nextSearch ? `/busqueda?${nextSearch}` : '/busqueda')
   }
-
-  if (department) {
-    params.set('department', department)
-  }
-
-  if (!trimmedSearchText && !department) {
-    return
-  }
-
-  navigate(`/busqueda?${params.toString()}`)
-}
 
   return (
     <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden bg-transparent">
@@ -41,7 +99,7 @@ export function HomeSearchSection() {
             <div className="mx-auto max-w-4xl space-y-4 sm:space-y-5">
               <div className="space-y-3">
                 <h1 className="mx-auto max-w-4xl font-display text-5xl font-semibold leading-[0.94] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
-                  Encontrá la locación perfecta para tu próxima producción.
+                  Encontrá la locación perfecta para tu próximo proyecto.
                 </h1>
               </div>
             </div>
@@ -49,24 +107,106 @@ export function HomeSearchSection() {
             {!loading && isAuthenticated ? (
               <form
                 onSubmit={handleSubmit}
-                className="mx-auto flex w-full max-w-4xl items-center gap-3 rounded-full border border-white/10 bg-black/72 px-3 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.26)] backdrop-blur-[10px] sm:px-4"
+                className="mx-auto flex w-full max-w-4xl items-center gap-2 rounded-full border border-white/10 bg-black/72 px-1 py-1 text-left shadow-[0_18px_40px_rgba(0,0,0,0.26)] backdrop-blur-[10px] sm:px-1.5"
               >
                 <input
                   type="search"
                   value={searchText}
                   onChange={(event) => setSearchText(event.target.value)}
                   placeholder="Buscar locaciones..."
-                  className="min-h-14 flex-1 bg-transparent px-3 text-base text-brand-100 outline-none transition placeholder:text-brand-100/42 sm:text-lg"
+                  className="min-h-14 min-w-0 flex-1 bg-transparent px-3 text-base text-brand-100 outline-none transition placeholder:text-brand-100/42 sm:text-lg"
                 />
+
+                <div
+                  ref={departmentPopoverRef}
+                  className="relative flex min-h-12 shrink-0 items-center border-l border-white/15 pl-3 md:hidden"
+                >
+                  <button
+                    type="button"
+                    aria-label="Filtrar por departamento"
+                    aria-haspopup="listbox"
+                    aria-expanded={isDepartmentPopoverOpen}
+                    onClick={() => {
+                      setIsDepartmentPopoverOpen((currentState) => !currentState)
+                    }}
+                    className={`relative inline-flex min-h-12 min-w-12 items-center justify-center text-brand-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                      department
+                        ? 'text-brand-300'
+                        : 'text-brand-100'
+                    }`}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 6h16" />
+                      <path d="M4 12h16" />
+                      <path d="M4 18h16" />
+                      <circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none" />
+                      <circle cx="15" cy="12" r="1.8" fill="currentColor" stroke="none" />
+                      <circle cx="11" cy="18" r="1.8" fill="currentColor" stroke="none" />
+                    </svg>
+                    {department ? (
+                      <span className="absolute right-1.5 top-2 h-2 w-2 rounded-full bg-brand-300" />
+                    ) : null}
+                  </button>
+
+                  {isDepartmentPopoverOpen ? (
+                    <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-[1rem] border border-white/10 bg-[#14110f] p-2 shadow-[0_22px_48px_rgba(0,0,0,0.38)]">
+                      <div className="max-h-72 overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDepartment('')
+                            setIsDepartmentPopoverOpen(false)
+                          }}
+                          className={`flex w-full items-center justify-between gap-4 rounded-[0.8rem] px-3 py-2.5 text-left text-sm transition ${
+                            department === ''
+                              ? 'bg-brand-300 text-brand-950'
+                              : 'text-brand-100 hover:bg-white/6'
+                          }`}
+                        >
+                          <span>Todo Uruguay</span>
+                        </button>
+                        {departments.map((availableDepartment) => (
+                          <button
+                            key={availableDepartment.id}
+                            type="button"
+                            onClick={() => {
+                              setDepartment(availableDepartment.slug)
+                              setIsDepartmentPopoverOpen(false)
+                            }}
+                            className={`flex w-full items-center justify-between gap-4 rounded-[0.8rem] px-3 py-2.5 text-left text-sm transition ${
+                              department === availableDepartment.slug
+                                ? 'bg-brand-300 text-brand-950'
+                                : 'text-brand-100 hover:bg-white/6'
+                            }`}
+                          >
+                            <span className="min-w-0 break-words">{availableDepartment.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
 
                 <select
                   value={department}
                   onChange={(event) => setDepartment(event.target.value)}
-                  className="min-h-12 shrink-0 border-l border-white/15 bg-transparent px-4 text-base text-brand-100 outline-none"
+                  className="hidden min-h-12 shrink-0 border-l border-white/15 bg-transparent px-4 text-base text-brand-100 outline-none md:block"
                 >
-                  <option value="Montevideo">Montevideo</option>
-                  <option value="Canelones">Canelones</option>
-                  <option value="Maldonado">Maldonado</option>
+                  <option value="">Todo Uruguay</option>
+                  {departments.map((availableDepartment) => (
+                    <option key={availableDepartment.id} value={availableDepartment.slug}>
+                      {availableDepartment.name}
+                    </option>
+                  ))}
                 </select>
 
                 <button

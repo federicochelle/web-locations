@@ -7,16 +7,21 @@ import type { AlgoliaLocationHit } from '@/features/search/algolia/algolia.types
 import type { PublicLocationCard } from '@/types/location.ts'
 
 type UseAlgoliaLocationSearchOptions = {
-  departmentSlug?: string
+  categorySlug?: string
+  departmentName?: string
   enabled?: boolean
+  featureFilterMode?: 'and' | 'or'
+  featureSlugs?: string[]
   initialPage?: number
   initialQuery?: string
   optionalTerms?: string[]
+  publishedOnly?: boolean
   debounceMs?: number
   hitsPerPage?: number
 }
 
 type UseAlgoliaLocationSearchResult = {
+  currentRequestKey: string | null
   error: string | null
   hits: PublicLocationCard[]
   loading: boolean
@@ -27,8 +32,21 @@ type UseAlgoliaLocationSearchResult = {
   searchTimeMs: number | null
   setPage: (page: number) => void
   setQuery: (query: string) => void
+  settledRequestKey: string | null
   totalHits: number
   totalPages: number
+}
+
+type SearchAlgoliaLocationCardsOptions = {
+  categorySlug?: string
+  departmentName?: string
+  featureFilterMode?: 'and' | 'or'
+  featureSlugs?: string[]
+  hitsPerPage?: number
+  optionalTerms?: string[]
+  page?: number
+  publishedOnly?: boolean
+  query?: string
 }
 
 type AlgoliaLocationSearchSnapshot = {
@@ -38,14 +56,19 @@ type AlgoliaLocationSearchSnapshot = {
   totalPages: number
 }
 
+const EMPTY_STRING_ARRAY: string[] = []
 const algoliaSearchCache = new Map<string, AlgoliaLocationSearchSnapshot>()
 const algoliaSearchInFlight = new Map<string, Promise<AlgoliaLocationSearchSnapshot>>()
 
-function buildSearchRequestKey(params: {
-  departmentSlug: string
+export function buildAlgoliaLocationSearchRequestKey(params: {
+  categorySlug: string
+  departmentName: string
+  featureFilterMode: 'and' | 'or'
+  featureSlugs: string[]
   hitsPerPage: number
   optionalTerms: string[]
   page: number
+  publishedOnly: boolean
   query: string
 }) {
   return JSON.stringify(params)
@@ -57,6 +80,50 @@ function normalizeOptionalTerms(optionalTerms: string[] | undefined) {
       .map((term) => term.trim())
       .filter((term) => term.length > 0),
   )].slice(0, 3)
+}
+
+function normalizeFeatureSlugs(featureSlugs: string[] | undefined) {
+  return [...new Set(
+    (featureSlugs ?? [])
+      .map((featureSlug) => featureSlug.trim())
+      .filter((featureSlug) => featureSlug.length > 0),
+  )]
+}
+
+function buildAlgoliaFilters(params: {
+  categorySlug: string
+  departmentName: string
+  featureFilterMode: 'and' | 'or'
+  featureSlugs: string[]
+  publishedOnly: boolean
+}) {
+  const filterGroups: string[] = []
+
+  if (params.publishedOnly) {
+    filterGroups.push('published:true')
+  }
+
+  if (params.departmentName) {
+    filterGroups.push(`department_name:${JSON.stringify(params.departmentName)}`)
+  }
+
+  if (params.categorySlug) {
+    filterGroups.push(`category_slug:${JSON.stringify(params.categorySlug)}`)
+  }
+
+  if (params.featureSlugs.length > 0) {
+    const featureExpressions = params.featureSlugs.map(
+      (featureSlug) => `feature_slugs:${JSON.stringify(featureSlug)}`,
+    )
+
+    filterGroups.push(
+      params.featureFilterMode === 'or'
+        ? `(${featureExpressions.join(' OR ')})`
+        : featureExpressions.join(' AND '),
+    )
+  }
+
+  return filterGroups.join(' AND ')
 }
 
 async function filterPublishedAlgoliaHits(hits: AlgoliaLocationHit[]) {
@@ -90,13 +157,17 @@ async function filterPublishedAlgoliaHits(hits: AlgoliaLocationHit[]) {
 }
 
 async function searchAlgoliaLocations(params: {
-  departmentSlug: string
+  categorySlug: string
+  departmentName: string
+  featureFilterMode: 'and' | 'or'
+  featureSlugs: string[]
   hitsPerPage: number
   optionalTerms: string[]
   page: number
+  publishedOnly: boolean
   query: string
 }): Promise<AlgoliaLocationSearchSnapshot> {
-  const requestKey = buildSearchRequestKey(params)
+  const requestKey = buildAlgoliaLocationSearchRequestKey(params)
   const cachedSnapshot = algoliaSearchCache.get(requestKey)
 
   if (cachedSnapshot) {
@@ -112,6 +183,7 @@ async function searchAlgoliaLocations(params: {
   const requestPromise = (async () => {
     const client = getAlgoliaSearchClient()
     const { indexName } = getAlgoliaSearchConfig()
+    const filters = buildAlgoliaFilters(params)
     const response = await client.searchForHits<AlgoliaLocationHit>({
       requests: [
         {
@@ -120,8 +192,8 @@ async function searchAlgoliaLocations(params: {
           ...(params.optionalTerms.length > 0
             ? { optionalWords: params.optionalTerms }
             : {}),
-          ...(params.departmentSlug
-            ? { filters: `department_name:${JSON.stringify(params.departmentSlug)}` }
+          ...(filters
+            ? { filters }
             : {}),
           page: Math.max(0, params.page - 1),
           hitsPerPage: params.hitsPerPage,
@@ -135,10 +207,12 @@ async function searchAlgoliaLocations(params: {
             'department_slug',
             'department_name',
             'features',
+            'feature_slugs',
             'feature_aliases',
             'tags',
             'short_description',
             'description',
+            'published',
             'cover_url',
           ],
         },
@@ -154,9 +228,11 @@ async function searchAlgoliaLocations(params: {
           totalPages: 0,
         }
       : {
-          hits: (await filterPublishedAlgoliaHits(firstResult.hits)).map((hit: AlgoliaLocationHit) =>
-            mapAlgoliaHitToPublicLocationCard(hit),
-          ),
+          hits: (
+            params.publishedOnly
+              ? firstResult.hits
+              : await filterPublishedAlgoliaHits(firstResult.hits)
+          ).map((hit: AlgoliaLocationHit) => mapAlgoliaHitToPublicLocationCard(hit)),
           searchTimeMs: firstResult.processingTimeMS ?? null,
           totalHits: firstResult.nbHits ?? 0,
           totalPages: firstResult.nbPages ?? 0,
@@ -175,15 +251,37 @@ async function searchAlgoliaLocations(params: {
   }
 }
 
+export async function searchAlgoliaLocationCards(
+  options: SearchAlgoliaLocationCardsOptions = {},
+): Promise<PublicLocationCard[]> {
+  const snapshot = await searchAlgoliaLocations({
+    categorySlug: options.categorySlug?.trim() ?? '',
+    departmentName: options.departmentName?.trim() ?? '',
+    featureFilterMode: options.featureFilterMode ?? 'and',
+    featureSlugs: normalizeFeatureSlugs(options.featureSlugs),
+    hitsPerPage: Math.max(1, Math.trunc(options.hitsPerPage ?? 20)),
+    optionalTerms: normalizeOptionalTerms(options.optionalTerms),
+    page: Math.max(1, Math.trunc(options.page ?? 1)),
+    publishedOnly: options.publishedOnly ?? false,
+    query: options.query?.trim() ?? '',
+  })
+
+  return snapshot.hits
+}
+
 export function useAlgoliaLocationSearch(
   options: UseAlgoliaLocationSearchOptions = {},
 ): UseAlgoliaLocationSearchResult {
   const {
-    departmentSlug = '',
+    categorySlug = '',
+    departmentName = '',
     enabled = true,
+    featureFilterMode = 'and',
+    featureSlugs = EMPTY_STRING_ARRAY,
     initialPage = 1,
     initialQuery = '',
-    optionalTerms = [],
+    optionalTerms = EMPTY_STRING_ARRAY,
+    publishedOnly = false,
     debounceMs = 350,
     hitsPerPage = 20,
   } = options
@@ -198,11 +296,47 @@ export function useAlgoliaLocationSearch(
   const [totalPages, setTotalPages] = useState(0)
   const [searchTimeMs, setSearchTimeMs] = useState<number | null>(null)
   const latestRequestKeyRef = useRef<string | null>(null)
+  const [settledRequestKey, setSettledRequestKey] = useState<string | null>(null)
   const normalizedOptionalTerms = useMemo(
     () => normalizeOptionalTerms(optionalTerms),
     [optionalTerms],
   )
+  const normalizedFeatureSlugs = useMemo(
+    () => normalizeFeatureSlugs(featureSlugs),
+    [featureSlugs],
+  )
   const optionalTermsKey = JSON.stringify(normalizedOptionalTerms)
+  const featureSlugsKey = JSON.stringify(normalizedFeatureSlugs)
+  const currentRequestKey = useMemo(() => {
+    if (!enabled) {
+      return null
+    }
+
+    return buildAlgoliaLocationSearchRequestKey({
+      categorySlug,
+      departmentName,
+      featureFilterMode,
+      featureSlugs: normalizedFeatureSlugs,
+      hitsPerPage,
+      optionalTerms: normalizedOptionalTerms,
+      page: Math.max(1, initialPage),
+      publishedOnly,
+      query: initialQuery.trim(),
+    })
+  }, [
+    categorySlug,
+    departmentName,
+    enabled,
+    featureFilterMode,
+    featureSlugsKey,
+    hitsPerPage,
+    initialPage,
+    initialQuery,
+    normalizedFeatureSlugs,
+    normalizedOptionalTerms,
+    optionalTermsKey,
+    publishedOnly,
+  ])
 
   useEffect(() => {
     setQueryState((currentQuery) =>
@@ -230,10 +364,6 @@ export function useAlgoliaLocationSearch(
   useEffect(() => {
     if (!enabled) {
       latestRequestKeyRef.current = null
-      setHits([])
-      setSearchTimeMs(null)
-      setTotalHits(0)
-      setTotalPages(0)
       setError(null)
       setLoading(false)
       return
@@ -242,11 +372,15 @@ export function useAlgoliaLocationSearch(
     let isCancelled = false
 
     async function runSearch() {
-      const requestKey = buildSearchRequestKey({
-        departmentSlug,
+      const requestKey = buildAlgoliaLocationSearchRequestKey({
+        categorySlug,
+        departmentName,
+        featureFilterMode,
+        featureSlugs: normalizedFeatureSlugs,
         hitsPerPage,
         optionalTerms: normalizedOptionalTerms,
         page,
+        publishedOnly,
         query: debouncedQuery,
       })
 
@@ -257,10 +391,14 @@ export function useAlgoliaLocationSearch(
         setError(null)
 
         const snapshot = await searchAlgoliaLocations({
-          departmentSlug,
+          categorySlug,
+          departmentName,
+          featureFilterMode,
+          featureSlugs: normalizedFeatureSlugs,
           hitsPerPage,
           optionalTerms: normalizedOptionalTerms,
           page,
+          publishedOnly,
           query: debouncedQuery,
         })
 
@@ -272,6 +410,7 @@ export function useAlgoliaLocationSearch(
         setTotalPages(snapshot.totalPages)
         setTotalHits(snapshot.totalHits)
         setSearchTimeMs(snapshot.searchTimeMs)
+        setSettledRequestKey(requestKey)
       } catch (searchError) {
         if (isCancelled || latestRequestKeyRef.current !== requestKey) {
           return
@@ -286,6 +425,7 @@ export function useAlgoliaLocationSearch(
             ? searchError.message
             : 'No pudimos consultar el índice experimental de Algolia.',
         )
+        setSettledRequestKey(requestKey)
       } finally {
         if (!isCancelled) {
           setLoading(false)
@@ -298,7 +438,20 @@ export function useAlgoliaLocationSearch(
     return () => {
       isCancelled = true
     }
-  }, [debouncedQuery, departmentSlug, enabled, hitsPerPage, normalizedOptionalTerms, optionalTermsKey, page])
+  }, [
+    categorySlug,
+    debouncedQuery,
+    departmentName,
+    enabled,
+    featureFilterMode,
+    featureSlugsKey,
+    hitsPerPage,
+    normalizedFeatureSlugs,
+    normalizedOptionalTerms,
+    optionalTermsKey,
+    page,
+    publishedOnly,
+  ])
 
   function setQuery(nextQuery: string) {
     if (nextQuery === query) {
@@ -327,6 +480,7 @@ export function useAlgoliaLocationSearch(
   }
 
   return {
+    currentRequestKey,
     error,
     hits,
     loading,
@@ -337,6 +491,7 @@ export function useAlgoliaLocationSearch(
     searchTimeMs,
     setPage,
     setQuery,
+    settledRequestKey,
     totalHits,
     totalPages,
   }
