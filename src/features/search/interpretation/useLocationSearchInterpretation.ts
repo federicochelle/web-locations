@@ -10,7 +10,6 @@ import type {
   UseLocationSearchInterpretationOptions,
   UseLocationSearchInterpretationResult,
 } from '@/features/search/interpretation/search-interpretation.types.ts'
-import { shouldInterpretSearchQuery } from '@/features/search/interpretation/should-interpret-search-query.ts'
 
 const searchInterpretationCache = new Map<string, SearchInterpretationSnapshot>()
 const searchInterpretationInFlight = new Map<string, Promise<SearchInterpretationSnapshot>>()
@@ -59,7 +58,7 @@ export function useLocationSearchInterpretation(
 ): UseLocationSearchInterpretationResult {
   const { enabled = true, query } = options
   const normalizedQuery = normalizeQuery(query)
-  const shouldUseAi = enabled && shouldInterpretSearchQuery(normalizedQuery)
+  const shouldUseAi = enabled && normalizedQuery.length > 0
   const latestRequestKeyRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [snapshot, setSnapshot] = useState<SearchInterpretationSnapshot>(() =>
@@ -72,17 +71,6 @@ export function useLocationSearchInterpretation(
 
     if (!enabled || normalizedQuery.length === 0) {
       latestRequestKeyRef.current = null
-      setSnapshot(nextFallbackSnapshot)
-      setLoading(false)
-      logSearchInterpretation(nextFallbackSnapshot, {
-        requestKey,
-        source: 'bypass',
-      })
-      return
-    }
-
-    if (!shouldUseAi) {
-      latestRequestKeyRef.current = requestKey
       setSnapshot(nextFallbackSnapshot)
       setLoading(false)
       logSearchInterpretation(nextFallbackSnapshot, {

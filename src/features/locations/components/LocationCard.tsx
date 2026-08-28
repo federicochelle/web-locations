@@ -33,9 +33,11 @@ export function LocationCard({
 }: LocationCardProps) {
   const { isAuthenticated, loading } = useAuth()
   const [isAuthRequiredModalOpen, setIsAuthRequiredModalOpen] = useState(false)
-  const [isImageLoaded, setIsImageLoaded] = useState(false)
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string | null>(null)
   const [hasImageError, setHasImageError] = useState(false)
+  const imageRef = useRef<HTMLImageElement | null>(null)
   const hasReportedSettlementRef = useRef(false)
+  const formattedLocationCode = formatLocationCode(location.locationCode)
   const detailPath = buildPublicLocationPath({
     categorySlug: location.categorySlug,
     locationCode: location.locationCode,
@@ -51,9 +53,16 @@ export function LocationCard({
   }
 
   useEffect(() => {
-    setIsImageLoaded(false)
+    setLoadedImageUrl(null)
     setHasImageError(false)
     hasReportedSettlementRef.current = false
+  }, [coverImageUrl])
+
+  useEffect(() => {
+    if (imageRef.current?.complete && imageRef.current.naturalWidth > 0) {
+      setLoadedImageUrl(coverImageUrl)
+      reportImageSettledOnce()
+    }
   }, [coverImageUrl])
 
   useEffect(() => {
@@ -108,30 +117,26 @@ export function LocationCard({
         <div className="aspect-[16/13] bg-brand-950 lg:aspect-[16/12]">
           {coverImageUrl && !hasImageError ? (
             <img
+              key={coverImageUrl}
+              ref={imageRef}
               src={coverImageUrl}
-              alt={formatLocationCode(location.locationCode)}
+              alt={formattedLocationCode}
               loading={imageLoading}
               fetchPriority={imageFetchPriority}
               decoding="async"
               onLoad={(event) => {
                 if (event.currentTarget.complete) {
-                  setIsImageLoaded(true)
+                  setLoadedImageUrl(coverImageUrl)
                   reportImageSettledOnce()
                 }
               }}
               onError={() => {
                 setHasImageError(true)
-                setIsImageLoaded(false)
+                setLoadedImageUrl(null)
                 reportImageSettledOnce()
               }}
-              ref={(node) => {
-                if (node?.complete && node.naturalWidth > 0) {
-                  setIsImageLoaded(true)
-                  reportImageSettledOnce()
-                }
-              }}
               className={`h-full w-full object-cover transition duration-200 ease-out group-hover:scale-[1.06] ${
-                isImageLoaded ? 'opacity-100' : 'opacity-0'
+                loadedImageUrl === coverImageUrl ? 'opacity-100' : 'opacity-0'
               }`}
             />
           ) : (
@@ -139,10 +144,15 @@ export function LocationCard({
           )}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.01)_0%,rgba(0,0,0,0.08)_30%,rgba(0,0,0,0.7)_100%)] transition duration-500 group-hover:opacity-95" />
           <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.76)_100%)] opacity-95 transition duration-500 group-hover:h-32" />
-          <div className="absolute inset-x-0 bottom-0 p-5">
-            <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-white drop-shadow-[0_3px_14px_rgba(0,0,0,0.42)]">
-              {formatLocationCode(location.locationCode)}
-            </p>
+          <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5 pt-5 sm:px-3 sm:pb-3">
+            <div className="flex flex-wrap-reverse items-end justify-between gap-x-3 gap-y-1">
+              <p className="shrink-0 whitespace-nowrap font-display text-[1.18rem] font-semibold leading-none tracking-[-0.04em] text-white drop-shadow-[0_3px_14px_rgba(0,0,0,0.42)] sm:text-[1.26rem] md:text-[1.36rem] lg:text-[1.48rem] xl:text-[1.6rem] 2xl:text-[1.68rem]">
+                {formattedLocationCode}
+              </p>
+              <p className="max-w-full whitespace-nowrap text-sm leading-tight text-white/78 drop-shadow-[0_3px_14px_rgba(0,0,0,0.42)] sm:text-[0.95rem]">
+                {location.departmentName}
+              </p>
+            </div>
           </div>
         </div>
       </Link>
