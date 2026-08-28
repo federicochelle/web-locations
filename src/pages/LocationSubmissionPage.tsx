@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import submissionFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (1).webp'
+import submissionHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (2).webp'
 import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadingModal.tsx'
 import { SubmissionImagesField } from '@/components/submissions/SubmissionImagesField.tsx'
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
+import { SubmissionTurnstile } from '@/components/submissions/SubmissionTurnstile.tsx'
 import { useSubmissionImages } from '@/hooks/useSubmissionImages.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import {
@@ -38,24 +41,32 @@ const INITIAL_VALUES: LocationSubmissionValues = {
   description: '',
 }
 
-function buildSubmissionTitle(values: LocationSubmissionValues) {
-  const normalizedDescription = values.description.trim()
+const formPanelOverlayClassName =
+  'absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.32),rgba(5,4,4,0.4)_38%,rgba(5,4,4,0.5))]'
 
-  if (normalizedDescription) {
-    const words = normalizedDescription.split(/\s+/).filter(Boolean).slice(0, 6)
+const formPanelHighlightClassName =
+  'absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(215,192,162,0.16),transparent_26%),radial-gradient(circle_at_82%_22%,rgba(255,255,255,0.1),transparent_24%),radial-gradient(circle_at_50%_50%,transparent_58%,rgba(0,0,0,0.08)_100%)]'
 
-    if (words.length > 0) {
-      return words.join(' ')
-    }
-  }
+const formPrimaryButtonClassName =
+  'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/60 bg-white/10 px-4.5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]'
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() || ''
 
-  const normalizedLocation = values.location.trim()
-
-  if (normalizedLocation) {
-    return normalizedLocation
-  }
-
-  return `Postulacion de ${values.ownerName.trim()}`
+function FormActionIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 12h13" />
+      <path d="m11 5 7 7-7 7" />
+    </svg>
+  )
 }
 
 function validateForm(values: LocationSubmissionValues) {
@@ -68,19 +79,19 @@ function validateForm(values: LocationSubmissionValues) {
   if (!values.ownerEmail.trim()) {
     errors.ownerEmail = 'Ingresa tu email.'
   } else if (!isValidEmail(values.ownerEmail)) {
-    errors.ownerEmail = 'Ingresa un email valido.'
+    errors.ownerEmail = 'Ingresa un email válido.'
   }
 
   if (!values.ownerPhone.trim()) {
-    errors.ownerPhone = 'Ingresa tu telefono.'
+    errors.ownerPhone = 'Ingresa tu teléfono.'
   }
 
   if (!values.location.trim()) {
-    errors.location = 'Ingresa la ubicacion de la locacion.'
+    errors.location = 'Ingresa la ubicación de la locación.'
   }
 
   if (!values.description.trim()) {
-    errors.description = 'Agrega una descripcion de la locacion.'
+    errors.description = 'Agrega una descripción de la locación.'
   }
 
   return errors
@@ -96,6 +107,9 @@ export function LocationSubmissionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionPhase, setSubmissionPhase] = useState<'saving' | 'uploading'>('saving')
   const [submissionResult, setSubmissionResult] = useState<SubmissionResult>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const [turnstileError, setTurnstileError] = useState<string | null>(null)
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0)
   const {
     items: submissionImages,
     isUploading,
@@ -115,6 +129,11 @@ export function LocationSubmissionPage() {
       setErrors({})
     }
   }, [submissionResult])
+
+  const handleTurnstileTokenChange = useCallback((nextToken: string | null) => {
+    setTurnstileToken(nextToken)
+    setTurnstileError(null)
+  }, [])
 
   function handleChange<Field extends keyof LocationSubmissionValues>(
     field: Field,
@@ -149,6 +168,18 @@ export function LocationSubmissionPage() {
       return
     }
 
+    if (!turnstileSiteKey) {
+      setTurnstileError(
+        'No pudimos cargar la verificacion anti-spam. Intenta nuevamente en unos minutos.',
+      )
+      return
+    }
+
+    if (!turnstileToken) {
+      setTurnstileError('Confirma que no eres un bot e intenta nuevamente.')
+      return
+    }
+
     try {
       setIsSubmitting(true)
       setSubmissionPhase('saving')
@@ -162,9 +193,9 @@ export function LocationSubmissionPage() {
         ownerName: values.ownerName,
         ownerEmail: values.ownerEmail,
         ownerPhone: values.ownerPhone,
-        title: buildSubmissionTitle(values),
         address: values.location,
         description: values.description,
+        turnstileToken,
       })
 
       let hasPartialImageFailure = hadImageErrorsBeforeSubmit
@@ -184,6 +215,9 @@ export function LocationSubmissionPage() {
       setValues(INITIAL_VALUES)
       setErrors({})
       resetItems()
+      setTurnstileToken(null)
+      setTurnstileError(null)
+      setTurnstileResetSignal((currentValue) => currentValue + 1)
       setSubmissionResult(
         hasPartialImageFailure
           ? { type: 'partial-success' }
@@ -192,8 +226,10 @@ export function LocationSubmissionPage() {
     } catch (error) {
       setSubmissionResult({
         type: 'error',
-        message: getLocationSubmissionErrorMessage(error),
+        message: await getLocationSubmissionErrorMessage(error),
       })
+      setTurnstileToken(null)
+      setTurnstileResetSignal((currentValue) => currentValue + 1)
     } finally {
       setIsSubmitting(false)
       setSubmissionPhase('saving')
@@ -219,17 +255,34 @@ export function LocationSubmissionPage() {
   }
 
   return (
-    <div className="relative left-1/2 w-screen min-h-[calc(100vh-4.5rem)] -translate-x-1/2 bg-black px-4 py-10 sm:min-h-[calc(100vh-5rem)] sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
-      <div className="mx-auto max-w-[1720px]">
-        <section className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
-          <div>
-            <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
-              Postula tu locacion
-            </h1>
-          </div>
+    <div className="relative left-1/2 w-screen min-h-[calc(100vh-4.5rem)] -translate-x-1/2 bg-black px-4 py-5 sm:min-h-[calc(100vh-5rem)] sm:px-6 lg:px-8 lg:py-8">
+      <form
+        className="mx-auto w-full max-w-6xl"
+        onSubmit={handleSubmit}
+      >
+        <section className="overflow-hidden rounded-[0.3rem] border border-white/10 bg-white/4 shadow-[0_26px_80px_rgba(0,0,0,0.34)] backdrop-blur-[2px]">
+          <header className="relative overflow-hidden border-b border-white/10">
+            <div className="absolute inset-0" aria-hidden="true">
+              <img
+                src={submissionHeaderBackgroundUrl}
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-black/46" />
+              <div className={formPanelOverlayClassName} />
+              <div className={formPanelHighlightClassName} />
+            </div>
+            <div className="relative px-5 py-5 sm:px-6">
+              <div className="max-w-3xl">
+                <h1 className="font-display text-[2rem] font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-[2.35rem]">
+                  Postula tu locación
+                </h1>
+              </div>
+            </div>
+          </header>
 
-          <form className="space-y-8 sm:space-y-10" onSubmit={handleSubmit}>
-            <section className="space-y-6 rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 sm:p-6">
+          <div className="space-y-8 px-5 py-5 sm:space-y-10 sm:px-6">
+            <section className="space-y-6 border-b border-white/10 pb-8 sm:pb-10">
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block space-y-2">
                   <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/58">
@@ -240,6 +293,7 @@ export function LocationSubmissionPage() {
                     type="text"
                     value={values.ownerName}
                     onChange={(event) => handleChange('ownerName', event.target.value)}
+                    maxLength={120}
                     className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
                     placeholder="Tu nombre completo"
                     autoComplete="name"
@@ -258,6 +312,7 @@ export function LocationSubmissionPage() {
                     type="email"
                     value={values.ownerEmail}
                     onChange={(event) => handleChange('ownerEmail', event.target.value)}
+                    maxLength={320}
                     className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
                     placeholder="tu@email.com"
                     autoComplete="email"
@@ -270,14 +325,15 @@ export function LocationSubmissionPage() {
 
                 <label className="block space-y-2">
                   <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/58">
-                    Telefono
+                    Teléfono
                   </span>
                   <input
                     type="tel"
                     value={values.ownerPhone}
                     onChange={(event) => handleChange('ownerPhone', event.target.value)}
+                    maxLength={40}
                     className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
-                    placeholder="Tu telefono de contacto"
+                    placeholder="Tu teléfono de contacto"
                     autoComplete="tel"
                     disabled={isSubmitting}
                   />
@@ -288,12 +344,13 @@ export function LocationSubmissionPage() {
 
                 <label className="block space-y-2">
                   <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/58">
-                    Ubicacion
+                    Ubicación
                   </span>
                   <input
                     type="text"
                     value={values.location}
                     onChange={(event) => handleChange('location', event.target.value)}
+                    maxLength={200}
                     className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
                     placeholder="Ej. Carrasco, Montevideo"
                     disabled={isSubmitting}
@@ -305,9 +362,13 @@ export function LocationSubmissionPage() {
               </div>
 
               <label className="block space-y-2">
+                <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/58">
+                  Descripción
+                </span>
                 <textarea
                   value={values.description}
                   onChange={(event) => handleChange('description', event.target.value)}
+                  maxLength={4000}
                   className="min-h-40 w-full rounded-[1rem] border border-white/10 bg-white/6 px-4 py-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
                   placeholder="Contanos como es el espacio, que ambientes tiene y cualquier detalle relevante."
                   disabled={isSubmitting}
@@ -318,7 +379,7 @@ export function LocationSubmissionPage() {
               </label>
             </section>
 
-            <section className="space-y-5 rounded-[1rem] border border-white/8 bg-[#1B1B1D] p-5 sm:p-6">
+            <section className="space-y-5">
               <SubmissionImagesField
                 items={submissionImages}
                 selectionError={selectionError}
@@ -327,19 +388,46 @@ export function LocationSubmissionPage() {
                 onRemove={removeItem}
               />
             </section>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || isUploading}
-              className="mt-2 min-h-12 w-full rounded-2xl bg-brand-500 px-5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isSubmitting || isUploading
-                ? 'Enviando postulacion...'
-                : 'Enviar postulacion'}
-            </button>
-          </form>
+          <footer className="relative overflow-hidden border-t border-white/10">
+            <div className="absolute inset-0" aria-hidden="true">
+              <img
+                src={submissionFooterBackgroundUrl}
+                alt=""
+                className="h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-black/46" />
+              <div className={formPanelOverlayClassName} />
+              <div className={formPanelHighlightClassName} />
+            </div>
+            <div className="relative px-5 py-5 sm:px-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+                <div className="min-w-0 flex-1">
+                  <SubmissionTurnstile
+                    siteKey={turnstileSiteKey}
+                    resetSignal={turnstileResetSignal}
+                    errorMessage={turnstileError}
+                    onTokenChange={handleTurnstileTokenChange}
+                  />
+                </div>
+                <div className="w-full lg:min-w-0 lg:flex-1">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || isUploading}
+                    className={formPrimaryButtonClassName}
+                  >
+                    <FormActionIcon />
+                    {isSubmitting || isUploading
+                      ? 'Enviando postulacion...'
+                      : 'Enviar postulacion'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </footer>
         </section>
-      </div>
+      </form>
 
       <SubmissionLoadingModal isOpen={isSubmitting} phase={submissionPhase} />
 

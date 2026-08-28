@@ -2,22 +2,32 @@ import type { SubmissionImageItem } from '@/hooks/useSubmissionImages.ts'
 
 type SubmissionImageUploadItemProps = {
   item: SubmissionImageItem
+  compactRow?: boolean
   disabled?: boolean
   onRemove: (itemId: string) => void
   onRetry?: (item: SubmissionImageItem) => void
+  overflowCount?: number
 }
 
 export function SubmissionImageUploadItem({
   item,
+  compactRow = false,
   disabled = false,
   onRemove,
   onRetry,
+  overflowCount = 0,
 }: SubmissionImageUploadItemProps) {
   const isError = item.status === 'error'
   const isUploading = item.status === 'uploading'
 
   return (
-    <article className="group relative aspect-video overflow-hidden rounded-[0.75rem] border border-white/10 bg-white/6">
+    <article
+      className={`group relative overflow-hidden border border-white/10 bg-white/6 ${
+        compactRow
+          ? 'aspect-[4/3] w-[calc(25%-0.5625rem)] min-w-[120px] shrink-0 rounded-[0.3rem]'
+          : 'aspect-video rounded-[0.75rem]'
+      }`}
+    >
       <img
         src={item.previewUrl}
         alt={item.file.name}
@@ -61,6 +71,12 @@ export function SubmissionImageUploadItem({
             className="h-full bg-brand-500 transition-all"
             style={{ width: `${item.progress}%` }}
           />
+        </div>
+      ) : null}
+
+      {overflowCount > 0 ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/58 text-[1.75rem] font-semibold tracking-[-0.04em] text-white backdrop-blur-[1px] sm:text-[2rem]">
+          +{overflowCount}
         </div>
       ) : null}
     </article>

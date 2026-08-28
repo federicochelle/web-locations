@@ -9,6 +9,10 @@ import {
   useAlgoliaLocationSearch,
 } from '@/features/search/algolia/useAlgoliaLocationSearch.ts'
 import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
+import {
+  searchSupabaseLocationCardsV3,
+  useSupabaseLocationSearchV3,
+} from '@/features/search/supabase/useSupabaseLocationSearchV3.ts'
 import { usePageTitle } from '@/hooks/usePageTitle.ts'
 import { getCategories } from '@/services/categories.service.ts'
 import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
@@ -17,6 +21,7 @@ import type { Category, PublicLocationCard } from '@/types/location.ts'
 
 const SEARCH_RESULTS_PAGE_SIZE = 20
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+const USE_SUPABASE_SEARCH_V3 = import.meta.env.VITE_USE_SUPABASE_SEARCH_V3 === 'true'
 const GENERIC_INTENT_TERMS = new Set([
   'algo',
   'ambiente',
@@ -174,9 +179,11 @@ export function SearchLocationsPage() {
     [featuresQuery],
   )
   const hasSearchQuery = trimmedSearchQuery.length > 0
-  const hasAlgoliaSearch = hasSearchQuery
-  const shouldUseLegacyResults = !hasAlgoliaSearch
+  const shouldUseSupabaseSearchV3 = hasSearchQuery && USE_SUPABASE_SEARCH_V3
+  const hasAlgoliaSearch = hasSearchQuery && !shouldUseSupabaseSearchV3
+  const shouldUseLegacyResults = !hasSearchQuery
   const currentSearchSignature = JSON.stringify({
+    backend: shouldUseSupabaseSearchV3 ? 'supabase-v3' : hasAlgoliaSearch ? 'algolia' : 'legacy',
     category: normalizedCategorySlug,
     department: normalizedDepartmentSlug,
     features: normalizedFeatureSlugs,
@@ -198,16 +205,16 @@ export function SearchLocationsPage() {
   })
   const effectiveSearchQuery = coreQuery.trim() || trimmedSearchQuery
   const isAwaitingDepartmentResolution =
-    hasAlgoliaSearch &&
+    hasSearchQuery &&
     normalizedDepartmentSlug.length > 0 &&
     isDepartmentResolutionLoading
-  const isAwaitingSearchInterpretation = hasAlgoliaSearch && shouldUseAi && isSearchInterpretationLoading
+  const isAwaitingSearchInterpretation = hasSearchQuery && shouldUseAi && isSearchInterpretationLoading
   const legacySearchQuery = hasSearchQuery ? effectiveSearchQuery : ''
   const isAwaitingLegacySearchInterpretation =
     shouldUseLegacyResults && hasSearchQuery && shouldUseAi && isSearchInterpretationLoading
 
   useEffect(() => {
-    if (!hasAlgoliaSearch || normalizedDepartmentSlug.length === 0) {
+    if (!hasSearchQuery || normalizedDepartmentSlug.length === 0) {
       setResolvedDepartmentName(null)
       setIsDepartmentResolutionLoading(false)
       setDepartmentResolutionError(null)
@@ -254,7 +261,7 @@ export function SearchLocationsPage() {
     return () => {
       isCancelled = true
     }
-  }, [hasAlgoliaSearch, normalizedDepartmentSlug])
+  }, [hasSearchQuery, normalizedDepartmentSlug])
 
   const {
     currentRequestKey: currentAlgoliaRequestKey,
@@ -272,8 +279,29 @@ export function SearchLocationsPage() {
     initialQuery: effectiveSearchQuery,
     optionalTerms,
   })
+  const {
+    currentRequestKey: currentSupabaseRequestKey,
+    error: supabaseSearchError,
+    hits: supabaseHits,
+    loading: isSupabaseSearchLoading,
+    settledRequestKey: settledSupabaseRequestKey,
+    totalHits: supabaseTotalHits,
+  } = useSupabaseLocationSearchV3({
+    coreQuery: effectiveSearchQuery,
+    departmentSlug: normalizedDepartmentSlug,
+    enabled:
+      shouldUseSupabaseSearchV3 &&
+      !isAwaitingDepartmentResolution &&
+      !isAwaitingSearchInterpretation,
+    limit: 100,
+    optionalTerms,
+  })
 
   const locations = useMemo(() => {
+    if (shouldUseSupabaseSearchV3) {
+      return supabaseHits
+    }
+
     if (hasAlgoliaSearch) {
       return algoliaHits
     }
@@ -287,20 +315,38 @@ export function SearchLocationsPage() {
         sensitivity: 'base',
       })
     })
-  }, [algoliaHits, hasAlgoliaSearch, legacyLocations])
-  const isLoading = hasAlgoliaSearch
-    ? isAwaitingDepartmentResolution || isSearchInterpretationLoading || isAlgoliaLoading
+  }, [algoliaHits, hasAlgoliaSearch, legacyLocations, shouldUseSupabaseSearchV3, supabaseHits])
+  const isLoading = hasSearchQuery
+    ? isAwaitingDepartmentResolution ||
+      isSearchInterpretationLoading ||
+      (shouldUseSupabaseSearchV3 ? isSupabaseSearchLoading : isAlgoliaLoading)
     : isAwaitingLegacySearchInterpretation || isLegacyLoading
-  const error = hasAlgoliaSearch ? departmentResolutionError ?? algoliaError : legacyError
-  const currentPage = hasAlgoliaSearch ? page : initialPage
-  const currentTotalCount = hasAlgoliaSearch ? algoliaTotalHits : legacyTotalCount
-  const currentTotalPages = hasAlgoliaSearch ? totalPages : legacyTotalPages
+  const error = hasSearchQuery
+    ? departmentResolutionError ?? (shouldUseSupabaseSearchV3 ? supabaseSearchError : algoliaError)
+    : legacyError
+  const currentPage = shouldUseSupabaseSearchV3 ? 1 : hasAlgoliaSearch ? page : initialPage
+  const currentTotalCount = hasSearchQuery
+    ? shouldUseSupabaseSearchV3
+      ? supabaseTotalHits
+      : algoliaTotalHits
+    : legacyTotalCount
+  const currentTotalPages = shouldUseSupabaseSearchV3 ? 0 : hasAlgoliaSearch ? totalPages : legacyTotalPages
   const criticalImageCount = getCriticalImageCount(locations.length)
-  const hasSettledCurrentSearch = hasAlgoliaSearch
-    ? Boolean(currentAlgoliaRequestKey) &&
-      currentAlgoliaRequestKey === settledAlgoliaRequestKey
+  const currentSearchRequestKey = shouldUseSupabaseSearchV3
+    ? currentSupabaseRequestKey
+    : hasAlgoliaSearch
+      ? currentAlgoliaRequestKey
+      : null
+  const settledSearchRequestKey = shouldUseSupabaseSearchV3
+    ? settledSupabaseRequestKey
+    : hasAlgoliaSearch
+      ? settledAlgoliaRequestKey
+      : null
+  const hasSettledCurrentSearch = hasSearchQuery
+    ? Boolean(currentSearchRequestKey) &&
+      currentSearchRequestKey === settledSearchRequestKey
     : !isLoading
-  const isPendingCurrentSearch = hasAlgoliaSearch && !hasSettledCurrentSearch
+  const isPendingCurrentSearch = hasSearchQuery && !hasSettledCurrentSearch
   const shouldShowGlobalLoading = isLoading || isPendingCurrentSearch
   const shouldShowEmptyState =
     !shouldShowGlobalLoading &&
@@ -328,7 +374,7 @@ export function SearchLocationsPage() {
       nextSearchParams.set('features', normalizedFeatureSlugs.join(','))
     }
 
-    if (nextPage > 1) {
+    if (nextPage > 1 && !(hasSearchQuery && shouldUseSupabaseSearchV3)) {
       nextSearchParams.set('page', String(nextPage))
     }
 
@@ -338,7 +384,7 @@ export function SearchLocationsPage() {
   usePageTitle('Resultados de búsqueda')
 
   useEffect(() => {
-    if (!import.meta.env.DEV || !hasAlgoliaSearch) {
+    if (!import.meta.env.DEV || !hasSearchQuery) {
       return
     }
 
@@ -354,7 +400,7 @@ export function SearchLocationsPage() {
   }, [
     didSearchInterpretationFallback,
     effectiveSearchQuery,
-    hasAlgoliaSearch,
+    hasSearchQuery,
     optionalTerms,
     rawQuery,
     searchInterpretationFallbackReason,
@@ -453,13 +499,13 @@ export function SearchLocationsPage() {
   ])
 
   useEffect(() => {
-    if (!hasAlgoliaSearch) {
+    if (!hasSearchQuery) {
       return
     }
 
     setResolvedCriticalImagesCount(0)
     setIsWaitingForCriticalImages(false)
-  }, [hasAlgoliaSearch, currentPage, trimmedSearchQuery, normalizedDepartmentSlug])
+  }, [currentSearchRequestKey, hasSearchQuery])
 
   useEffect(() => {
     if (!shouldShowEmptyState) {
@@ -471,51 +517,102 @@ export function SearchLocationsPage() {
 
     async function loadSuggestedLocations() {
       try {
-        const primarySuggestions = await searchAlgoliaLocationCards({
-          hitsPerPage: 12,
-          optionalTerms,
-          query: effectiveSearchQuery,
-        })
+        let nextSuggestedLocations: PublicLocationCard[] = []
 
-        if (isCancelled) {
-          return
-        }
-
-        let nextSuggestedLocations = dedupeLocations(
-          prioritizeLocationsByDepartment(
-            primarySuggestions,
-            resolvedDepartmentName ?? '',
-          ),
-        )
-
-        if (nextSuggestedLocations.length < 4) {
-          const categories = await getCategories()
-          const primaryIntent = detectPrimaryIntent(effectiveSearchQuery, categories)
+        if (shouldUseSupabaseSearchV3) {
+          const primarySuggestions = await searchSupabaseLocationCardsV3({
+            coreQuery: effectiveSearchQuery,
+            limit: 12,
+            optionalTerms,
+          })
 
           if (isCancelled) {
             return
           }
 
-          if (
-            primaryIntent &&
-            normalizeSearchText(primaryIntent) !== normalizeSearchText(effectiveSearchQuery)
-          ) {
-            const intentSuggestions = await searchAlgoliaLocationCards({
-              hitsPerPage: 12,
-              query: primaryIntent,
-            })
+          nextSuggestedLocations = dedupeLocations(
+            prioritizeLocationsByDepartment(
+              primarySuggestions,
+              resolvedDepartmentName ?? '',
+            ),
+          )
+
+          if (nextSuggestedLocations.length === 0) {
+            const categories = await getCategories()
+            const primaryIntent = detectPrimaryIntent(effectiveSearchQuery, categories)
 
             if (isCancelled) {
               return
             }
 
-            nextSuggestedLocations = dedupeLocations([
-              ...nextSuggestedLocations,
-              ...prioritizeLocationsByDepartment(
-                intentSuggestions,
-                resolvedDepartmentName ?? '',
-              ),
-            ])
+            if (
+              primaryIntent &&
+              normalizeSearchText(primaryIntent) !== normalizeSearchText(effectiveSearchQuery)
+            ) {
+              const intentSuggestions = await searchSupabaseLocationCardsV3({
+                coreQuery: primaryIntent,
+                limit: 12,
+              })
+
+              if (isCancelled) {
+                return
+              }
+
+              nextSuggestedLocations = dedupeLocations(
+                prioritizeLocationsByDepartment(
+                  intentSuggestions,
+                  resolvedDepartmentName ?? '',
+                ),
+              )
+            }
+          }
+        } else {
+          const primarySuggestions = await searchAlgoliaLocationCards({
+            hitsPerPage: 12,
+            optionalTerms,
+            query: effectiveSearchQuery,
+          })
+
+          if (isCancelled) {
+            return
+          }
+
+          nextSuggestedLocations = dedupeLocations(
+            prioritizeLocationsByDepartment(
+              primarySuggestions,
+              resolvedDepartmentName ?? '',
+            ),
+          )
+
+          if (nextSuggestedLocations.length < 4) {
+            const categories = await getCategories()
+            const primaryIntent = detectPrimaryIntent(effectiveSearchQuery, categories)
+
+            if (isCancelled) {
+              return
+            }
+
+            if (
+              primaryIntent &&
+              normalizeSearchText(primaryIntent) !== normalizeSearchText(effectiveSearchQuery)
+            ) {
+              const intentSuggestions = await searchAlgoliaLocationCards({
+                hitsPerPage: 12,
+                query: primaryIntent,
+              })
+
+              if (isCancelled) {
+                return
+              }
+
+              nextSuggestedLocations = dedupeLocations([
+                ...nextSuggestedLocations,
+                ...prioritizeLocationsByDepartment(
+                  intentSuggestions,
+                  resolvedDepartmentName ?? '',
+                ),
+              ])
+            }
           }
         }
 
@@ -558,6 +655,7 @@ export function SearchLocationsPage() {
     optionalTerms,
     resolvedDepartmentName,
     shouldShowEmptyState,
+    shouldUseSupabaseSearchV3,
   ])
 
   useEffect(() => {
@@ -648,7 +746,9 @@ export function SearchLocationsPage() {
           ) : null}
           {!shouldShowGlobalLoading && !error && !shouldShowEmptyState ? (
             <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-              {currentTotalCount} resultados
+              {locations.length > 0
+                ? `${currentTotalCount} ${currentTotalCount === 1 ? 'resultado' : 'resultados'}`
+                : ''}
             </p>
           ) : null}
         </section>

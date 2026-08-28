@@ -54,7 +54,7 @@ type LocationRow = {
   location_features?: LocationFeatureRow[] | null
 }
 
-type SearchPublicLocationsRow = {
+export type SearchPublicLocationsRow = {
   id: string
   slug?: string | null
   location_code?: string | null
@@ -135,7 +135,7 @@ function parseApproxRadius(value: number | null | undefined) {
   return value
 }
 
-function mapSearchPublicLocationsRow(
+export function mapSearchPublicLocationsRow(
   row: SearchPublicLocationsRow,
 ): PublicLocationCard {
   return mapPublicLocationCard({
@@ -169,7 +169,7 @@ function getSingleRelation<T>(value: T | T[] | null | undefined) {
   return value ?? null
 }
 
-async function enrichLocationsWithCategorySlugs(
+export async function enrichLocationsWithCategorySlugs(
   rows: SearchPublicLocationsRow[],
   fallbackCategorySlug: string | null,
 ) {

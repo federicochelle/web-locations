@@ -74,6 +74,10 @@ const selectionPdfFieldOrder: (keyof SelectionPdfFormValues)[] = [
   'tentativeEndDate',
   'message',
 ]
+const readOnlySentProjectFields: Array<keyof SelectionPdfFormValues> = [
+  'product',
+  'productionCompany',
+]
 
 type DrawerAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type DrawerAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
@@ -232,19 +236,35 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const hydratedProjectIdRef = useRef<string | null>(null)
   const submitProposalRef = useRef<() => Promise<void>>(async () => {})
 
+  const isSentProject = Boolean(activeProject && activeProject.status !== 'draft')
+  const protectedFormValues = useMemo<SelectionPdfFormValues>(() => {
+    if (!activeProject || activeProject.status === 'draft') {
+      return values
+    }
+
+    return {
+      ...values,
+      product: activeProject.title,
+      productionCompany: activeProject.productionCompany ?? '',
+      productionCompanyId: activeProject.productionCompanyId,
+    }
+  }, [activeProject, values])
   const livePreviewPayload = useMemo(
-    () => buildSelectionPdfPayloadFromImages(values, images),
-    [images, values],
+    () => buildSelectionPdfPayloadFromImages(protectedFormValues, images),
+    [images, protectedFormValues],
   )
   const normalizedProjectValues = useMemo(
-    () => normalizeRequestProjectFormValues(values),
-    [values],
+    () => normalizeRequestProjectFormValues(protectedFormValues),
+    [protectedFormValues],
   )
   const currentProjectSnapshot = useMemo(
     () => createRequestProjectFormSnapshot(normalizedProjectValues),
     [normalizedProjectValues],
   )
-  const isSentProject = Boolean(activeProject && activeProject.status !== 'draft')
+  const readOnlyFields = useMemo<Array<keyof SelectionPdfFormValues>>(
+    () => (isSentProject ? readOnlySentProjectFields : []),
+    [isSentProject],
+  )
   const isProjectAutosaveEnabled = Boolean(
     activeProject &&
       (activeProject.status === 'draft' || activeProject.id === activeEditingProjectId),
@@ -482,6 +502,17 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     field: keyof SelectionPdfFormValues,
     value: string | null,
   ) {
+    if (
+      activeProject?.status !== 'draft' &&
+      (
+        field === 'product' ||
+        field === 'productionCompany' ||
+        field === 'productionCompanyId'
+      )
+    ) {
+      return
+    }
+
     setValues((currentValues) => ({
       ...currentValues,
       [field]:
@@ -516,6 +547,16 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       return true
     }
 
+    const protectedProjectValues =
+      activeProject.status === 'draft'
+        ? nextValues
+        : {
+            ...nextValues,
+            title: activeProject.title,
+            productionCompany: activeProject.productionCompany ?? '',
+            productionCompanyId: activeProject.productionCompanyId,
+          }
+
     const autosaveExecutionToken = Symbol('drawer-project-autosave')
     const autosavePromise = (async () => {
       try {
@@ -527,12 +568,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         setAutosaveIndicator('saving')
 
         const savedProject = await updateProject(activeProjectId, {
-          title: nextValues.title,
-          productionCompany: nextValues.productionCompany,
-          productionCompanyId: nextValues.productionCompanyId,
-          message: nextValues.message,
-          tentativeStartDate: nextValues.tentativeStartDate,
-          tentativeEndDate: nextValues.tentativeEndDate,
+          title: protectedProjectValues.title,
+          productionCompany: protectedProjectValues.productionCompany,
+          productionCompanyId: protectedProjectValues.productionCompanyId,
+          message: protectedProjectValues.message,
+          tentativeStartDate: protectedProjectValues.tentativeStartDate,
+          tentativeEndDate: protectedProjectValues.tentativeEndDate,
         })
 
         if (!savedProject) {
@@ -665,9 +706,18 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
     setExportError(null)
     const draftPayload = {
-      title: values.product.trim(),
-      productionCompany: values.productionCompany.trim() || null,
-      productionCompanyId: values.productionCompanyId,
+      title:
+        activeProject.status === 'draft'
+          ? values.product.trim()
+          : activeProject.title,
+      productionCompany:
+        activeProject.status === 'draft'
+          ? values.productionCompany.trim() || null
+          : activeProject.productionCompany,
+      productionCompanyId:
+        activeProject.status === 'draft'
+          ? values.productionCompanyId
+          : activeProject.productionCompanyId,
       message: values.message.trim() || null,
       tentativeStartDate: values.tentativeStartDate.trim() || null,
       tentativeEndDate: values.tentativeEndDate.trim() || null,
@@ -957,6 +1007,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           errors={errors}
           onChange={handleFieldChange}
           disabled={isBusy || isProjectLocked}
+          readOnlyFields={readOnlyFields}
           columns={2}
         />
       </div>

@@ -17,11 +17,13 @@ import {
   downloadOfficialRequestProjectPdf,
   submitRequestProjectWithOfficialPdf,
 } from '@/services/request-projects.service.ts'
+import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { RequestProjectLocation } from '@/types/request-project.ts'
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
 } from '@/types/selection-pdf.ts'
+import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import { downloadSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
@@ -220,6 +222,24 @@ function AutosaveErrorIcon() {
   )
 }
 
+function OpenLocationIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 17 17 7" />
+      <path d="M9 7h8v8" />
+    </svg>
+  )
+}
+
 type DraftAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type DraftAutosaveIndicatorState = 'hidden' | 'saving' | 'saved' | 'error'
 
@@ -239,7 +259,12 @@ export function RequestDetailPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { id } = useParams()
-  const { setActiveProjectContext } = useImageSelection()
+  const {
+    getProjectSelection,
+    hasProjectSelection,
+    replaceSelection,
+    setActiveProjectContext,
+  } = useImageSelection()
   const {
     activeEditingProjectId,
     beginProjectEditing,
@@ -827,13 +852,44 @@ export function RequestDetailPage() {
     void navigate('/#explorar')
   }
 
+  function buildProjectSelectionImages(
+    projectLocations: RequestProjectLocation[],
+  ): SelectedLocationImage[] {
+    return projectLocations.flatMap((projectLocation) =>
+      projectLocation.selectedImages.map((image) => ({
+        key: getImageSelectionKey({
+          locationId: projectLocation.location.id,
+          locationImageId: image.locationImageId,
+          imageUrl: image.imageUrl,
+        }),
+        imageUrl: image.imageUrl,
+        locationImageId: image.locationImageId,
+        sortOrder: image.sortOrder,
+        locationId: projectLocation.location.id,
+        locationCode: projectLocation.location.locationCode,
+        locationTitle: projectLocation.location.title,
+        categorySlug: projectLocation.location.categorySlug ?? '',
+        selectedAt: image.createdAt,
+      })),
+    )
+  }
+
   function handleOpenDraftLocation(item: RequestProjectLocation) {
-    if (!project || !isDraft) {
+    if (!project || (!isDraft && !isEditingProject)) {
       return
     }
 
+    const existingProjectSelection = getProjectSelection(project.id)
+    const projectSelectionExistsInMemory = hasProjectSelection(project.id)
+
+    if (!projectSelectionExistsInMemory || !existingProjectSelection) {
+      replaceSelection(buildProjectSelectionImages(locations), {
+        projectId: project.id,
+      })
+    }
+
     setActiveProjectContext(project.id, {
-      hydrate: true,
+      hydrate: !projectSelectionExistsInMemory,
       persist: true,
     })
 
@@ -1025,9 +1081,10 @@ export function RequestDetailPage() {
                 onClick={() => {
                   handleOpenDraftLocation(item)
                 }}
-                className="cursor-pointer font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100 transition hover:text-brand-300 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="inline-flex items-center gap-2 cursor-pointer font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100 transition hover:text-brand-300 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 {item.location.title}
+                <OpenLocationIcon />
               </button>
             ) : (
               <p className="font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100">
