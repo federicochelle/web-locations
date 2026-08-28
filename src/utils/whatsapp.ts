@@ -1,4 +1,5 @@
-const WHATSAPP_BASE_URL = 'https://wa.me/'
+const WHATSAPP_PHONE = '59894152292'
+const WHATSAPP_BASE_URL = `https://wa.me/${WHATSAPP_PHONE}`
 
 export function buildWhatsAppUrl(message?: string) {
   if (!message || message.trim().length === 0) {

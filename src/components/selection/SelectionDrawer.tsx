@@ -14,6 +14,7 @@ import drawerFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
 import { SelectionDrawerHeader } from '@/components/selection/SelectionDrawerHeader.tsx'
 import { SelectedLocationGroup } from '@/components/selection/SelectedLocationGroup.tsx'
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
 import { SELECTION_DRAWER_TRIGGER_ID } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
@@ -626,6 +627,36 @@ export function SelectionDrawer() {
     isLoading,
     isPdfFlowDetached,
     resetSelectionFlow,
+  ])
+
+  useEffect(() => {
+    if (!hasLoadedOnce || isLoading || !activeProjectId || !activeProject) {
+      return
+    }
+
+    const isActiveProjectSelectable = selectableProjects.some(
+      (project) => project.id === activeProjectId,
+    )
+
+    if (isActiveProjectSelectable) {
+      return
+    }
+
+    resetSelectionFlow()
+    setActiveProjectId(null)
+    setActiveProjectContext(null, {
+      hydrate: false,
+      persist: true,
+    })
+    persistedContextRef.current = { mode: 'new' }
+  }, [
+    activeProject,
+    activeProjectId,
+    hasLoadedOnce,
+    isLoading,
+    resetSelectionFlow,
+    selectableProjects,
+    setActiveProjectContext,
   ])
 
   useEffect(() => {
@@ -1458,9 +1489,7 @@ export function SelectionDrawer() {
     if (contentState.kind === 'loading') {
       return (
         <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
-          <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-            Cargando proyecto...
-          </div>
+          <AppLoading compact label="Cargando proyecto..." className="min-h-[12rem] py-0" />
         </div>
       )
     }
@@ -1639,10 +1668,8 @@ export function SelectionDrawer() {
     return (
       <Suspense
         fallback={
-          <div className="flex h-full min-h-0 items-center justify-center px-4 py-10">
-            <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-              Cargando...
-            </div>
+          <div className="flex h-full min-h-0 items-center justify-center px-4 py-6">
+            <AppLoading compact label="Cargando..." className="min-h-[12rem] py-0" />
           </div>
         }
       >
@@ -1867,10 +1894,8 @@ export function SelectionDrawer() {
             fallback={
               <div className="flex h-full flex-col lg:flex-row">
                 <div className="hidden min-w-0 flex-1 lg:block" />
-                <div className="flex h-screen max-h-screen min-h-0 w-full items-center justify-center border-l border-white/10 bg-[#14110f] px-4 py-10 supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] lg:w-[min(100%,460px)]">
-                  <div className="rounded-full border border-white/10 bg-white/6 px-5 py-3 text-sm font-medium text-brand-100">
-                    Cargando...
-                  </div>
+                <div className="flex h-screen max-h-screen min-h-0 w-full items-center justify-center border-l border-white/10 bg-[#14110f] px-4 py-6 supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh] lg:w-[min(100%,460px)]">
+                  <AppLoading compact label="Cargando..." className="min-h-[12rem] py-0" />
                 </div>
               </div>
             }

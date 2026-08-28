@@ -17,7 +17,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-[#14110f]/84 shadow-[0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-sm">
-      <div className="mx-auto grid w-full max-w-[1700px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3.5 sm:px-6 sm:py-4 lg:px-8 xl:px-10 2xl:px-12">
+      <div className="mx-auto grid w-full max-w-[1700px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3.5 sm:px-6 sm:py-4 lg:px-8 lg:py-2 xl:px-10 2xl:px-12">
         <div className="flex items-center">
           <NavLink
             to="/"
@@ -39,12 +39,9 @@ export function Header() {
             <NavLink to="/postular-locacion" className={navLinkClassName}>
               Publicá tu locación
             </NavLink>
-            <span
-              className="font-display inline-flex min-h-11 items-center justify-center border-b-2 border-transparent px-1 text-base font-semibold tracking-[-0.02em] text-brand-300 transition"
-              aria-disabled="true"
-            >
+            <NavLink to="/nosotros" className={navLinkClassName}>
               Nosotros
-            </span>
+            </NavLink>
           </div>
         </nav>
 

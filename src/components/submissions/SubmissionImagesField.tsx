@@ -11,6 +11,26 @@ type SubmissionImagesFieldProps = {
   onRemove: (itemId: string) => void
 }
 
+function ImagePlaceholderIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-12 w-12 text-brand-300/88"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path d="m20.5 15-4.5-4.5a1 1 0 0 0-1.4 0L8 17" />
+      <path d="m11.5 17 2.5-2.5a1 1 0 0 1 1.4 0l2.1 2.1" />
+    </svg>
+  )
+}
+
 export function SubmissionImagesField({
   items,
   selectionError,
@@ -19,6 +39,8 @@ export function SubmissionImagesField({
   onRemove,
 }: SubmissionImagesFieldProps) {
   const canAddMore = items.length < MAX_SUBMISSION_IMAGES
+  const visibleItems = items.slice(0, 4)
+  const hiddenItemsCount = Math.max(0, items.length - visibleItems.length)
 
   function handleRetry(item: SubmissionImageItem) {
     onRemove(item.id)
@@ -27,18 +49,34 @@ export function SubmissionImagesField({
 
   return (
     <section className="space-y-5">
-      <h3 className="text-lg font-semibold text-brand-100">Fotografias</h3>
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-lg font-semibold text-brand-100">Fotografías</h3>
+
+        {items.length > 0 && canAddMore ? (
+          <label className="inline-flex min-h-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-300 focus-within:ring-offset-2 focus-within:ring-offset-[#14110f]">
+            Agregar imágenes
+            <input
+              type="file"
+              multiple
+              accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif"
+              className="sr-only"
+              disabled={disabled}
+              onChange={(event) => {
+                if (event.target.files) {
+                  onFilesSelected(event.target.files)
+                  event.target.value = ''
+                }
+              }}
+            />
+          </label>
+        ) : null}
+      </div>
 
       {items.length === 0 ? (
         <label className="flex min-h-[220px] w-full cursor-pointer flex-col items-center justify-center rounded-[1rem] border border-dashed border-white/16 bg-white/6 px-4 py-10 text-center transition hover:border-brand-300 hover:bg-white/8">
-          <span className="text-5xl text-brand-300/88" aria-hidden="true">
-            📷
-          </span>
+          <ImagePlaceholderIcon />
           <span className="mt-4 text-base font-medium text-brand-100">
             Seleccionar imagenes
-          </span>
-          <span className="mt-2 text-sm text-brand-100/68">
-            Arrastra las imagenes aqui o hace clic para seleccionarlas.
           </span>
           <input
             type="file"
@@ -63,45 +101,23 @@ export function SubmissionImagesField({
       ) : null}
 
       {items.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-sm text-brand-100/68">
-            {items.length} de {MAX_SUBMISSION_IMAGES} imagenes
-          </p>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {items.map((item) => (
+        <div>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {visibleItems.map((item, index) => (
               <SubmissionImageUploadItem
                 key={item.id}
                 item={item}
+                compactRow
                 disabled={disabled}
                 onRemove={onRemove}
                 onRetry={handleRetry}
+                overflowCount={
+                  index === visibleItems.length - 1
+                    ? hiddenItemsCount
+                    : 0
+                }
               />
             ))}
-
-            {canAddMore ? (
-              <label className="flex aspect-video cursor-pointer flex-col items-center justify-center rounded-[0.75rem] border border-dashed border-white/16 bg-white/6 px-4 text-center transition hover:border-brand-300 hover:bg-white/8">
-                <span className="text-4xl text-brand-300/88" aria-hidden="true">
-                  +
-                </span>
-                <span className="mt-3 text-sm font-medium text-brand-100">
-                  Agregar imagenes
-                </span>
-                <input
-                  type="file"
-                  multiple
-                  accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif"
-                  className="sr-only"
-                  disabled={disabled}
-                  onChange={(event) => {
-                    if (event.target.files) {
-                      onFilesSelected(event.target.files)
-                      event.target.value = ''
-                    }
-                  }}
-                />
-              </label>
-            ) : null}
           </div>
         </div>
       ) : null}

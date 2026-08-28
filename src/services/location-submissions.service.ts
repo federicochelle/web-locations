@@ -4,9 +4,9 @@ export type CreateLocationSubmissionInput = {
   ownerName: string
   ownerEmail: string
   ownerPhone: string
-  title: string
   address: string
   description: string
+  turnstileToken: string
 }
 
 export type CreateLocationSubmissionResult = {
@@ -15,24 +15,58 @@ export type CreateLocationSubmissionResult = {
 }
 
 type CreateLocationSubmissionRpcRow = {
-  id?: string | null
-  submission_token?: string | null
+  submissionId?: string | null
+  submissionToken?: string | null
 }
 
 function mapLocationSubmissionErrorMessage(message: string) {
   const normalizedMessage = message.toLowerCase()
 
+  if (normalizedMessage.includes('anti-spam')) {
+    return 'No pudimos validar la verificacion anti-spam. Intenta nuevamente.'
+  }
+
   if (
-    normalizedMessage.includes('invalid input syntax') ||
-    normalizedMessage.includes('violates')
+    normalizedMessage.includes('demasiados intentos') ||
+    normalizedMessage.includes('too many requests')
   ) {
-    return 'Revisa los datos ingresados e intenta nuevamente.'
+    return 'Recibimos demasiados intentos desde esta conexion. Intenta nuevamente en unos minutos.'
   }
 
   return 'No pudimos enviar la postulacion. Intenta nuevamente.'
 }
 
-export function getLocationSubmissionErrorMessage(error: unknown) {
+async function getFunctionErrorMessage(error: unknown) {
+  const context = (
+    error &&
+    typeof error === 'object' &&
+    'context' in error
+  )
+    ? (error as { context?: Response }).context
+    : undefined
+
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json() as { error?: string }
+
+      if (payload?.error) {
+        return payload.error
+      }
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
+
+export async function getLocationSubmissionErrorMessage(error: unknown) {
+  const functionErrorMessage = await getFunctionErrorMessage(error)
+
+  if (functionErrorMessage) {
+    return functionErrorMessage
+  }
+
   if (error instanceof Error) {
     return mapLocationSubmissionErrorMessage(error.message)
   }
@@ -43,26 +77,24 @@ export function getLocationSubmissionErrorMessage(error: unknown) {
 export async function createLocationSubmission(
   input: CreateLocationSubmissionInput,
 ) {
-  const { data, error } = await supabase.rpc('create_location_submission', {
-    p_owner_name: input.ownerName.trim(),
-    p_owner_email: input.ownerEmail.trim(),
-    p_owner_phone: input.ownerPhone.trim(),
-    p_title: input.title.trim(),
-    p_department: null,
-    p_zone: null,
-    p_address: input.address.trim() || null,
-    p_location_type: null,
-    p_description: input.description.trim() || null,
-    p_message: null,
+  const { data, error } = await supabase.functions.invoke('create-location-submission', {
+    body: {
+      owner_name: input.ownerName.trim(),
+      owner_email: input.ownerEmail.trim(),
+      owner_phone: input.ownerPhone.trim(),
+      address: input.address.trim(),
+      description: input.description.trim(),
+      turnstile_token: input.turnstileToken.trim(),
+    },
   })
 
   if (error) {
-    throw new Error(error.message)
+    throw error
   }
 
   const row = (Array.isArray(data) ? data[0] : data) as CreateLocationSubmissionRpcRow | null
-  const submissionId = row?.id?.trim()
-  const submissionToken = row?.submission_token?.trim()
+  const submissionId = row?.submissionId?.trim()
+  const submissionToken = row?.submissionToken?.trim()
 
   if (!submissionId || !submissionToken) {
     throw new Error('No pudimos confirmar la postulacion creada.')

@@ -44,6 +44,10 @@ type ImageSelectionContextValue = {
   pendingSelectionImages: SelectedLocationImage[]
   isDrawerOpen: boolean
   isHydratingActiveProjectSelection: boolean
+  hasProjectSelection: (projectId: string | null | undefined) => boolean
+  getProjectSelection: (
+    projectId: string | null | undefined,
+  ) => SelectedLocationImage[] | null
   addImage: (image: SelectedLocationImage) => void
   replaceSelection: (
     images: SelectedLocationImage[],
@@ -123,6 +127,7 @@ export function ImageSelectionProvider({
   const activeProjectIdRef = useRef<string | null>(initialActiveProjectId)
   const hydrationRequestIdRef = useRef(0)
   const pendingPersistedContextEventRef = useRef<PendingPersistedContextEvent | null>(null)
+  const projectSelectionVersionsRef = useRef<Record<string, number>>({})
 
   const images = activeProjectId
     ? projectSelections[activeProjectId] ?? []
@@ -146,8 +151,17 @@ export function ImageSelectionProvider({
     })
   }, [globalImages, projectSelections])
 
+  const markProjectSelectionUpdated = useCallback((projectId: string) => {
+    projectSelectionVersionsRef.current = {
+      ...projectSelectionVersionsRef.current,
+      [projectId]: (projectSelectionVersionsRef.current[projectId] ?? 0) + 1,
+    }
+  }, [])
+
   const hydrateProjectSelection = useCallback(async (projectId: string) => {
     const requestId = hydrationRequestIdRef.current + 1
+    const selectionVersionAtRequestStart =
+      projectSelectionVersionsRef.current[projectId] ?? 0
     hydrationRequestIdRef.current = requestId
     setIsHydratingActiveProjectSelection(true)
 
@@ -156,7 +170,8 @@ export function ImageSelectionProvider({
 
       if (
         hydrationRequestIdRef.current !== requestId ||
-        activeProjectIdRef.current !== projectId
+        activeProjectIdRef.current !== projectId ||
+        (projectSelectionVersionsRef.current[projectId] ?? 0) !== selectionVersionAtRequestStart
       ) {
         return
       }
@@ -165,6 +180,7 @@ export function ImageSelectionProvider({
         ...currentSelections,
         [projectId]: normalizeImages(nextSelection),
       }))
+      markProjectSelectionUpdated(projectId)
     } finally {
       if (
         hydrationRequestIdRef.current === requestId &&
@@ -173,7 +189,29 @@ export function ImageSelectionProvider({
         setIsHydratingActiveProjectSelection(false)
       }
     }
-  }, [])
+  }, [markProjectSelectionUpdated])
+
+  const hasProjectSelection = useCallback((projectId: string | null | undefined) => {
+    const normalizedProjectId = normalizeProjectId(projectId)
+
+    if (!normalizedProjectId) {
+      return false
+    }
+
+    return Object.prototype.hasOwnProperty.call(projectSelections, normalizedProjectId)
+  }, [projectSelections])
+
+  const getProjectSelection = useCallback((
+    projectId: string | null | undefined,
+  ) => {
+    const normalizedProjectId = normalizeProjectId(projectId)
+
+    if (!normalizedProjectId) {
+      return null
+    }
+
+    return projectSelections[normalizedProjectId] ?? null
+  }, [projectSelections])
 
   const setActiveProjectContext = useCallback((
     projectId: string | null,
@@ -284,6 +322,7 @@ export function ImageSelectionProvider({
           normalizedImage,
         ]),
       }))
+      markProjectSelectionUpdated(projectId)
       return
     }
 
@@ -312,6 +351,7 @@ export function ImageSelectionProvider({
         ...currentSelections,
         [projectId]: normalizedImages,
       }))
+      markProjectSelectionUpdated(projectId)
       return
     }
 
@@ -328,6 +368,7 @@ export function ImageSelectionProvider({
           (image) => image.key !== key,
         ),
       }))
+      markProjectSelectionUpdated(projectId)
       return
     }
 
@@ -349,6 +390,7 @@ export function ImageSelectionProvider({
         ...currentSelections,
         [projectId]: [],
       }))
+      markProjectSelectionUpdated(projectId)
       return
     }
 
@@ -394,6 +436,8 @@ export function ImageSelectionProvider({
       pendingSelectionImages,
       isDrawerOpen,
       isHydratingActiveProjectSelection,
+      hasProjectSelection,
+      getProjectSelection,
       addImage,
       replaceSelection,
       removeImage,
@@ -411,6 +455,8 @@ export function ImageSelectionProvider({
       clearSelection,
       clearPendingSelectionIntent,
       closeDrawer,
+      getProjectSelection,
+      hasProjectSelection,
       images,
       isDrawerOpen,
       isHydratingActiveProjectSelection,

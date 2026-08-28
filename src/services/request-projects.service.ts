@@ -85,6 +85,7 @@ type RelatedNameRow =
   | null
 
 type LocationCatalogImageRow = {
+  id?: string | null
   url?: string | null
   sort_order?: number | null
   is_cover?: boolean | null
@@ -321,6 +322,10 @@ function sortPersistedSelectionImages(
   })
 }
 
+function normalizeSnapshotImageUrl(url: string | null | undefined) {
+  return typeof url === 'string' ? url.trim() : ''
+}
+
 function mapRequestProject(row: RequestProjectRow): RequestProject {
   const firstLocationRow = sortProjectLocationRows(row.request_project_locations)[0] ?? null
   const firstLocation = getSingleRelation(firstLocationRow?.locations)
@@ -519,12 +524,52 @@ function mapSnapshotLocationToRequestProjectLocation(
   projectId: string,
   snapshotLocation: SelectionPdfLocation,
   index: number,
+  currentLocation?: RequestProjectLocationLocationRow | null,
 ) {
+  const snapshotImages = snapshotLocation.images.map((image, imageIndex) => {
+    const normalizedSnapshotImageUrl = normalizeSnapshotImageUrl(image.imageUrl)
+    const matchingCatalogImages = sortImages(currentLocation?.location_images).filter(
+      (catalogImage) =>
+        normalizeSnapshotImageUrl(catalogImage.url) === normalizedSnapshotImageUrl,
+    )
+    const resolvedLocationImageId =
+      matchingCatalogImages.length === 1
+        ? matchingCatalogImages[0]?.id?.trim() || null
+        : null
+
+    return {
+      id: `${snapshotLocation.locationId}:${imageIndex}`,
+      locationImageId: resolvedLocationImageId,
+      imageUrl: image.imageUrl,
+      sortOrder: image.sortOrder ?? imageIndex,
+      createdAt: new Date(0).toISOString(),
+    }
+  })
+
+  const currentLocationCategory = getSingleRelation(currentLocation?.categories)
+  const currentCoverImage = sortImages(currentLocation?.location_images).find((image) =>
+    Boolean(image.url),
+  )
+  const locationCode =
+    snapshotLocation.locationCode?.trim() ||
+    currentLocation?.location_code?.trim() ||
+    snapshotLocation.locationId
+  const categorySlug =
+    snapshotLocation.categorySlug?.trim() ||
+    currentLocationCategory?.slug?.trim() ||
+    null
+  const locationTitle =
+    snapshotLocation.locationTitle?.trim() ||
+    currentLocation?.title?.trim() ||
+    locationCode
   const fallbackCard = mapPublicLocationCard({
     id: snapshotLocation.locationId,
-    locationCode: snapshotLocation.locationCode,
-    categorySlug: snapshotLocation.categorySlug,
-    coverImageUrl: snapshotLocation.images[0]?.imageUrl ?? null,
+    locationCode,
+    categorySlug,
+    coverImageUrl:
+      snapshotImages[0]?.imageUrl ??
+      currentCoverImage?.url?.trim() ??
+      null,
     coverImageAlt: 'Imagen de locacion',
     features: [],
   })
@@ -534,23 +579,20 @@ function mapSnapshotLocationToRequestProjectLocation(
     notes: null,
     sortOrder: index,
     createdAt: new Date(0).toISOString(),
-    selectedImages: snapshotLocation.images.map((image, imageIndex) => ({
-      id: `${snapshotLocation.locationId}:${imageIndex}`,
-      locationImageId: null,
-      imageUrl: image.imageUrl,
-      sortOrder: image.sortOrder ?? imageIndex,
-      createdAt: new Date(0).toISOString(),
-    })),
+    selectedImages: snapshotImages,
     location: {
       id: fallbackCard.id,
       slug: fallbackCard.slug,
-      title: snapshotLocation.locationTitle?.trim() || fallbackCard.title,
-      locationCode: snapshotLocation.locationCode?.trim() || fallbackCard.locationCode,
-      categorySlug: snapshotLocation.categorySlug?.trim() || fallbackCard.categorySlug,
+      title: locationTitle,
+      locationCode,
+      categorySlug: categorySlug ?? fallbackCard.categorySlug,
       categoryName: fallbackCard.categoryName,
-      departmentName: fallbackCard.departmentName,
-      zoneName: fallbackCard.zoneName,
-      coverImageUrl: snapshotLocation.images[0]?.imageUrl ?? fallbackCard.coverImageUrl,
+      departmentName: getRelatedName(currentLocation?.departments) ?? fallbackCard.departmentName,
+      zoneName: getRelatedName(currentLocation?.zones) ?? fallbackCard.zoneName,
+      coverImageUrl:
+        snapshotImages[0]?.imageUrl ??
+        currentCoverImage?.url?.trim() ??
+        fallbackCard.coverImageUrl,
       coverImageAlt: fallbackCard.coverImageAlt,
     },
   } satisfies RequestProjectLocation
@@ -636,6 +678,52 @@ async function getRequestProjectLocationRows(projectId: string) {
   }
 
   return (data ?? []) as RequestProjectLocationRelationRow[]
+}
+
+async function getLocationCatalogRows(locationIds: string[]) {
+  const normalizedLocationIds = [...new Set(
+    locationIds
+      .map((locationId) => locationId.trim())
+      .filter((locationId) => locationId.length > 0),
+  )]
+
+  if (normalizedLocationIds.length === 0) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('locations')
+    .select(
+      `
+        id,
+        title,
+        location_code,
+        published,
+        categories (
+          name,
+          slug
+        ),
+        departments (
+          name
+        ),
+        zones (
+          name
+        ),
+        location_images (
+          id,
+          url,
+          sort_order,
+          is_cover
+        )
+      `,
+    )
+    .in('id', normalizedLocationIds)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []) as RequestProjectLocationLocationRow[]
 }
 
 async function getRequestProjectStatus(projectId: string) {
@@ -1072,8 +1160,20 @@ export async function getRequestProjectLocations(projectId: string) {
     const snapshotPayload = await getLatestRequestProjectSnapshotPayload(projectId)
 
     if (snapshotPayload?.locations.length) {
+      const locationCatalogRows = await getLocationCatalogRows(
+        snapshotPayload.locations.map((location) => location.locationId),
+      )
+      const currentLocationById = new Map(
+        locationCatalogRows.map((location) => [location.id, location] as const),
+      )
+
       return snapshotPayload.locations.map((location, index) =>
-        mapSnapshotLocationToRequestProjectLocation(projectId, location, index),
+        mapSnapshotLocationToRequestProjectLocation(
+          projectId,
+          location,
+          index,
+          currentLocationById.get(location.locationId) ?? null,
+        ),
       )
     }
   }

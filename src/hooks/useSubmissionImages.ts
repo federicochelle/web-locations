@@ -4,11 +4,12 @@ import {
   finalizeSubmissionImage,
   getSubmissionImageValidationError,
   MAX_SUBMISSION_IMAGES,
-  requestSubmissionImageUploadUrl,
+  requestSubmissionImageUpload,
   type SubmissionImageFinalizeResult,
   type SubmissionImageUploadContext,
-  uploadSubmissionImageToCloudflare,
+  uploadSubmissionImageToStorage,
 } from '@/services/submission-images.service.ts'
+import { prepareSubmissionImageForUpload } from '@/utils/submission-image-processing.ts'
 
 type SubmissionImageStatus = 'pending' | 'uploading' | 'uploaded' | 'error'
 
@@ -156,11 +157,14 @@ export function useSubmissionImages() {
           )
 
           try {
-            const uploadTarget = await requestSubmissionImageUploadUrl(context, item.file)
+            const uploadFile = await prepareSubmissionImageForUpload(item.file)
+            const uploadTarget = await requestSubmissionImageUpload(context, uploadFile)
 
-            await uploadSubmissionImageToCloudflare(
-              uploadTarget.uploadUrl,
-              item.file,
+            await uploadSubmissionImageToStorage(
+              uploadTarget.bucket,
+              uploadTarget.path,
+              uploadTarget.token,
+              uploadFile,
               (progress) => {
                 setItems((currentItems) =>
                   currentItems.map((currentItem) =>
@@ -177,7 +181,8 @@ export function useSubmissionImages() {
 
             const result = await finalizeSubmissionImage(
               context,
-              uploadTarget.cloudflareImageId,
+              uploadTarget.bucket,
+              uploadTarget.path,
               item.sortOrder,
             )
 

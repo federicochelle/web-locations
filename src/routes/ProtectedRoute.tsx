@@ -1,5 +1,6 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import type { UserRole } from '@/types/auth.ts'
 import { getDefaultRouteByRole } from '@/utils/auth-routing.ts'
@@ -16,9 +17,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     return (
       <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
         <div className="mx-auto flex max-w-[1720px] justify-center">
-          <section className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:px-8">
-            <p className="text-sm text-sand-700">Cargando tu sesion...</p>
-          </section>
+          <AppLoading label="Cargando tu sesión..." className="w-full max-w-xl" />
         </div>
       </div>
     )

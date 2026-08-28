@@ -49,6 +49,11 @@ const PrivacyPage = lazy(() =>
     default: module.PrivacyPage,
   })),
 )
+const AboutPage = lazy(() =>
+  import('@/pages/AboutPage.tsx').then((module) => ({
+    default: module.AboutPage,
+  })),
+)
 const LocationDetailPage = lazy(() =>
   import('@/pages/LocationDetailPage.tsx').then((module) => ({
     default: module.LocationDetailPage,
@@ -151,6 +156,10 @@ const router = createBrowserRouter([
           {
             path: 'privacidad',
             element: withRouteSuspense(<PrivacyPage />),
+          },
+          {
+            path: 'nosotros',
+            element: withRouteSuspense(<AboutPage />),
           },
           {
             element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
