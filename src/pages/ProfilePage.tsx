@@ -5,6 +5,7 @@ import submissionHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2
 import { PhoneInput } from '@/components/ui/PhoneInput.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
+import { useSignOutAction } from '@/hooks/useSignOutAction.ts'
 import {
   getAuthErrorMessage,
   updateUserProfile,
@@ -42,8 +43,26 @@ function FormActionIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M4 12h13" />
-      <path d="m11 5 7 7-7 7" />
+      <path d="M5 12.5 9.5 17 19 7.5" />
+    </svg>
+  )
+}
+
+function SignOutIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+      <path d="M13 8l4 4-4 4" />
+      <path d="M17 12H9" />
     </svg>
   )
 }
@@ -57,6 +76,7 @@ export function ProfilePage() {
   })
 
   const { plan, profile, refreshProfile, user } = useAuth()
+  const { executeSignOut, isSigningOut } = useSignOutAction()
   const [values, setValues] = useState<ProfileFormValues>({
     fullName: '',
     companyName: '',
@@ -267,6 +287,20 @@ export function ProfilePage() {
               </footer>
             </section>
           </form>
+
+          <div className="px-4 md:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                void executeSignOut()
+              }}
+              disabled={isSigningOut}
+              className={formPrimaryButtonClassName}
+            >
+              <SignOutIcon />
+              {isSigningOut ? 'Cerrando sesion...' : 'Cerrar sesion'}
+            </button>
+          </div>
         </section>
       </div>
     </div>

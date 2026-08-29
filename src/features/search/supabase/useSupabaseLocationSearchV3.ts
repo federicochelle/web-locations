@@ -38,6 +38,8 @@ type SearchSupabaseLocationCardsV3Options = {
   optionalTerms?: string[]
 }
 
+type SearchSupabaseLocationCardsV3RelatedOptions = SearchSupabaseLocationCardsV3Options
+
 const EMPTY_STRING_ARRAY: string[] = []
 
 function normalizeOptionalTerms(optionalTerms: string[] | undefined) {
@@ -83,6 +85,32 @@ async function searchSupabaseLocationsV3(params: {
   }
 }
 
+async function searchSupabaseLocationsV3Related(params: {
+  coreQuery: string
+  departmentSlug: string
+  limit: number
+  optionalTerms: string[]
+}) {
+  const { data, error: rpcError } = await supabase.rpc('search_public_locations_v3_related', {
+    p_core_query: params.coreQuery || null,
+    p_department_slug: params.departmentSlug || null,
+    p_limit: params.limit,
+    p_optional_terms: params.optionalTerms,
+  })
+
+  if (rpcError) {
+    throw new Error(rpcError.message)
+  }
+
+  const rows = (data ?? []) as SearchPublicLocationsV3Row[]
+  const rowsWithCategorySlugs = await enrichLocationsWithCategorySlugs(rows, null)
+
+  return {
+    hits: rowsWithCategorySlugs.map((row) => mapSearchPublicLocationsRow(row)),
+    totalHits: rowsWithCategorySlugs[0]?.total_count ?? 0,
+  }
+}
+
 export async function searchSupabaseLocationCardsV3(
   options: SearchSupabaseLocationCardsV3Options = {},
 ): Promise<PublicLocationCard[]> {
@@ -91,6 +119,23 @@ export async function searchSupabaseLocationCardsV3(
   const normalizedLimit = Math.max(1, Math.trunc(options.limit ?? 12))
   const normalizedOptionalTerms = normalizeOptionalTerms(options.optionalTerms)
   const snapshot = await searchSupabaseLocationsV3({
+    coreQuery: normalizedCoreQuery,
+    departmentSlug: normalizedDepartmentSlug,
+    limit: normalizedLimit,
+    optionalTerms: normalizedOptionalTerms,
+  })
+
+  return snapshot.hits
+}
+
+export async function searchSupabaseLocationCardsV3Related(
+  options: SearchSupabaseLocationCardsV3RelatedOptions = {},
+): Promise<PublicLocationCard[]> {
+  const normalizedCoreQuery = options.coreQuery?.trim() ?? ''
+  const normalizedDepartmentSlug = options.departmentSlug?.trim() ?? ''
+  const normalizedLimit = Math.max(1, Math.trunc(options.limit ?? 12))
+  const normalizedOptionalTerms = normalizeOptionalTerms(options.optionalTerms)
+  const snapshot = await searchSupabaseLocationsV3Related({
     coreQuery: normalizedCoreQuery,
     departmentSlug: normalizedDepartmentSlug,
     limit: normalizedLimit,
