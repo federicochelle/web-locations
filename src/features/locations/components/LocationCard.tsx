@@ -146,7 +146,7 @@ export function LocationCard({
           <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.76)_100%)] opacity-95 transition duration-500 group-hover:h-32" />
           <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5 pt-5 sm:px-3 sm:pb-3">
             <div className="flex flex-wrap-reverse items-end justify-between gap-x-3 gap-y-1">
-              <p className="shrink-0 whitespace-nowrap font-display text-[1.18rem] font-semibold leading-none tracking-[-0.04em] text-white drop-shadow-[0_3px_14px_rgba(0,0,0,0.42)] sm:text-[1.26rem] md:text-[1.36rem] lg:text-[1.48rem] xl:text-[1.6rem] 2xl:text-[1.68rem]">
+              <p className="shrink-0 whitespace-nowrap font-display text-[1.3rem] font-semibold leading-none tracking-[-0.04em] text-white drop-shadow-[0_3px_14px_rgba(0,0,0,0.42)] sm:text-[1.26rem] md:text-[1.36rem] lg:text-[1.48rem] xl:text-[1.6rem] 2xl:text-[1.68rem]">
                 {formattedLocationCode}
               </p>
               <p className="max-w-full whitespace-nowrap text-sm leading-tight text-white/78 drop-shadow-[0_3px_14px_rgba(0,0,0,0.42)] sm:text-[0.95rem]">
