@@ -6,9 +6,8 @@ import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
 import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
 import {
-  searchSupabaseLocationCardsV3Related,
-  useSupabaseLocationSearchV3,
-} from '@/features/search/supabase/useSupabaseLocationSearchV3.ts'
+  useSupabaseLocationSearchV4,
+} from '@/features/search/supabase/useSupabaseLocationSearchV4.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
@@ -31,39 +30,6 @@ function parsePageParam(value: string | null) {
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 1
 }
 
-function dedupeLocations(locations: PublicLocationCard[]) {
-  return [...new Map(locations.map((location) => [location.id, location])).values()]
-}
-
-function prioritizeLocationsByDepartment(
-  locations: PublicLocationCard[],
-  departmentName: string,
-) {
-  if (!departmentName) {
-    return locations
-  }
-
-  const normalizedDepartmentName = departmentName.trim().toLocaleLowerCase('es-UY')
-
-  if (!normalizedDepartmentName) {
-    return locations
-  }
-
-  const matchingDepartmentLocations: PublicLocationCard[] = []
-  const remainingLocations: PublicLocationCard[] = []
-
-  for (const location of locations) {
-    if (location.departmentName.trim().toLocaleLowerCase('es-UY') === normalizedDepartmentName) {
-      matchingDepartmentLocations.push(location)
-      continue
-    }
-
-    remainingLocations.push(location)
-  }
-
-  return [...matchingDepartmentLocations, ...remainingLocations]
-}
-
 export function SearchLocationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryQuery = searchParams.get('category')
@@ -81,10 +47,8 @@ export function SearchLocationsPage() {
   const [legacyTotalPages, setLegacyTotalPages] = useState(0)
   const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)
   const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
-  const [resolvedDepartmentName, setResolvedDepartmentName] = useState<string | null>(null)
   const [isDepartmentResolutionLoading, setIsDepartmentResolutionLoading] = useState(false)
   const [departmentResolutionError, setDepartmentResolutionError] = useState<string | null>(null)
-  const [suggestedLocations, setSuggestedLocations] = useState<PublicLocationCard[]>([])
 
   const normalizedCategorySlug = categoryQuery?.trim() ?? ''
   const normalizedDepartmentSlug = departmentQuery?.trim() ?? ''
@@ -100,7 +64,7 @@ export function SearchLocationsPage() {
   const hasSearchQuery = trimmedSearchQuery.length > 0
   const shouldUseLegacyResults = !hasSearchQuery
   const currentSearchSignature = JSON.stringify({
-    backend: hasSearchQuery ? 'supabase-v3' : 'legacy',
+    backend: hasSearchQuery ? 'supabase-v4' : 'legacy',
     category: normalizedCategorySlug,
     department: normalizedDepartmentSlug,
     features: normalizedFeatureSlugs,
@@ -108,7 +72,11 @@ export function SearchLocationsPage() {
   })
   const {
     coreQuery,
+    categorySlugs,
+    featureSlugs,
+    freeTextTerms,
     optionalTerms,
+    tagSlugs,
     loading: isSearchInterpretationLoading,
     fallback: didSearchInterpretationFallback,
     fallbackReason: searchInterpretationFallbackReason,
@@ -129,7 +97,6 @@ export function SearchLocationsPage() {
 
   useEffect(() => {
     if (!hasSearchQuery || normalizedDepartmentSlug.length === 0) {
-      setResolvedDepartmentName(null)
       setIsDepartmentResolutionLoading(false)
       setDepartmentResolutionError(null)
       return
@@ -147,8 +114,6 @@ export function SearchLocationsPage() {
           return
         }
 
-        setResolvedDepartmentName(nextDepartmentName)
-
         if (!nextDepartmentName) {
           setDepartmentResolutionError('No pudimos resolver el departamento seleccionado.')
         }
@@ -157,7 +122,6 @@ export function SearchLocationsPage() {
           return
         }
 
-        setResolvedDepartmentName(null)
         setDepartmentResolutionError(
           resolveError instanceof Error
             ? resolveError.message
@@ -180,19 +144,26 @@ export function SearchLocationsPage() {
   const {
     currentRequestKey: currentSupabaseRequestKey,
     error: supabaseSearchError,
+    fallbackToV3,
     hits: supabaseHits,
     loading: isSupabaseSearchLoading,
+    searchMode,
     settledRequestKey: settledSupabaseRequestKey,
     totalHits: supabaseTotalHits,
-  } = useSupabaseLocationSearchV3({
+    usedRelated,
+  } = useSupabaseLocationSearchV4({
+    categorySlugs,
     coreQuery: effectiveSearchQuery,
     departmentSlug: normalizedDepartmentSlug,
     enabled:
       hasSearchQuery &&
       !isAwaitingDepartmentResolution &&
       !isAwaitingSearchInterpretation,
+    featureSlugs,
+    freeTextTerms,
     limit: 100,
     optionalTerms,
+    tagSlugs,
   })
 
   const locations = useMemo(() => {
@@ -284,19 +255,33 @@ export function SearchLocationsPage() {
       rawQuery,
       coreQuery: effectiveSearchQuery,
       optionalTerms,
+      categorySlugs,
+      featureSlugs,
+      tagSlugs,
+      freeTextTerms,
       usedAi,
       fallback: didSearchInterpretationFallback,
       fallbackReason: searchInterpretationFallbackReason,
       durationMs: searchInterpretationDurationMs,
+      searchMode,
+      usedRelated,
+      fallbackToV3,
     })
   }, [
+    categorySlugs,
     didSearchInterpretationFallback,
     effectiveSearchQuery,
+    fallbackToV3,
+    featureSlugs,
+    freeTextTerms,
     hasSearchQuery,
     optionalTerms,
     rawQuery,
     searchInterpretationFallbackReason,
     searchInterpretationDurationMs,
+    searchMode,
+    tagSlugs,
+    usedRelated,
     usedAi,
   ])
 
@@ -392,58 +377,6 @@ export function SearchLocationsPage() {
     setResolvedCriticalImagesCount(0)
     setIsWaitingForCriticalImages(false)
   }, [currentSearchRequestKey, hasSearchQuery])
-
-  useEffect(() => {
-    if (!shouldShowEmptyState || !hasSearchQuery) {
-      setSuggestedLocations([])
-      return
-    }
-
-    let isCancelled = false
-
-    async function loadSuggestedLocations() {
-      try {
-        const nextSuggestedLocations = await searchSupabaseLocationCardsV3Related({
-          coreQuery: effectiveSearchQuery,
-          departmentSlug: normalizedDepartmentSlug,
-          limit: 12,
-          optionalTerms,
-        })
-
-        if (isCancelled) {
-          return
-        }
-
-        setSuggestedLocations(
-          dedupeLocations(
-            prioritizeLocationsByDepartment(
-              nextSuggestedLocations,
-              resolvedDepartmentName ?? '',
-            ),
-          ).slice(0, 4),
-        )
-      } catch {
-        if (isCancelled) {
-          return
-        }
-
-        setSuggestedLocations([])
-      }
-    }
-
-    void loadSuggestedLocations()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [
-    effectiveSearchQuery,
-    hasSearchQuery,
-    normalizedDepartmentSlug,
-    optionalTerms,
-    resolvedDepartmentName,
-    shouldShowEmptyState,
-  ])
 
   useEffect(() => {
     if (isLoading || error || locations.length === 0 || criticalImageCount === 0) {
@@ -563,17 +496,9 @@ export function SearchLocationsPage() {
           <section className="space-y-6 sm:space-y-8">
             <div className="max-w-5xl">
               <h2 className="text-sm font-medium leading-6 tracking-[-0.01em] text-brand-100/68 sm:text-[0.95rem] lg:text-[1rem]">
-                No encontramos resultados para "{rawQuery}"
-                {suggestedLocations.length > 0
-                  ? ' pero también te puede interesar:'
-                  : ''}
-                
+                No encontramos resultados para "{rawQuery}".
               </h2>
             </div>
-
-            {suggestedLocations.length > 0 ? (
-              <LocationsGrid locations={suggestedLocations} />
-            ) : null}
           </section>
         ) : null}
 
