@@ -3,8 +3,7 @@ import aboutImageOneUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 
 import aboutImageTwoUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM.webp'
 import { ScrollReveal } from '@/components/ui/ScrollReveal.tsx'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
-
-const GOLDEN_PI_URL = 'https://www.goldenpi.com.uy/'
+import { GOLDEN_PI_URL } from '@/utils/external-links.ts'
 
 type AboutSectionProps = {
   title: string

@@ -4,44 +4,18 @@ import { useSearchParams } from 'react-router-dom'
 import { SearchResultsPagination } from '@/components/navigation/SearchResultsPagination.tsx'
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
-import {
-  searchAlgoliaLocationCards,
-  useAlgoliaLocationSearch,
-} from '@/features/search/algolia/useAlgoliaLocationSearch.ts'
 import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
 import {
-  searchSupabaseLocationCardsV3,
+  searchSupabaseLocationCardsV3Related,
   useSupabaseLocationSearchV3,
 } from '@/features/search/supabase/useSupabaseLocationSearchV3.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
-import { getCategories } from '@/services/categories.service.ts'
 import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
-import type { Category, PublicLocationCard } from '@/types/location.ts'
+import type { PublicLocationCard } from '@/types/location.ts'
 
 const SEARCH_RESULTS_PAGE_SIZE = 20
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
-const USE_SUPABASE_SEARCH_V3 = import.meta.env.VITE_USE_SUPABASE_SEARCH_V3 === 'true'
-const GENERIC_INTENT_TERMS = new Set([
-  'algo',
-  'ambiente',
-  'antiguo',
-  'espacio',
-  'grande',
-  'lindo',
-  'locacion',
-  'lugar',
-  'sitio',
-])
-
-function normalizeSearchText(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLocaleLowerCase('es-UY')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
 
 function getCriticalImageCount(totalImages: number) {
   const maxCriticalImages =
@@ -90,61 +64,6 @@ function prioritizeLocationsByDepartment(
   return [...matchingDepartmentLocations, ...remainingLocations]
 }
 
-function buildCategoryIntentCandidates(categories: Category[]) {
-  return categories
-    .flatMap((category) => {
-      const candidates = [category.name, category.slug.replace(/-/g, ' ')]
-        .map((candidate) => candidate.trim())
-        .filter((candidate, index, values) => candidate.length > 0 && values.indexOf(candidate) === index)
-
-      return candidates.map((candidate) => ({
-        categoryName: category.name.trim(),
-        normalizedCandidate: normalizeSearchText(candidate),
-      }))
-    })
-    .sort(
-      (left, right) =>
-        right.normalizedCandidate.split(' ').length - left.normalizedCandidate.split(' ').length,
-    )
-}
-
-function detectPrimaryIntent(
-  coreQuery: string,
-  categories: Category[],
-) {
-  const normalizedCoreQuery = normalizeSearchText(coreQuery)
-
-  if (!normalizedCoreQuery) {
-    return null
-  }
-
-  const paddedCoreQuery = ` ${normalizedCoreQuery} `
-  const categoryCandidates = buildCategoryIntentCandidates(categories)
-
-  for (const candidate of categoryCandidates) {
-    if (
-      candidate.normalizedCandidate &&
-      paddedCoreQuery.includes(` ${candidate.normalizedCandidate} `)
-    ) {
-      return candidate.categoryName
-    }
-  }
-
-  const terms = normalizedCoreQuery.split(' ').filter((term) => term.length > 0)
-
-  if (terms.length <= 1) {
-    return null
-  }
-
-  const [firstTerm] = terms
-
-  if (!firstTerm || firstTerm.length < 4 || GENERIC_INTENT_TERMS.has(firstTerm)) {
-    return null
-  }
-
-  return firstTerm
-}
-
 export function SearchLocationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryQuery = searchParams.get('category')
@@ -179,11 +98,9 @@ export function SearchLocationsPage() {
     [featuresQuery],
   )
   const hasSearchQuery = trimmedSearchQuery.length > 0
-  const shouldUseSupabaseSearchV3 = hasSearchQuery && USE_SUPABASE_SEARCH_V3
-  const hasAlgoliaSearch = hasSearchQuery && !shouldUseSupabaseSearchV3
   const shouldUseLegacyResults = !hasSearchQuery
   const currentSearchSignature = JSON.stringify({
-    backend: shouldUseSupabaseSearchV3 ? 'supabase-v3' : hasAlgoliaSearch ? 'algolia' : 'legacy',
+    backend: hasSearchQuery ? 'supabase-v3' : 'legacy',
     category: normalizedCategorySlug,
     department: normalizedDepartmentSlug,
     features: normalizedFeatureSlugs,
@@ -209,9 +126,6 @@ export function SearchLocationsPage() {
     normalizedDepartmentSlug.length > 0 &&
     isDepartmentResolutionLoading
   const isAwaitingSearchInterpretation = hasSearchQuery && shouldUseAi && isSearchInterpretationLoading
-  const legacySearchQuery = hasSearchQuery ? effectiveSearchQuery : ''
-  const isAwaitingLegacySearchInterpretation =
-    shouldUseLegacyResults && hasSearchQuery && shouldUseAi && isSearchInterpretationLoading
 
   useEffect(() => {
     if (!hasSearchQuery || normalizedDepartmentSlug.length === 0) {
@@ -264,22 +178,6 @@ export function SearchLocationsPage() {
   }, [hasSearchQuery, normalizedDepartmentSlug])
 
   const {
-    currentRequestKey: currentAlgoliaRequestKey,
-    error: algoliaError,
-    hits: algoliaHits,
-    loading: isAlgoliaLoading,
-    page,
-    settledRequestKey: settledAlgoliaRequestKey,
-    totalHits: algoliaTotalHits,
-    totalPages,
-  } = useAlgoliaLocationSearch({
-    departmentName: resolvedDepartmentName ?? '',
-    enabled: hasAlgoliaSearch && !isAwaitingDepartmentResolution && !isAwaitingSearchInterpretation,
-    initialPage,
-    initialQuery: effectiveSearchQuery,
-    optionalTerms,
-  })
-  const {
     currentRequestKey: currentSupabaseRequestKey,
     error: supabaseSearchError,
     hits: supabaseHits,
@@ -290,7 +188,7 @@ export function SearchLocationsPage() {
     coreQuery: effectiveSearchQuery,
     departmentSlug: normalizedDepartmentSlug,
     enabled:
-      shouldUseSupabaseSearchV3 &&
+      hasSearchQuery &&
       !isAwaitingDepartmentResolution &&
       !isAwaitingSearchInterpretation,
     limit: 100,
@@ -298,12 +196,8 @@ export function SearchLocationsPage() {
   })
 
   const locations = useMemo(() => {
-    if (shouldUseSupabaseSearchV3) {
+    if (hasSearchQuery) {
       return supabaseHits
-    }
-
-    if (hasAlgoliaSearch) {
-      return algoliaHits
     }
 
     return [...legacyLocations].sort((left, right) => {
@@ -315,33 +209,23 @@ export function SearchLocationsPage() {
         sensitivity: 'base',
       })
     })
-  }, [algoliaHits, hasAlgoliaSearch, legacyLocations, shouldUseSupabaseSearchV3, supabaseHits])
+  }, [hasSearchQuery, legacyLocations, supabaseHits])
   const isLoading = hasSearchQuery
     ? isAwaitingDepartmentResolution ||
       isSearchInterpretationLoading ||
-      (shouldUseSupabaseSearchV3 ? isSupabaseSearchLoading : isAlgoliaLoading)
-    : isAwaitingLegacySearchInterpretation || isLegacyLoading
+      isSupabaseSearchLoading
+    : isLegacyLoading
   const error = hasSearchQuery
-    ? departmentResolutionError ?? (shouldUseSupabaseSearchV3 ? supabaseSearchError : algoliaError)
+    ? departmentResolutionError ?? supabaseSearchError
     : legacyError
-  const currentPage = shouldUseSupabaseSearchV3 ? 1 : hasAlgoliaSearch ? page : initialPage
+  const currentPage = hasSearchQuery ? 1 : initialPage
   const currentTotalCount = hasSearchQuery
-    ? shouldUseSupabaseSearchV3
-      ? supabaseTotalHits
-      : algoliaTotalHits
+    ? supabaseTotalHits
     : legacyTotalCount
-  const currentTotalPages = shouldUseSupabaseSearchV3 ? 0 : hasAlgoliaSearch ? totalPages : legacyTotalPages
+  const currentTotalPages = hasSearchQuery ? 0 : legacyTotalPages
   const criticalImageCount = getCriticalImageCount(locations.length)
-  const currentSearchRequestKey = shouldUseSupabaseSearchV3
-    ? currentSupabaseRequestKey
-    : hasAlgoliaSearch
-      ? currentAlgoliaRequestKey
-      : null
-  const settledSearchRequestKey = shouldUseSupabaseSearchV3
-    ? settledSupabaseRequestKey
-    : hasAlgoliaSearch
-      ? settledAlgoliaRequestKey
-      : null
+  const currentSearchRequestKey = hasSearchQuery ? currentSupabaseRequestKey : null
+  const settledSearchRequestKey = hasSearchQuery ? settledSupabaseRequestKey : null
   const hasSettledCurrentSearch = hasSearchQuery
     ? Boolean(currentSearchRequestKey) &&
       currentSearchRequestKey === settledSearchRequestKey
@@ -374,7 +258,7 @@ export function SearchLocationsPage() {
       nextSearchParams.set('features', normalizedFeatureSlugs.join(','))
     }
 
-    if (nextPage > 1 && !(hasSearchQuery && shouldUseSupabaseSearchV3)) {
+    if (nextPage > 1 && !hasSearchQuery) {
       nextSearchParams.set('page', String(nextPage))
     }
 
@@ -444,10 +328,6 @@ export function SearchLocationsPage() {
     let isMounted = true
 
     async function loadLegacyLocations() {
-      if (isAwaitingLegacySearchInterpretation) {
-        return
-      }
-
       try {
         setIsLegacyLoading(true)
         setLegacyError(null)
@@ -460,7 +340,7 @@ export function SearchLocationsPage() {
           departmentSlug: normalizedDepartmentSlug || null,
           page: initialPage,
           pageSize: SEARCH_RESULTS_PAGE_SIZE,
-          search: legacySearchQuery,
+          search: null,
           featureSlugs: normalizedFeatureSlugs,
         })
 
@@ -498,9 +378,7 @@ export function SearchLocationsPage() {
     }
   }, [
     shouldUseLegacyResults,
-    isAwaitingLegacySearchInterpretation,
     initialPage,
-    legacySearchQuery,
     normalizedCategorySlug,
     normalizedDepartmentSlug,
     normalizedFeatureSlugs,
@@ -516,7 +394,7 @@ export function SearchLocationsPage() {
   }, [currentSearchRequestKey, hasSearchQuery])
 
   useEffect(() => {
-    if (!shouldShowEmptyState) {
+    if (!shouldShowEmptyState || !hasSearchQuery) {
       setSuggestedLocations([])
       return
     }
@@ -525,125 +403,25 @@ export function SearchLocationsPage() {
 
     async function loadSuggestedLocations() {
       try {
-        let nextSuggestedLocations: PublicLocationCard[] = []
+        const nextSuggestedLocations = await searchSupabaseLocationCardsV3Related({
+          coreQuery: effectiveSearchQuery,
+          departmentSlug: normalizedDepartmentSlug,
+          limit: 12,
+          optionalTerms,
+        })
 
-        if (shouldUseSupabaseSearchV3) {
-          const primarySuggestions = await searchSupabaseLocationCardsV3({
-            coreQuery: effectiveSearchQuery,
-            limit: 12,
-            optionalTerms,
-          })
-
-          if (isCancelled) {
-            return
-          }
-
-          nextSuggestedLocations = dedupeLocations(
-            prioritizeLocationsByDepartment(
-              primarySuggestions,
-              resolvedDepartmentName ?? '',
-            ),
-          )
-
-          if (nextSuggestedLocations.length === 0) {
-            const categories = await getCategories()
-            const primaryIntent = detectPrimaryIntent(effectiveSearchQuery, categories)
-
-            if (isCancelled) {
-              return
-            }
-
-            if (
-              primaryIntent &&
-              normalizeSearchText(primaryIntent) !== normalizeSearchText(effectiveSearchQuery)
-            ) {
-              const intentSuggestions = await searchSupabaseLocationCardsV3({
-                coreQuery: primaryIntent,
-                limit: 12,
-              })
-
-              if (isCancelled) {
-                return
-              }
-
-              nextSuggestedLocations = dedupeLocations(
-                prioritizeLocationsByDepartment(
-                  intentSuggestions,
-                  resolvedDepartmentName ?? '',
-                ),
-              )
-            }
-          }
-        } else {
-          const primarySuggestions = await searchAlgoliaLocationCards({
-            hitsPerPage: 12,
-            optionalTerms,
-            query: effectiveSearchQuery,
-          })
-
-          if (isCancelled) {
-            return
-          }
-
-          nextSuggestedLocations = dedupeLocations(
-            prioritizeLocationsByDepartment(
-              primarySuggestions,
-              resolvedDepartmentName ?? '',
-            ),
-          )
-
-          if (nextSuggestedLocations.length < 4) {
-            const categories = await getCategories()
-            const primaryIntent = detectPrimaryIntent(effectiveSearchQuery, categories)
-
-            if (isCancelled) {
-              return
-            }
-
-            if (
-              primaryIntent &&
-              normalizeSearchText(primaryIntent) !== normalizeSearchText(effectiveSearchQuery)
-            ) {
-              const intentSuggestions = await searchAlgoliaLocationCards({
-                hitsPerPage: 12,
-                query: primaryIntent,
-              })
-
-              if (isCancelled) {
-                return
-              }
-
-              nextSuggestedLocations = dedupeLocations([
-                ...nextSuggestedLocations,
-                ...prioritizeLocationsByDepartment(
-                  intentSuggestions,
-                  resolvedDepartmentName ?? '',
-                ),
-              ])
-            }
-          }
+        if (isCancelled) {
+          return
         }
 
-        if (nextSuggestedLocations.length === 0) {
-          const fallbackLocationsResult = await getLocations({
-            page: 1,
-            pageSize: 12,
-          })
-
-          if (isCancelled) {
-            return
-          }
-
-          nextSuggestedLocations = dedupeLocations([
-            ...nextSuggestedLocations,
-            ...prioritizeLocationsByDepartment(
-              fallbackLocationsResult.locations,
+        setSuggestedLocations(
+          dedupeLocations(
+            prioritizeLocationsByDepartment(
+              nextSuggestedLocations,
               resolvedDepartmentName ?? '',
             ),
-          ])
-        }
-
-        setSuggestedLocations(nextSuggestedLocations.slice(0, 4))
+          ).slice(0, 4),
+        )
       } catch {
         if (isCancelled) {
           return
@@ -660,10 +438,11 @@ export function SearchLocationsPage() {
     }
   }, [
     effectiveSearchQuery,
+    hasSearchQuery,
+    normalizedDepartmentSlug,
     optionalTerms,
     resolvedDepartmentName,
     shouldShowEmptyState,
-    shouldUseSupabaseSearchV3,
   ])
 
   useEffect(() => {
@@ -765,7 +544,7 @@ export function SearchLocationsPage() {
           <section className="w-full">
             <AppLoading
               label={
-                hasAlgoliaSearch && isSearchInterpretationLoading
+                hasSearchQuery && isSearchInterpretationLoading
                   ? 'Interpretando búsqueda...'
                   : 'Cargando resultados...'
               }
