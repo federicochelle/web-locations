@@ -22,13 +22,35 @@ function isSearchInterpretation(value: unknown): value is SearchInterpretation {
     return false
   }
 
-  const candidate = value as Partial<SearchInterpretation>
+  const candidate = value as Partial<SearchInterpretation> & {
+    categorySlugs?: unknown
+    featureSlugs?: unknown
+    tagSlugs?: unknown
+    freeTextTerms?: unknown
+  }
+
+  const hasValidStringArray = (entry: unknown) =>
+    entry === undefined || (Array.isArray(entry) && entry.every((term) => typeof term === 'string'))
 
   return (
     typeof candidate.coreQuery === 'string' &&
     Array.isArray(candidate.optionalTerms) &&
-    candidate.optionalTerms.every((term) => typeof term === 'string')
+    candidate.optionalTerms.every((term) => typeof term === 'string') &&
+    hasValidStringArray(candidate.categorySlugs) &&
+    hasValidStringArray(candidate.featureSlugs) &&
+    hasValidStringArray(candidate.tagSlugs) &&
+    hasValidStringArray(candidate.freeTextTerms)
   )
+}
+
+function normalizeStringArray(value: string[] | undefined, limit?: number) {
+  const normalized = [...new Set(
+    (value ?? [])
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0),
+  )]
+
+  return typeof limit === 'number' ? normalized.slice(0, limit) : normalized
 }
 
 function parseFunctionError(error: unknown, fallback: string) {
@@ -65,10 +87,11 @@ export async function interpretLocationSearchQuery(
 
     if (isSearchInterpretation(data)) {
       const coreQuery = data.coreQuery.trim()
-      const optionalTerms = data.optionalTerms
-        .map((term) => term.trim())
-        .filter((term) => term.length > 0)
-        .slice(0, 3)
+      const optionalTerms = normalizeStringArray(data.optionalTerms, 3)
+      const categorySlugs = normalizeStringArray(data.categorySlugs)
+      const featureSlugs = normalizeStringArray(data.featureSlugs)
+      const tagSlugs = normalizeStringArray(data.tagSlugs)
+      const freeTextTerms = normalizeStringArray(data.freeTextTerms)
 
       if (!coreQuery) {
         throw new SearchInterpretationError(
@@ -77,7 +100,14 @@ export async function interpretLocationSearchQuery(
         )
       }
 
-      return { coreQuery, optionalTerms }
+      return {
+        coreQuery,
+        optionalTerms,
+        categorySlugs,
+        featureSlugs,
+        tagSlugs,
+        freeTextTerms,
+      }
     }
 
     const response = data as { error?: string } | null
