@@ -7,7 +7,9 @@ import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadi
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
+import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
+import { useProductionCompanyLogoUrl } from '@/hooks/useProductionCompanyLogoUrl.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
   submitRequestProjectWithOfficialPdf,
@@ -27,7 +29,11 @@ import {
   buildSelectionPdfPayloadFromImages,
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
-import { downloadSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
+import {
+  downloadSelectionPdf,
+  openSelectionPdfInNewTab,
+  shouldUseSeparatePdfTabOnMobileSafari,
+} from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
   normalizeRequestProjectFormValues,
@@ -204,6 +210,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onEmbeddedFooterChange,
   } = props
   const navigate = useNavigate()
+  const { role } = useAuth()
   const { images, clearSelection } = useImageSelection()
   const {
     activeEditingProjectId,
@@ -249,9 +256,25 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       productionCompanyId: activeProject.productionCompanyId,
     }
   }, [activeProject, values])
+  const productionCompanyLogoUrl = useProductionCompanyLogoUrl(
+    protectedFormValues.productionCompanyId,
+  )
   const livePreviewPayload = useMemo(
-    () => buildSelectionPdfPayloadFromImages(protectedFormValues, images),
-    [images, protectedFormValues],
+    () => {
+      const basePayload = buildSelectionPdfPayloadFromImages(
+        protectedFormValues,
+        images,
+      )
+
+      return {
+        ...basePayload,
+        project: {
+          ...basePayload.project,
+          productionCompanyLogoUrl,
+        },
+      }
+    },
+    [images, productionCompanyLogoUrl, protectedFormValues],
   )
   const normalizedProjectValues = useMemo(
     () => normalizeRequestProjectFormValues(protectedFormValues),
@@ -277,6 +300,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   const hasSelectedImages = images.length > 0
   const isBusy = isSubmittingProposal || isLoadingModalOpen
+  const shouldUseSeparatePdfTab = shouldUseSeparatePdfTabOnMobileSafari()
 
   useEffect(() => {
     latestSnapshotRef.current = currentProjectSnapshot
@@ -687,6 +711,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function validateProposalSubmission() {
     const nextErrors = validateSelectionPdfForm(values)
 
+    if (role !== 'admin' && nextErrors.productionCompany) {
+      nextErrors.productionCompany = 'Completa la Productora en Mi cuenta antes de enviar el proyecto.'
+    }
+
     if (Object.keys(nextErrors).length === 0) {
       setErrors({})
       return true
@@ -814,10 +842,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         },
       })
 
-      downloadSelectionPdf(
-        submissionResult.exportResult.blob,
-        submissionResult.exportResult.fileName,
-      )
       await onProjectsRefresh()
       setProgress({
         stage: 'completed',
@@ -832,6 +856,13 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       setIsLoadingModalOpen(false)
       setStep('success')
       setIsSuccessModalOpen(true)
+
+      if (!shouldUseSeparatePdfTab) {
+        downloadSelectionPdf(
+          submissionResult.exportResult.blob,
+          submissionResult.exportResult.fileName,
+        )
+      }
     } catch (error) {
       setIsLoadingModalOpen(false)
       onRestoreAfterError()
@@ -858,6 +889,14 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Film Locations Uruguay.`
 
     window.open(buildWhatsAppUrl(message), '_blank', 'noopener,noreferrer')
+  }
+
+  function handleViewGeneratedPdf() {
+    if (!exportResult) {
+      return
+    }
+
+    openSelectionPdfInNewTab(exportResult.blob, exportResult.fileName)
   }
 
   function renderDetachedPreview() {
@@ -1122,9 +1161,11 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         title="Proyecto enviado correctamente"
         description="Nuestro equipo recibió tu propuesta y ya está gestionándola. Nos pondremos en contacto contigo para continuar con el proceso."
         primaryActionLabel="Ir a Mis proyectos"
-        secondaryActionLabel="Contactar por WhatsApp"
+        secondaryActionLabel="Ver PDF"
+        tertiaryActionLabel="Contactar por WhatsApp"
         onPrimaryAction={handleSuccessModalClose}
-        onSecondaryAction={handleContactByWhatsApp}
+        onSecondaryAction={handleViewGeneratedPdf}
+        onTertiaryAction={handleContactByWhatsApp}
         onClose={handleSuccessModalClose}
       />
     </>

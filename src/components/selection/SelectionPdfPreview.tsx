@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import logoUrl from '../../../logo.webp'
 import type { SelectionPdfPayload } from '@/types/selection-pdf.ts'
 
@@ -36,10 +38,19 @@ export function SelectionPdfPreview({
   payload,
   hideCover = false,
 }: SelectionPdfPreviewProps) {
+  const [isProductionLogoVisible, setIsProductionLogoVisible] = useState(
+    Boolean(payload.project.productionCompanyLogoUrl),
+  )
   const coverDetails = [
     ['Producto', payload.project.product],
     ['Productora', payload.project.productionCompany],
   ] as const
+  const hasProductionLogo = Boolean(payload.project.productionCompanyLogoUrl)
+  const showProductionLogo = hasProductionLogo && isProductionLogoVisible
+
+  useEffect(() => {
+    setIsProductionLogoVisible(hasProductionLogo)
+  }, [hasProductionLogo, payload.project.productionCompanyLogoUrl])
 
   const locationPages = payload.locations.flatMap((location) =>
     buildLocationPages(location),
@@ -50,12 +61,30 @@ export function SelectionPdfPreview({
       {!hideCover ? (
         <section className="mx-auto aspect-[210/297] w-full max-w-[900px] border border-[#e2dcd3]/55 bg-[#080808] px-[11.4%] py-[6.1%] text-[#f8f4ee] shadow-[0_28px_80px_rgba(0,0,0,0.28)]">
           <div className="flex h-full flex-col">
-            <div className="flex justify-center">
+            <div
+              className={`flex items-center justify-center ${
+                showProductionLogo ? 'gap-8' : ''
+              }`}
+            >
               <img
                 src={logoUrl}
                 alt="Logo"
-                className="h-auto max-h-[24rem] w-full max-w-[40rem] object-contain"
+                className={`h-auto object-contain ${
+                  showProductionLogo
+                    ? 'max-h-[9rem] w-full max-w-[18rem]'
+                    : 'max-h-[24rem] w-full max-w-[40rem]'
+                }`}
               />
+              {showProductionLogo ? (
+                <img
+                  src={payload.project.productionCompanyLogoUrl ?? undefined}
+                  alt={payload.project.productionCompany.trim() || 'Productora'}
+                  className="h-auto max-h-[9rem] w-full max-w-[18rem] object-contain"
+                  onError={() => {
+                    setIsProductionLogoVisible(false)
+                  }}
+                />
+              ) : null}
             </div>
 
             <div className="mt-12 space-y-4">

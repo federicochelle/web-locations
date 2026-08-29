@@ -9,8 +9,10 @@ import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
+import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
+import { useProductionCompanyLogoUrl } from '@/hooks/useProductionCompanyLogoUrl.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
@@ -20,11 +22,16 @@ import {
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { RequestProjectLocation } from '@/types/request-project.ts'
 import type {
+  SelectionPdfExportResult,
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
 } from '@/types/selection-pdf.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
-import { downloadSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
+import {
+  downloadSelectionPdf,
+  openSelectionPdfInNewTab,
+  shouldUseSeparatePdfTabOnMobileSafari,
+} from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
   normalizeRequestProjectFormValues,
@@ -259,6 +266,7 @@ export function RequestDetailPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { id } = useParams()
+  const { role } = useAuth()
   const {
     getProjectSelection,
     hasProjectSelection,
@@ -301,6 +309,8 @@ export function RequestDetailPage() {
   })
   const [formErrors, setFormErrors] = useState<SelectionPdfFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [latestSubmittedPdf, setLatestSubmittedPdf] =
+    useState<SelectionPdfExportResult | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
   const [isEditNoticeModalOpen, setIsEditNoticeModalOpen] = useState(false)
@@ -472,10 +482,28 @@ export function RequestDetailPage() {
       finishProjectEditing(project.id)
     }
   }, [activeEditingProjectId, finishProjectEditing, project])
+  const productionCompanyLogoUrl = useProductionCompanyLogoUrl(
+    values.productionCompanyId,
+  )
 
   const currentPdfPayload = useMemo(
-    () => buildSelectionPdfPayloadFromProject(values, locations, new Date().toISOString()),
-    [locations, values],
+    () => {
+      const generatedAt = new Date().toISOString()
+      const basePayload = buildSelectionPdfPayloadFromProject(
+        values,
+        locations,
+        generatedAt,
+      )
+
+      return {
+        ...basePayload,
+        project: {
+          ...basePayload.project,
+          productionCompanyLogoUrl,
+        },
+      }
+    },
+    [locations, productionCompanyLogoUrl, values],
   )
   const isSubmitting = isSubmittingOfficial
   const hasUnsavedChanges = useMemo(() => {
@@ -773,6 +801,9 @@ export function RequestDetailPage() {
     }
 
     const nextErrors = validateSelectionPdfForm(values)
+    if (role !== 'admin' && nextErrors.productionCompany) {
+      nextErrors.productionCompany = 'Completa la Productora en Mi cuenta antes de enviar el proyecto.'
+    }
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors)
       setValidationError('Revisa los datos del proyecto antes de enviarlo.')
@@ -782,6 +813,7 @@ export function RequestDetailPage() {
     setFormErrors({})
     setValidationError(null)
     setSuccessMessage(null)
+    setLatestSubmittedPdf(null)
 
     const didFlushPendingProjectChanges = await flushPendingProjectChanges()
 
@@ -803,10 +835,7 @@ export function RequestDetailPage() {
         payload: currentPdfPayload,
       })
 
-      downloadSelectionPdf(
-        submissionResult.exportResult.blob,
-        submissionResult.exportResult.fileName,
-      )
+      setLatestSubmittedPdf(submissionResult.exportResult)
       await refreshProject()
       await refreshProjects()
       if (!isDraft) {
@@ -817,6 +846,13 @@ export function RequestDetailPage() {
           ? 'Tu proyecto fue enviado correctamente.'
           : 'La nueva versión del proyecto se envió correctamente.',
       )
+
+      if (!shouldUseSeparatePdfTabOnMobileSafari()) {
+        downloadSelectionPdf(
+          submissionResult.exportResult.blob,
+          submissionResult.exportResult.fileName,
+        )
+      }
     } catch (submitError) {
       setValidationError(
         submitError instanceof Error
@@ -843,6 +879,17 @@ export function RequestDetailPage() {
           : 'No pudimos descargar el PDF oficial.',
       )
     }
+  }
+
+  function handleViewLatestSubmittedPdf() {
+    if (!latestSubmittedPdf) {
+      return
+    }
+
+    openSelectionPdfInNewTab(
+      latestSubmittedPdf.blob,
+      latestSubmittedPdf.fileName,
+    )
   }
 
   function handleAddLocations() {
@@ -1004,7 +1051,30 @@ export function RequestDetailPage() {
         <div className="space-y-6 px-5 py-5 sm:px-6">
           {successMessage ? (
             <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-              {successMessage}
+              <p>{successMessage}</p>
+              {latestSubmittedPdf ? (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadSelectionPdf(
+                        latestSubmittedPdf.blob,
+                        latestSubmittedPdf.fileName,
+                      )
+                    }}
+                    className="inline-flex min-h-10 items-center justify-center rounded-full bg-brand-300 px-4 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
+                  >
+                    Descargar PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleViewLatestSubmittedPdf}
+                    className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
+                  >
+                    Ver PDF
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

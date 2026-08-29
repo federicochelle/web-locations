@@ -371,43 +371,6 @@ function ProductionCompanyField({
     setIsOpen(true)
   }
 
-  if (!isAdmin) {
-    return (
-      <>
-        <label
-          htmlFor="productionCompany"
-          className="mb-2 block text-sm font-medium text-brand-100"
-        >
-          Productora
-        </label>
-        <input
-          id="productionCompany"
-          name="productionCompany"
-          type="text"
-          value={value}
-          placeholder="Nombre de la productora"
-          autoComplete="organization"
-          disabled={disabled}
-          onChange={(event) => {
-            onChange('productionCompany', event.target.value)
-          }}
-          aria-invalid={hasError}
-          aria-describedby={hasError ? errorId : undefined}
-          className={`${compact ? 'min-h-11 rounded-xl px-3.5' : 'min-h-12 rounded-2xl px-4'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70 ${
-            hasError
-              ? 'border-red-300 focus:ring-red-300'
-              : 'border-white/12 hover:bg-white/8'
-          }`}
-        />
-        {hasError ? (
-          <p id={errorId} className="mt-2 text-sm text-red-200">
-            {error}
-          </p>
-        ) : null}
-      </>
-    )
-  }
-
   return (
     <>
       <label
@@ -537,15 +500,25 @@ export function SelectionPdfForm({
   showTentativeDates = true,
   desktopMessageSplit = false,
 }: SelectionPdfFormProps) {
+  const { role } = useAuth()
   const isCompact = variant === 'compact'
+  const isAdmin = role === 'admin'
   const useTwoColumns = columns === 2
   const readOnlyFieldSet = useMemo(() => new Set(readOnlyFields), [readOnlyFields])
-  const visibleFields = showTentativeDates
-    ? fields
-    : fields.filter(
-        (field) =>
-          field.name !== 'tentativeStartDate' && field.name !== 'tentativeEndDate',
-      )
+  const visibleFields = useMemo(() => {
+    const baseFields = showTentativeDates
+      ? fields
+      : fields.filter(
+          (field) =>
+            field.name !== 'tentativeStartDate' && field.name !== 'tentativeEndDate',
+        )
+
+    if (isAdmin) {
+      return baseFields
+    }
+
+    return baseFields.filter((field) => field.name !== 'productionCompany')
+  }, [isAdmin, showTentativeDates])
 
   if (useTwoColumns && desktopMessageSplit) {
     const leftColumnFields = visibleFields.filter((field) => field.name !== 'message')

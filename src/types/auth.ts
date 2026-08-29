@@ -14,6 +14,7 @@ export type UserProfile = {
   userId: string
   fullName: string | null
   companyName: string | null
+  productionCompanyId: string | null
   phone: string | null
   role: UserRole | null
   status: UserStatus | null

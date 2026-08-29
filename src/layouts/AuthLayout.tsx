@@ -4,7 +4,7 @@ import logoUrl from '../../logo.webp'
 
 export function AuthLayout() {
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-black text-brand-100">
+    <div className="relative min-h-svh overflow-hidden bg-black text-brand-100 sm:min-h-dvh">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#0b0908]" />
         <div
@@ -18,7 +18,7 @@ export function AuthLayout() {
       </div>
 
       <div
-        className="relative z-10 flex min-h-dvh flex-col overflow-y-auto px-4 sm:px-6 lg:px-8"
+        className="relative z-10 flex min-h-svh flex-col overflow-y-auto px-4 sm:min-h-dvh sm:px-6 lg:px-8"
         style={{
           paddingTop: 'max(1rem, calc(env(safe-area-inset-top) + 0.75rem))',
           paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.75rem))',

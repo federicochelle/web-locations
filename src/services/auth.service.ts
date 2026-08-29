@@ -46,6 +46,7 @@ type ProfileRow = {
   user_id: string
   full_name: string | null
   company_name: string | null
+  production_company_id: string | null
   phone: string | null
   role: UserRole | null
   status: UserStatus | null
@@ -143,6 +144,7 @@ function mapProfile(row: ProfileRow): UserProfile {
     userId: row.user_id,
     fullName: row.full_name,
     companyName: row.company_name,
+    productionCompanyId: row.production_company_id,
     phone: row.phone,
     role: row.role,
     status: row.status,
@@ -292,7 +294,7 @@ export async function getSession() {
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, user_id, full_name, company_name, phone, role, status')
+    .select('id, user_id, full_name, company_name, production_company_id, phone, role, status')
     .eq('user_id', userId)
     .single()
 
@@ -319,7 +321,7 @@ export async function updateUserProfile(
       phone: input.phone,
     })
     .eq('user_id', userId)
-    .select('id, user_id, full_name, company_name, phone, role, status')
+    .select('id, user_id, full_name, company_name, production_company_id, phone, role, status')
     .single()
 
   if (error) {

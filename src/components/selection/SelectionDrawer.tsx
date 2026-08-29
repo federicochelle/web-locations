@@ -17,6 +17,7 @@ import { SelectedLocationGroup } from '@/components/selection/SelectedLocationGr
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
 import { SELECTION_DRAWER_TRIGGER_ID } from '@/components/selection/SelectionDrawerTrigger.tsx'
+import { useAuth } from '@/hooks/useAuth.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { syncRequestProjectSelection } from '@/services/request-projects.service.ts'
@@ -257,6 +258,7 @@ function BackArrowIcon() {
 }
 
 export function SelectionDrawer() {
+  const { profile, role } = useAuth()
   const {
     activeProjectId: selectionProjectId,
     images,
@@ -334,6 +336,8 @@ export function SelectionDrawer() {
     () => groupImagesByLocation(images),
     [images],
   )
+  const isAdmin = role === 'admin'
+  const visitorProfileCompanyName = profile?.companyName?.trim() ?? ''
   const activeProject =
     projects.find((project) => project.id === activeProjectId) ?? null
   const selectableProjects = useMemo(
@@ -1326,7 +1330,6 @@ export function SelectionDrawer() {
 
   async function handleCreateProject() {
     const normalizedProduct = newProjectProduct.trim()
-    const normalizedProductionCompany = newProjectProductionCompany.trim()
 
     if (!normalizedProduct || isCreating) {
       if (!normalizedProduct) {
@@ -1342,7 +1345,7 @@ export function SelectionDrawer() {
 
     const createdProject = await createProject({
       title: normalizedProduct,
-      productionCompany: normalizedProductionCompany || null,
+      productionCompany: isAdmin ? newProjectProductionCompany.trim() || null : null,
       productionCompanyId: null,
       message: null,
       tentativeStartDate: null,
@@ -1529,28 +1532,45 @@ export function SelectionDrawer() {
                 />
               </div>
 
-              <div>
-                <label
-                  htmlFor="new-project-production-company"
-                  className="mb-2 block text-sm font-medium text-brand-100"
-                >
-                  Productora
-                </label>
-                <input
-                  id="new-project-production-company"
-                  type="text"
-                  value={newProjectProductionCompany}
-                  onChange={(event) => {
-                    setNewProjectProductionCompany(event.target.value)
-                    if (newProjectError) {
-                      setNewProjectError(null)
-                    }
-                  }}
-                  autoComplete="organization"
-                  placeholder="Nombre de la productora"
-                  className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
-                />
-              </div>
+              {isAdmin ? (
+                <div>
+                  <label
+                    htmlFor="new-project-production-company"
+                    className="mb-2 block text-sm font-medium text-brand-100"
+                  >
+                    Productora
+                  </label>
+                  <input
+                    id="new-project-production-company"
+                    type="text"
+                    value={newProjectProductionCompany}
+                    onChange={(event) => {
+                      setNewProjectProductionCompany(event.target.value)
+                      if (newProjectError) {
+                        setNewProjectError(null)
+                      }
+                    }}
+                    autoComplete="organization"
+                    placeholder="Nombre de la productora"
+                    className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
+                  />
+                </div>
+              ) : visitorProfileCompanyName ? (
+                <div>
+                  <p className="mb-2 block text-sm font-medium text-brand-100">
+                    Productora
+                  </p>
+                  <div className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100/88">
+                    <div className="flex min-h-12 items-center">
+                      {visitorProfileCompanyName}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                  Completa la Productora en Mi cuenta. El proyecto puede crearse igual, pero no vas a poder enviarlo hasta agregarla en tu perfil.
+                </div>
+              )}
             </div>
 
             <div className="mt-6">
