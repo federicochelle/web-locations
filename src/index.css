@@ -340,6 +340,19 @@
   outline: none;
 }
 
+@media (max-width: 639px) {
+  /* Prevent iOS Safari from auto-zooming editable controls below 16px. */
+  input[class]:not([type='button']):not([type='checkbox']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='reset']):not([type='submit']),
+  textarea[class],
+  select[class] {
+    font-size: 1rem;
+  }
+
+  .app-phone-input .PhoneInputInput {
+    font-size: 1rem;
+  }
+}
+
 #root {
   min-height: 100vh;
 }
