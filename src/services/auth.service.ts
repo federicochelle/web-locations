@@ -153,13 +153,14 @@ function mapProfile(row: ProfileRow): UserProfile {
     companyName: row.company_name,
     productionCompanyId: row.production_company_id,
     productionCompanyName: null,
+    productionCompanyLogoUrl: null,
     phone: row.phone,
     role: row.role,
     status: row.status,
   }
 }
 
-async function resolveProfileProductionCompanyName(row: ProfileRow) {
+async function resolveMyProductionCompany(row: ProfileRow) {
   const productionCompanyId = row.production_company_id?.trim() || null
 
   if (!productionCompanyId) {
@@ -180,15 +181,22 @@ async function resolveProfileProductionCompanyName(row: ProfileRow) {
     return null
   }
 
-  return productionCompanyRow.name?.trim() || null
+  return {
+    id: productionCompanyRow.id,
+    name: productionCompanyRow.name?.trim() || null,
+    logoUrl: productionCompanyRow.logo_url?.trim() || null,
+    active: productionCompanyRow.active ?? false,
+  }
 }
 
 async function mapProfileWithProductionCompany(row: ProfileRow): Promise<UserProfile> {
   const profile = mapProfile(row)
+  const productionCompany = await resolveMyProductionCompany(row)
 
   return {
     ...profile,
-    productionCompanyName: await resolveProfileProductionCompanyName(row),
+    productionCompanyName: productionCompany?.name ?? null,
+    productionCompanyLogoUrl: productionCompany?.logoUrl ?? null,
   }
 }
 

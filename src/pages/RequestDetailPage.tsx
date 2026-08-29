@@ -6,13 +6,14 @@ import drawerHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
+import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
-import { useProductionCompanyLogoUrl } from '@/hooks/useProductionCompanyLogoUrl.ts'
+import { useProductionCompanyLogo } from '@/hooks/useProductionCompanyLogoUrl.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
@@ -22,15 +23,12 @@ import {
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { RequestProjectLocation } from '@/types/request-project.ts'
 import type {
-  SelectionPdfExportResult,
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
 } from '@/types/selection-pdf.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import {
   downloadSelectionPdf,
-  openSelectionPdfInNewTab,
-  shouldUseSeparatePdfTabOnMobileSafari,
 } from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
@@ -44,6 +42,7 @@ import {
   validateSelectionPdfForm,
 } from '@/utils/selection-pdf-workspace.ts'
 import { buildPublicLocationPath } from '@/utils/location-public.ts'
+import { buildWhatsAppUrl } from '@/utils/whatsapp.ts'
 
 function SubmitProposalIcon() {
   return (
@@ -309,9 +308,8 @@ export function RequestDetailPage() {
   })
   const [formErrors, setFormErrors] = useState<SelectionPdfFormErrors>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [latestSubmittedPdf, setLatestSubmittedPdf] =
-    useState<SelectionPdfExportResult | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
   const [isEditNoticeModalOpen, setIsEditNoticeModalOpen] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
@@ -377,6 +375,7 @@ export function RequestDetailPage() {
 
     if (notice) {
       setSuccessMessage(notice)
+      setIsSuccessModalOpen(true)
     }
   }, [location.state])
 
@@ -482,7 +481,9 @@ export function RequestDetailPage() {
       finishProjectEditing(project.id)
     }
   }, [activeEditingProjectId, finishProjectEditing, project])
-  const productionCompanyLogoUrl = useProductionCompanyLogoUrl(
+  const {
+    logoUrl: productionCompanyLogoUrl,
+  } = useProductionCompanyLogo(
     values.productionCompanyId,
   )
 
@@ -505,6 +506,8 @@ export function RequestDetailPage() {
     },
     [locations, productionCompanyLogoUrl, values],
   )
+  const isMobileCompletionFlow =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
   const isSubmitting = isSubmittingOfficial
   const hasUnsavedChanges = useMemo(() => {
     if (!project || persistedDraftSnapshot === null) {
@@ -813,7 +816,7 @@ export function RequestDetailPage() {
     setFormErrors({})
     setValidationError(null)
     setSuccessMessage(null)
-    setLatestSubmittedPdf(null)
+    setIsSuccessModalOpen(false)
 
     const didFlushPendingProjectChanges = await flushPendingProjectChanges()
 
@@ -835,7 +838,6 @@ export function RequestDetailPage() {
         payload: currentPdfPayload,
       })
 
-      setLatestSubmittedPdf(submissionResult.exportResult)
       await refreshProject()
       await refreshProjects()
       if (!isDraft) {
@@ -846,8 +848,9 @@ export function RequestDetailPage() {
           ? 'Tu proyecto fue enviado correctamente.'
           : 'La nueva versión del proyecto se envió correctamente.',
       )
+      setIsSuccessModalOpen(true)
 
-      if (!shouldUseSeparatePdfTabOnMobileSafari()) {
+      if (!isMobileCompletionFlow) {
         downloadSelectionPdf(
           submissionResult.exportResult.blob,
           submissionResult.exportResult.fileName,
@@ -881,15 +884,16 @@ export function RequestDetailPage() {
     }
   }
 
-  function handleViewLatestSubmittedPdf() {
-    if (!latestSubmittedPdf) {
-      return
-    }
+  function handleCloseSuccessModal() {
+    setIsSuccessModalOpen(false)
+  }
 
-    openSelectionPdfInNewTab(
-      latestSubmittedPdf.blob,
-      latestSubmittedPdf.fileName,
-    )
+  function handleContactByWhatsApp() {
+    const projectName = values.product.trim() || project?.title?.trim() || 'mi proyecto'
+    const message =
+      `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Film Locations Uruguay.`
+
+    window.open(buildWhatsAppUrl(message), '_blank', 'noopener,noreferrer')
   }
 
   function handleAddLocations() {
@@ -1049,35 +1053,6 @@ export function RequestDetailPage() {
         </div>
 
         <div className="space-y-6 px-5 py-5 sm:px-6">
-          {successMessage ? (
-            <div className="rounded-[0.875rem] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-              <p>{successMessage}</p>
-              {latestSubmittedPdf ? (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      downloadSelectionPdf(
-                        latestSubmittedPdf.blob,
-                        latestSubmittedPdf.fileName,
-                      )
-                    }}
-                    className="inline-flex min-h-10 items-center justify-center rounded-full bg-brand-300 px-4 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
-                  >
-                    Descargar PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleViewLatestSubmittedPdf}
-                    className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/10 px-4 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
-                  >
-                    Ver PDF
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
           {validationError ? (
             <div className="rounded-[0.875rem] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
               {validationError}
@@ -1122,7 +1097,11 @@ export function RequestDetailPage() {
             <div className="relative px-5 py-5 sm:px-6">
               <button
                 type="submit"
-                disabled={isSaving || isSubmitting || !canSubmitCurrentProject}
+                disabled={
+                  isSaving ||
+                  isSubmitting ||
+                  !canSubmitCurrentProject
+                }
                 className={drawerPrimaryButtonClassName}
               >
                 <SubmitProposalIcon />
@@ -1543,6 +1522,22 @@ export function RequestDetailPage() {
           setActiveLightboxLocationId(null)
           setActiveLightboxIndex(0)
         }}
+      />
+      <SubmissionResultModal
+        isOpen={isSuccessModalOpen}
+        variant="success"
+        title={isDraft ? 'Proyecto enviado correctamente' : 'Nueva versión enviada correctamente'}
+        description={
+          successMessage ??
+          (isDraft
+            ? 'Nuestro equipo recibió tu proyecto y ya está gestionándolo.'
+            : 'La nueva versión del proyecto se envió correctamente y ya está disponible para seguimiento.')
+        }
+        primaryActionLabel={isMobileCompletionFlow ? 'Seguir viendo el proyecto' : 'Cerrar'}
+        tertiaryActionLabel="Contactar por WhatsApp"
+        onPrimaryAction={handleCloseSuccessModal}
+        onTertiaryAction={handleContactByWhatsApp}
+        onClose={handleCloseSuccessModal}
       />
     </>
   )
