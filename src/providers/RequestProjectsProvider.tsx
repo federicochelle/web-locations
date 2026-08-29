@@ -121,10 +121,10 @@ export function RequestProjectsProvider({
       const isAdmin = role === 'admin'
       const resolvedProductionCompany = isAdmin
         ? productionCompany?.trim() || null
-        : profile?.companyName?.trim() || null
+        : profile?.productionCompanyName?.trim() || profile?.companyName?.trim() || null
       const resolvedProductionCompanyId = isAdmin
         ? productionCompanyId
-        : profile?.productionCompanyId ?? null
+        : profile?.productionCompanyId?.trim() || null
 
       const nextProject = await createRequestProject({
         title,
@@ -143,7 +143,7 @@ export function RequestProjectsProvider({
     } finally {
       setIsCreating(false)
     }
-  }, [profile?.companyName, profile?.productionCompanyId, role])
+  }, [profile?.companyName, profile?.productionCompanyId, profile?.productionCompanyName, role])
 
   const replaceProject = useCallback((nextProject: RequestProject) => {
     setProjects((currentProjects) =>

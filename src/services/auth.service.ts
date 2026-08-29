@@ -6,6 +6,7 @@ import type {
 } from '@supabase/supabase-js'
 
 import { supabase } from '@/lib/supabase.ts'
+import { getProductionCompanyById } from '@/services/production-companies.service.ts'
 import type {
   SubscriptionPlan,
   SubscriptionStatus,
@@ -145,9 +146,30 @@ function mapProfile(row: ProfileRow): UserProfile {
     fullName: row.full_name,
     companyName: row.company_name,
     productionCompanyId: row.production_company_id,
+    productionCompanyName: null,
     phone: row.phone,
     role: row.role,
     status: row.status,
+  }
+}
+
+async function resolveProfileProductionCompanyName(row: ProfileRow) {
+  const productionCompanyId = row.production_company_id?.trim() || null
+
+  if (!productionCompanyId) {
+    return null
+  }
+
+  const productionCompany = await getProductionCompanyById(productionCompanyId)
+  return productionCompany?.name ?? null
+}
+
+async function mapProfileWithProductionCompany(row: ProfileRow): Promise<UserProfile> {
+  const profile = mapProfile(row)
+
+  return {
+    ...profile,
+    productionCompanyName: await resolveProfileProductionCompanyName(row),
   }
 }
 
@@ -306,7 +328,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     throw new Error(error.message)
   }
 
-  return mapProfile(data satisfies ProfileRow)
+  return await mapProfileWithProductionCompany(data satisfies ProfileRow)
 }
 
 export async function updateUserProfile(
@@ -328,7 +350,7 @@ export async function updateUserProfile(
     throw new Error(error.message)
   }
 
-  return mapProfile(data satisfies ProfileRow)
+  return await mapProfileWithProductionCompany(data satisfies ProfileRow)
 }
 
 export async function getUserSubscriptionWithPlan(userId: string): Promise<{

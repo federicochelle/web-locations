@@ -47,7 +47,7 @@ export function PublicLayout() {
       <div className={shouldShowHeaderOnMobile ? 'relative z-20' : 'relative z-20 hidden md:block'}>
         <Header />
       </div>
-      <main className="relative z-10 flex-1 overflow-x-hidden overflow-y-visible bg-transparent">
+      <main className="relative z-10 flex-1 overflow-hidden bg-transparent">
         <div className="page-shell relative">
           <Outlet />
         </div>
