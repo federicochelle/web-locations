@@ -18,6 +18,7 @@ import { getPhoneError, normalizePhoneForStorage } from '@/utils/phone.ts'
 
 type RegisterFormValues = {
   fullName: string
+  companyName: string
   email: string
   phone?: string
   password: string
@@ -67,6 +68,10 @@ function validateForm(values: RegisterFormValues) {
     errors.fullName = 'Ingresá tu nombre completo.'
   }
 
+  if (!values.companyName.trim()) {
+    errors.companyName = 'Ingresá el nombre de tu productora.'
+  }
+
   if (!values.email.trim()) {
     errors.email = 'Ingresá tu correo electrónico.'
   } else if (!isValidEmail(values.email)) {
@@ -109,6 +114,7 @@ export function RegisterForm() {
   const navigate = useNavigate()
   const [values, setValues] = useState<RegisterFormValues>({
     fullName: '',
+    companyName: '',
     email: '',
     phone: '',
     password: '',
@@ -152,6 +158,7 @@ export function RegisterForm() {
 
       await signUp({
         fullName: values.fullName.trim(),
+        companyName: values.companyName.trim(),
         email: values.email.trim(),
         phone: normalizePhoneForStorage(values.phone),
         password: values.password,
@@ -162,6 +169,7 @@ export function RegisterForm() {
       setIsRegistrationNoticeOpen(true)
       setValues({
         fullName: '',
+        companyName: '',
         email: '',
         phone: '',
         password: '',
@@ -193,6 +201,24 @@ export function RegisterForm() {
           />
           {errors.fullName ? (
             <p className="text-sm text-red-200">{errors.fullName}</p>
+          ) : null}
+        </label>
+
+        <label className="block space-y-2">
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/56">
+            Productora
+          </span>
+          <input
+            type="text"
+            value={values.companyName}
+            onChange={(event) => handleChange('companyName', event.target.value)}
+            className="min-h-13 w-full rounded-2xl border border-white/8 bg-[#151517] px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300 focus:bg-[#1b1b1f] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2e7d8] [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#151517_inset] [&:-webkit-autofill:hover]:[box-shadow:0_0_0_1000px_#1b1b1f_inset] [&:-webkit-autofill:focus]:[box-shadow:0_0_0_1000px_#1b1b1f_inset]"
+            placeholder="Nombre de tu productora"
+            autoComplete="organization"
+            disabled={isSubmitting}
+          />
+          {errors.companyName ? (
+            <p className="text-sm text-red-200">{errors.companyName}</p>
           ) : null}
         </label>
 

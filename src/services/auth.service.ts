@@ -20,6 +20,7 @@ export const REGISTRATION_TERMS_VERSION = '2026-08-27'
 
 type SignUpInput = {
   fullName: string
+  companyName: string
   email: string
   phone: string | null
   password: string
@@ -196,6 +197,7 @@ export function getAuthErrorMessage(error: unknown) {
 
 export async function signUp({
   fullName,
+  companyName,
   email,
   phone,
   password,
@@ -208,6 +210,7 @@ export async function signUp({
     options: {
       data: {
         full_name: fullName,
+        company_name: companyName,
         phone,
         terms_accepted_at: termsAcceptedAt,
         terms_version: termsVersion,

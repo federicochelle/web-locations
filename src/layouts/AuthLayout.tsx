@@ -20,11 +20,11 @@ export function AuthLayout() {
       <div
         className="relative z-10 flex min-h-dvh flex-col overflow-y-auto px-4 sm:px-6 lg:px-8"
         style={{
-          paddingTop: 'max(0.5rem, calc(env(safe-area-inset-top) + 0.375rem))',
-          paddingBottom: 'max(0.75rem, calc(env(safe-area-inset-bottom) + 0.5rem))',
+          paddingTop: 'max(1rem, calc(env(safe-area-inset-top) + 0.75rem))',
+          paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom) + 0.75rem))',
         }}
       >
-        <div className="mx-auto flex w-full max-w-[1720px] flex-1 flex-col items-center justify-start gap-3 py-1.5 sm:justify-center sm:gap-5 sm:py-4">
+        <div className="mx-auto flex w-full max-w-[1720px] flex-1 flex-col items-center justify-center gap-3 py-6 sm:gap-5 sm:py-4">
           <Link
             to="/"
             aria-label="Ir al inicio de Film Locations Uruguay"
