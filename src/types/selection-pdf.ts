@@ -2,6 +2,7 @@ export type SelectionPdfProject = {
   product: string
   productionCompany: string
   productionCompanyId?: string | null
+  productionCompanyLogoUrl?: string | null
   tentativeStartDate: string
   tentativeEndDate: string
   message: string

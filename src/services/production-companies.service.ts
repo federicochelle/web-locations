@@ -34,3 +34,27 @@ export async function getActiveProductionCompanies() {
     mapProductionCompany(row),
   )
 }
+
+export async function getProductionCompanyById(id: string) {
+  const normalizedId = id.trim()
+
+  if (!normalizedId) {
+    return null
+  }
+
+  const { data, error } = await supabase
+    .from('production_companies')
+    .select('id, name, logo_url, logo_public_id, active')
+    .eq('id', normalizedId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return mapProductionCompany(data as ProductionCompanyRow)
+}

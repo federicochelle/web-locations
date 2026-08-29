@@ -24,7 +24,7 @@ type RequestProjectsProviderProps = {
 export function RequestProjectsProvider({
   children,
 }: RequestProjectsProviderProps) {
-  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { isAuthenticated, loading: authLoading, profile, role } = useAuth()
   const [projects, setProjects] = useState<RequestProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
@@ -118,10 +118,18 @@ export function RequestProjectsProvider({
       setIsCreating(true)
       setError(null)
 
+      const isAdmin = role === 'admin'
+      const resolvedProductionCompany = isAdmin
+        ? productionCompany?.trim() || null
+        : profile?.companyName?.trim() || null
+      const resolvedProductionCompanyId = isAdmin
+        ? productionCompanyId
+        : profile?.productionCompanyId ?? null
+
       const nextProject = await createRequestProject({
         title,
-        productionCompany: productionCompany?.trim() || null,
-        productionCompanyId,
+        productionCompany: resolvedProductionCompany,
+        productionCompanyId: resolvedProductionCompanyId,
         message: message?.trim() || null,
         tentativeStartDate,
         tentativeEndDate,
@@ -135,7 +143,7 @@ export function RequestProjectsProvider({
     } finally {
       setIsCreating(false)
     }
-  }, [])
+  }, [profile?.companyName, profile?.productionCompanyId, role])
 
   const replaceProject = useCallback((nextProject: RequestProject) => {
     setProjects((currentProjects) =>

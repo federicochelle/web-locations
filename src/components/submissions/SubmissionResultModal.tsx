@@ -27,8 +27,10 @@ type SubmissionResultModalProps = {
   variant: 'success' | 'partial-success' | 'error'
   primaryActionLabel: string
   secondaryActionLabel?: string
+  tertiaryActionLabel?: string
   onPrimaryAction: () => void
   onSecondaryAction?: () => void
+  onTertiaryAction?: () => void
   onClose: () => void
 }
 
@@ -39,8 +41,10 @@ export function SubmissionResultModal({
   variant,
   primaryActionLabel,
   secondaryActionLabel,
+  tertiaryActionLabel,
   onPrimaryAction,
   onSecondaryAction,
+  onTertiaryAction,
   onClose,
 }: SubmissionResultModalProps) {
   const primaryActionRef = useRef<HTMLButtonElement | null>(null)
@@ -119,7 +123,17 @@ export function SubmissionResultModal({
             >
               {secondaryActionLabel}
             </button>
-            ) : null}
+          ) : null}
+
+          {tertiaryActionLabel && onTertiaryAction ? (
+            <button
+              type="button"
+              onClick={onTertiaryAction}
+              className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-white/10 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1B1B1D]"
+            >
+              {tertiaryActionLabel}
+            </button>
+          ) : null}
         </div>
       </div>
     </AppModal>

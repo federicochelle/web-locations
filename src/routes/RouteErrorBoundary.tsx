@@ -1,5 +1,8 @@
+import * as Sentry from '@sentry/react'
 import { useEffect } from 'react'
 import { Link, useRouteError } from 'react-router-dom'
+
+const reportedRouteErrors = new WeakSet<object>()
 
 export function RouteErrorBoundary() {
   const error = useRouteError()
@@ -12,6 +15,34 @@ export function RouteErrorBoundary() {
       error,
       pathname,
       timestamp,
+    })
+
+    if (!import.meta.env.PROD) {
+      return
+    }
+
+    const sentryDsn = import.meta.env.VITE_SENTRY_DSN?.trim() || ''
+
+    if (!sentryDsn) {
+      return
+    }
+
+    if (error && typeof error === 'object') {
+      if (reportedRouteErrors.has(error)) {
+        return
+      }
+
+      reportedRouteErrors.add(error)
+    }
+
+    Sentry.captureException(error, {
+      tags: {
+        boundary: 'route-error-boundary',
+      },
+      extra: {
+        pathname,
+        timestamp,
+      },
     })
   }, [error, pathname, timestamp])
 

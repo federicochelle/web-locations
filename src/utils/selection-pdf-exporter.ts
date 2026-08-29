@@ -17,6 +17,7 @@ type CreateSelectionPdfOptions = {
 const PDF_IMAGE_PREPARATION_CONCURRENCY = 4
 const PDF_BACKGROUND = [8, 8, 8] as const
 const PDF_TEXT_GOLD = [215, 192, 162] as const
+const PDF_BLOB_URL_REVOKE_DELAY_MS = 60_000
 function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
   doc.setTextColor(color[0], color[1], color[2])
 }
@@ -77,30 +78,34 @@ function formatLocationCode(value: string) {
   return value.replace(/-/g, ' ')
 }
 
-function addCoverPage(
-  doc: jsPDF,
-  payload: SelectionPdfPayload,
-  logo: {
-    dataUrl: string
-    width: number
-    height: number
-    format: 'JPEG' | 'PNG'
-  } | null,
-) {
+type PreparedCoverLogo = {
+  dataUrl: string
+  width: number
+  height: number
+  format: 'JPEG' | 'PNG'
+}
+
+function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[]) {
   const pageWidth = doc.internal.pageSize.getWidth()
-  let topCardY = 66
+  const renderY = 18
 
-  paintPageBackground(doc)
+  if (logos.length === 0) {
+    return 52
+  }
 
-  if (logo) {
+  if (logos.length === 1) {
+    const [logo] = logos
+
+    if (!logo) {
+      return 52
+    }
+
     const maxLogoWidth = 180
     const maxLogoHeight = 110
     const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
     const renderWidth = logo.width * scale
     const renderHeight = logo.height * scale
     const renderX = (pageWidth - renderWidth) / 2
-    const renderY = 18
-    topCardY = renderY + renderHeight + 14
 
     doc.addImage(
       logo.dataUrl,
@@ -112,6 +117,67 @@ function addCoverPage(
       undefined,
       'FAST',
     )
+
+    return renderY + renderHeight
+  }
+
+  const gap = 12
+  const maxLogoWidth = 84
+  const maxLogoHeight = 42
+  const renderedLogos = logos.map((logo) => {
+    const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
+
+    return {
+      ...logo,
+      renderWidth: logo.width * scale,
+      renderHeight: logo.height * scale,
+    }
+  })
+  const totalWidth =
+    renderedLogos.reduce((sum, logo) => sum + logo.renderWidth, 0) +
+    gap * Math.max(0, renderedLogos.length - 1)
+  const maxRenderedHeight = renderedLogos.reduce(
+    (maxHeight, logo) => Math.max(maxHeight, logo.renderHeight),
+    0,
+  )
+  let currentX = (pageWidth - totalWidth) / 2
+
+  renderedLogos.forEach((logo, index) => {
+    const renderYWithOffset = renderY + (maxRenderedHeight - logo.renderHeight) / 2
+
+    doc.addImage(
+      logo.dataUrl,
+      logo.format,
+      currentX,
+      renderYWithOffset,
+      logo.renderWidth,
+      logo.renderHeight,
+      undefined,
+      'FAST',
+    )
+
+    currentX += logo.renderWidth
+
+    if (index < renderedLogos.length - 1) {
+      currentX += gap
+    }
+  })
+
+  return renderY + maxRenderedHeight
+}
+
+function addCoverPage(
+  doc: jsPDF,
+  payload: SelectionPdfPayload,
+  logos: PreparedCoverLogo[],
+) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  let topCardY = 66
+
+  paintPageBackground(doc)
+
+  if (logos.length > 0) {
+    topCardY = addCoverLogos(doc, logos) + 14
   }
 
   const maxTextWidth = pageWidth - 48
@@ -328,27 +394,39 @@ export async function createSelectionPdf(
   let processedImages = 0
   let pdfCompositionDurationMs = 0
 
-  let logo: {
-    dataUrl: string
-    width: number
-    height: number
-    format: 'JPEG' | 'PNG'
-  } | null = null
+  const coverLogos: PreparedCoverLogo[] = []
 
   try {
     const preparedLogo = await prepareImageForPdf(logoUrl, {
       mimeType: 'image/png',
     })
-    logo = {
+    coverLogos.push({
       ...preparedLogo,
       format: 'PNG',
-    }
+    })
   } catch {
-    logo = null
+    // Keep building the PDF without the Film Locations logo if it cannot be prepared.
+  }
+
+  if (payload.project.productionCompanyLogoUrl) {
+    try {
+      const preparedProductionCompanyLogo = await prepareImageForPdf(
+        payload.project.productionCompanyLogoUrl,
+        {
+          mimeType: 'image/png',
+        },
+      )
+      coverLogos.push({
+        ...preparedProductionCompanyLogo,
+        format: 'PNG',
+      })
+    } catch {
+      // Ignore production company logo failures and keep generating the PDF.
+    }
   }
 
   const coverPageStartedAt = performance.now()
-  addCoverPage(doc, payload, logo)
+  addCoverPage(doc, payload, coverLogos)
   pdfCompositionDurationMs += performance.now() - coverPageStartedAt
 
   let globalImageIndex = 0
@@ -437,12 +515,59 @@ export async function createSelectionPdf(
 export function downloadSelectionPdf(blob: Blob, fileName: string) {
   const blobUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
+  const shouldOpenInNewTab = shouldUseSeparatePdfTabOnMobileSafari()
 
   link.href = blobUrl
   link.download = fileName
+  if (shouldOpenInNewTab) {
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+  }
+
+  document.body.appendChild(link)
   link.click()
+  link.remove()
 
   window.setTimeout(() => {
     URL.revokeObjectURL(blobUrl)
-  }, 0)
+  }, PDF_BLOB_URL_REVOKE_DELAY_MS)
+}
+
+function isMobileSafari() {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+
+  const userAgent = navigator.userAgent
+  const isAppleMobileDevice =
+    /iP(ad|hone|od)/.test(userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isWebKitBrowser = /AppleWebKit/i.test(userAgent)
+  const isAlternativeBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(userAgent)
+
+  return isAppleMobileDevice && isWebKitBrowser && !isAlternativeBrowser
+}
+
+export function shouldUseSeparatePdfTabOnMobileSafari() {
+  return isMobileSafari()
+}
+
+export function openSelectionPdfInNewTab(blob: Blob, fileName: string) {
+  const blobUrl = URL.createObjectURL(blob)
+  const openedWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer')
+
+  if (!openedWindow) {
+    const fallbackLink = document.createElement('a')
+    fallbackLink.href = blobUrl
+    fallbackLink.target = '_blank'
+    fallbackLink.rel = 'noopener noreferrer'
+    fallbackLink.download = fileName
+    document.body.appendChild(fallbackLink)
+    fallbackLink.click()
+    fallbackLink.remove()
+  }
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(blobUrl)
+  }, PDF_BLOB_URL_REVOKE_DELAY_MS)
 }

@@ -7,12 +7,19 @@ import { getPublicDepartments } from '@/services/departments.service.ts'
 import type { Department } from '@/types/location.ts'
 
 export function HomeSearchSection() {
+  const DEPARTMENT_POPOVER_TOP_GAP_PX = 8
+  const DEPARTMENT_POPOVER_BOTTOM_GAP_PX = 12
+  const DEPARTMENT_POPOVER_HORIZONTAL_MARGIN_PX = 16
+  const DEPARTMENT_POPOVER_FALLBACK_BOTTOM_OFFSET_PX = 88
   const navigate = useNavigate()
   const { isAuthenticated, loading } = useAuth()
   const [searchText, setSearchText] = useState('')
   const [department, setDepartment] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [isDepartmentPopoverOpen, setIsDepartmentPopoverOpen] = useState(false)
+  const [departmentPopoverMaxHeight, setDepartmentPopoverMaxHeight] = useState<
+    number | null
+  >(null)
   const departmentPopoverRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -68,6 +75,61 @@ export function HomeSearchSection() {
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('touchstart', handlePointerDown)
+    }
+  }, [isDepartmentPopoverOpen])
+
+  useEffect(() => {
+    if (!isDepartmentPopoverOpen) {
+      setDepartmentPopoverMaxHeight(null)
+      return
+    }
+
+    function updateDepartmentPopoverMaxHeight() {
+      const popoverTrigger = departmentPopoverRef.current
+
+      if (!popoverTrigger) {
+        setDepartmentPopoverMaxHeight(null)
+        return
+      }
+
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+      const triggerBounds = popoverTrigger.getBoundingClientRect()
+      const mobileBottomNavigation = document.querySelector<HTMLElement>(
+        'nav[aria-label="Navegación principal móvil"]',
+      )
+      const bottomNavigationHeight = mobileBottomNavigation?.getBoundingClientRect().height ?? 0
+      const reservedBottomSpace = Math.max(
+        bottomNavigationHeight + DEPARTMENT_POPOVER_BOTTOM_GAP_PX,
+        DEPARTMENT_POPOVER_FALLBACK_BOTTOM_OFFSET_PX,
+      )
+      const nextMaxHeight = Math.floor(
+        viewportHeight -
+          triggerBounds.bottom -
+          DEPARTMENT_POPOVER_TOP_GAP_PX -
+          reservedBottomSpace,
+      )
+
+      setDepartmentPopoverMaxHeight(Math.max(0, nextMaxHeight))
+    }
+
+    updateDepartmentPopoverMaxHeight()
+
+    window.addEventListener('resize', updateDepartmentPopoverMaxHeight)
+    window.addEventListener('scroll', updateDepartmentPopoverMaxHeight, true)
+    window.visualViewport?.addEventListener('resize', updateDepartmentPopoverMaxHeight)
+    window.visualViewport?.addEventListener('scroll', updateDepartmentPopoverMaxHeight)
+
+    return () => {
+      window.removeEventListener('resize', updateDepartmentPopoverMaxHeight)
+      window.removeEventListener('scroll', updateDepartmentPopoverMaxHeight, true)
+      window.visualViewport?.removeEventListener(
+        'resize',
+        updateDepartmentPopoverMaxHeight,
+      )
+      window.visualViewport?.removeEventListener(
+        'scroll',
+        updateDepartmentPopoverMaxHeight,
+      )
     }
   }, [isDepartmentPopoverOpen])
 
@@ -158,8 +220,16 @@ export function HomeSearchSection() {
                   </button>
 
                   {isDepartmentPopoverOpen ? (
-                    <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-[1rem] border border-white/10 bg-[#14110f] p-2 shadow-[0_22px_48px_rgba(0,0,0,0.38)]">
-                      <div className="max-h-72 overflow-y-auto">
+                    <div
+                      className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1rem] border border-white/10 bg-[#14110f] p-2 shadow-[0_22px_48px_rgba(0,0,0,0.38)]"
+                      style={{
+                        maxHeight:
+                          departmentPopoverMaxHeight !== null
+                            ? `${departmentPopoverMaxHeight}px`
+                            : `calc(100dvh - ${DEPARTMENT_POPOVER_FALLBACK_BOTTOM_OFFSET_PX + DEPARTMENT_POPOVER_HORIZONTAL_MARGIN_PX}px)`,
+                      }}
+                    >
+                      <div className="max-h-full overflow-y-auto overflow-x-hidden overscroll-contain pr-1">
                         <button
                           type="button"
                           onClick={() => {
