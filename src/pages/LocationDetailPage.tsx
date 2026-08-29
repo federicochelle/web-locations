@@ -148,7 +148,7 @@ export function LocationDetailPage() {
   const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
   const { isAuthenticated, loading: authLoading } = useAuth()
   const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
-  const { images, addImage, removeImage, isSelected } = useImageSelection()
+  const { activeProjectId, images, addImage, removeImage, isSelected } = useImageSelection()
   const criticalInlineImageCount = getCriticalImageCount(location?.images.length ?? 0)
   let lastRevealableImageIndex = -1
 
@@ -550,11 +550,26 @@ export function LocationDetailPage() {
         onToggleSelect={(lightboxImage) => {
           const sourceImage = location?.images.find((image) => image.id === lightboxImage.id)
 
-          if (!sourceImage) {
+          if (!sourceImage || !location) {
             return
           }
 
+          const selectionKey = getImageSelectionKey({
+            locationId: location.id,
+            locationImageId: sourceImage.id,
+            imageUrl: sourceImage.url,
+          })
+          const willOpenPendingSelectionDrawer =
+            activeProjectId === null &&
+            !isSelected(selectionKey) &&
+            images.length < MAX_SELECTED_IMAGES
+
           toggleImageSelection(sourceImage)
+
+          if (willOpenPendingSelectionDrawer) {
+            setIsLightboxOpen(false)
+            setLightboxIndex(0)
+          }
         }}
         onClose={() => {
           setIsLightboxOpen(false)

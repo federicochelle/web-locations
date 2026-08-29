@@ -255,7 +255,7 @@ export function LocationSubmissionPage() {
   }
 
   return (
-    <div className="relative left-1/2 w-screen min-h-[calc(100vh-4.5rem)] -translate-x-1/2 bg-black px-4 py-5 sm:min-h-[calc(100vh-5rem)] sm:px-6 lg:px-8 lg:py-8">
+    <div className="relative left-1/2 w-screen min-h-[calc(100vh-4.5rem)] -translate-x-1/2 bg-black px-0 py-5 sm:min-h-[calc(100vh-5rem)] sm:px-6 lg:px-8 lg:py-8">
       <form
         className="mx-auto w-full max-w-6xl"
         onSubmit={handleSubmit}

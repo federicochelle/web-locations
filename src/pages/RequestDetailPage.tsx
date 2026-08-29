@@ -61,7 +61,7 @@ function EditProjectIcon() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-3.5 w-3.5"
+      className="h-9 w-9 md:h-3.5 md:w-3.5"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.9"
@@ -79,7 +79,7 @@ function DownloadPdfIcon() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-3.5 w-3.5"
+      className="h-9 w-9 md:h-3.5 md:w-3.5"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.9"
@@ -920,15 +920,15 @@ export function RequestDetailPage() {
             <div className={drawerPanelOverlayClassName} />
             <div className={drawerPanelHighlightClassName} />
           </div>
-          <div className="relative px-5 py-5 sm:px-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0 flex items-center gap-3">
-                <h1 className="font-display text-[2rem] font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-[2.35rem]">
+          <div className="relative px-4 py-5 sm:px-6">
+            <div className="flex flex-nowrap items-center justify-between gap-2 sm:gap-4">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <h1 className="min-w-0 truncate font-display text-2xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-[2.35rem]">
                   Datos del proyecto
                 </h1>
                 <RequestProjectStatusBadge status={project.status} />
               </div>
-              <div className="ml-auto flex items-center gap-3 pt-1">
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                 {isAutosaveEnabled && draftAutosaveIndicator !== 'hidden' ? (
                   <span
                     aria-live="polite"
@@ -958,10 +958,12 @@ export function RequestDetailPage() {
                     onClick={() => {
                       void handleDownloadOfficialPdf()
                     }}
-                    className={`${drawerSecondaryButtonClassName} gap-2`}
+                    className={`${drawerSecondaryButtonClassName} h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-3.5 sm:gap-2`}
+                    aria-label="Descargar PDF"
+                    title="Descargar PDF"
                   >
                     <DownloadPdfIcon />
-                    Descargar PDF
+                    <span className="hidden sm:inline">Descargar PDF</span>
                   </button>
                 ) : null}
                 {isSentProject && !isEditingProject && isEditableProject ? (
@@ -970,10 +972,12 @@ export function RequestDetailPage() {
                     onClick={() => {
                       setIsEditNoticeModalOpen(true)
                     }}
-                    className={`${drawerSecondaryButtonClassName} gap-2 font-semibold`}
+                    className={`${drawerSecondaryButtonClassName} h-10 w-10 shrink-0 px-0 font-semibold sm:w-auto sm:px-3.5 sm:gap-2`}
+                    aria-label="Editar proyecto"
+                    title="Editar proyecto"
                   >
                     <EditProjectIcon />
-                    Editar
+                    <span className="hidden sm:inline">Editar</span>
                   </button>
                 ) : null}
                 {isSentProject && isEditingProject ? (
@@ -1096,7 +1100,7 @@ export function RequestDetailPage() {
 
         <div className="pt-5">
           {selectedImages.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {visibleImages.map((image, index) => {
                 const shouldShowOverflowOverlay =
                   index === visibleImages.length - 1 && hiddenImagesCount > 0
@@ -1104,7 +1108,7 @@ export function RequestDetailPage() {
                 return (
                   <div
                     key={image.id}
-                    className="group relative aspect-[4/3] w-[calc(25%-0.5625rem)] min-w-[120px] overflow-hidden rounded-[0.3rem] bg-white/6 sm:min-w-[132px]"
+                    className="group relative aspect-[4/3] min-w-0 overflow-hidden rounded-[0.3rem] bg-white/6"
                   >
                     <button
                       type="button"
@@ -1213,7 +1217,7 @@ export function RequestDetailPage() {
 
   function renderProjectDetailLayout() {
     return (
-      <section className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+      <section className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-0 py-5 sm:px-6 lg:px-8 lg:py-8">
         <form
           onSubmit={(event) => {
             event.preventDefault()
