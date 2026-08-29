@@ -86,45 +86,59 @@ type PreparedCoverLogo = {
   format: 'JPEG' | 'PNG'
 }
 
-function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[]) {
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const renderY = 18
+type RenderedCoverLogo = PreparedCoverLogo & {
+  renderWidth: number
+  renderHeight: number
+}
 
+type CoverLogosLayout = {
+  logos: RenderedCoverLogo[]
+  totalWidth: number
+  maxRenderedHeight: number
+}
+
+function getCoverLogosLayout(logos: PreparedCoverLogo[]): CoverLogosLayout {
   if (logos.length === 0) {
-    return 52
+    return {
+      logos: [],
+      totalWidth: 0,
+      maxRenderedHeight: 0,
+    }
   }
 
   if (logos.length === 1) {
     const [logo] = logos
 
     if (!logo) {
-      return 52
+      return {
+        logos: [],
+        totalWidth: 0,
+        maxRenderedHeight: 0,
+      }
     }
 
-    const maxLogoWidth = 180
-    const maxLogoHeight = 110
+    const maxLogoWidth = 192
+    const maxLogoHeight = 118
     const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
     const renderWidth = logo.width * scale
     const renderHeight = logo.height * scale
-    const renderX = (pageWidth - renderWidth) / 2
 
-    doc.addImage(
-      logo.dataUrl,
-      logo.format,
-      renderX,
-      renderY,
-      renderWidth,
-      renderHeight,
-      undefined,
-      'FAST',
-    )
-
-    return renderY + renderHeight
+    return {
+      logos: [
+        {
+          ...logo,
+          renderWidth,
+          renderHeight,
+        },
+      ],
+      totalWidth: renderWidth,
+      maxRenderedHeight: renderHeight,
+    }
   }
 
   const gap = 12
-  const maxLogoWidth = 84
-  const maxLogoHeight = 42
+  const maxLogoWidth = 92
+  const maxLogoHeight = 46
   const renderedLogos = logos.map((logo) => {
     const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
 
@@ -141,10 +155,27 @@ function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[]) {
     (maxHeight, logo) => Math.max(maxHeight, logo.renderHeight),
     0,
   )
-  let currentX = (pageWidth - totalWidth) / 2
 
-  renderedLogos.forEach((logo, index) => {
-    const renderYWithOffset = renderY + (maxRenderedHeight - logo.renderHeight) / 2
+  return {
+    logos: renderedLogos,
+    totalWidth,
+    maxRenderedHeight,
+  }
+}
+
+function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[], renderY = 18) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const logosLayout = getCoverLogosLayout(logos)
+
+  if (logosLayout.logos.length === 0) {
+    return 52
+  }
+
+  const gap = 12
+  let currentX = (pageWidth - logosLayout.totalWidth) / 2
+
+  logosLayout.logos.forEach((logo, index) => {
+    const renderYWithOffset = renderY + (logosLayout.maxRenderedHeight - logo.renderHeight) / 2
 
     doc.addImage(
       logo.dataUrl,
@@ -159,12 +190,12 @@ function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[]) {
 
     currentX += logo.renderWidth
 
-    if (index < renderedLogos.length - 1) {
+    if (index < logosLayout.logos.length - 1) {
       currentX += gap
     }
   })
 
-  return renderY + maxRenderedHeight
+  return renderY + logosLayout.maxRenderedHeight
 }
 
 function addCoverPage(
@@ -173,31 +204,54 @@ function addCoverPage(
   logos: PreparedCoverLogo[],
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   let topCardY = 66
 
   paintPageBackground(doc)
-
-  if (logos.length > 0) {
-    topCardY = addCoverLogos(doc, logos) + 14
-  }
 
   const maxTextWidth = pageWidth - 48
   const details = [
     ['Producto', payload.project.product],
     ['Productora', payload.project.productionCompany],
   ] as const
+  const hasProductionCompany = payload.project.productionCompany.trim().length > 0
+  const detailsBlockHeight = details.reduce((totalHeight, [, value]) => {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(18)
+    const lines = doc.splitTextToSize(value || '—', maxTextWidth)
+
+    return totalHeight + 8 + lines.length * 8 + 8
+  }, 0)
+
+  if (hasProductionCompany) {
+    const logoBlockHeight = getCoverLogosLayout(logos).maxRenderedHeight
+    const logoTextGap = logoBlockHeight > 0 ? 14 : 0
+    const contentBlockHeight = logoBlockHeight + logoTextGap + detailsBlockHeight
+    const centeredBlockStartY = Math.max(
+      18,
+      (pageHeight - 20 - contentBlockHeight) / 2,
+    )
+
+    if (logos.length > 0) {
+      topCardY = addCoverLogos(doc, logos, centeredBlockStartY) + logoTextGap
+    } else {
+      topCardY = centeredBlockStartY
+    }
+  } else if (logos.length > 0) {
+    topCardY = addCoverLogos(doc, logos) + 14
+  }
 
   let currentY = topCardY
   details.forEach(([label, value]) => {
     setTextColor(doc, PDF_TEXT_GOLD)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     doc.text(label.toUpperCase(), pageWidth / 2, currentY, {
       align: 'center',
     })
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(17)
+    doc.setFontSize(18)
     const lines = doc.splitTextToSize(value || '—', maxTextWidth)
     doc.text(lines, pageWidth / 2, currentY + 8, {
       align: 'center',
