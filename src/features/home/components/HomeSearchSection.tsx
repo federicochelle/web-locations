@@ -152,8 +152,8 @@ export function HomeSearchSection() {
   }
 
   return (
-    <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden bg-transparent">
-      <div className="relative flex min-h-[100svh] items-center px-4 py-8 sm:px-6 sm:py-10 md:min-h-[calc(100svh-96px)] lg:px-10 lg:py-12 2xl:px-14">
+    <section className="relative z-20 left-1/2 w-screen -translate-x-1/2 overflow-x-hidden overflow-y-visible bg-transparent">
+      <div className="relative flex min-h-[100svh] items-center overflow-visible px-4 py-8 sm:px-6 sm:py-10 md:min-h-[calc(100svh-96px)] lg:px-10 lg:py-12 2xl:px-14">
         <HeroBackgroundMosaic />
 
         <div className="relative mx-auto flex w-full max-w-[1720px] justify-center">
@@ -169,7 +169,7 @@ export function HomeSearchSection() {
             {!loading && isAuthenticated ? (
               <form
                 onSubmit={handleSubmit}
-                className="mx-auto flex w-full max-w-4xl items-center gap-2 rounded-full border border-white/10 bg-black/72 px-1 py-1 text-left shadow-[0_18px_40px_rgba(0,0,0,0.26)] backdrop-blur-[10px] sm:px-1.5"
+                className="relative z-10 mx-auto flex w-full max-w-4xl items-center gap-2 rounded-full border border-white/10 bg-black/72 px-1 py-1 text-left shadow-[0_18px_40px_rgba(0,0,0,0.26)] backdrop-blur-[10px] sm:px-1.5"
               >
                 <input
                   type="search"
@@ -221,7 +221,7 @@ export function HomeSearchSection() {
 
                   {isDepartmentPopoverOpen ? (
                     <div
-                      className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1rem] border border-white/10 bg-[#14110f] p-2 shadow-[0_22px_48px_rgba(0,0,0,0.38)]"
+                      className="absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1rem] border border-white/10 bg-[#14110f] p-2 shadow-[0_22px_48px_rgba(0,0,0,0.38)]"
                       style={{
                         maxHeight:
                           departmentPopoverMaxHeight !== null

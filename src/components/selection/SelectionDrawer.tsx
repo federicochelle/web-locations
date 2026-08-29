@@ -258,7 +258,7 @@ function BackArrowIcon() {
 }
 
 export function SelectionDrawer() {
-  const { profile, role } = useAuth()
+  const { role } = useAuth()
   const {
     activeProjectId: selectionProjectId,
     images,
@@ -337,7 +337,6 @@ export function SelectionDrawer() {
     [images],
   )
   const isAdmin = role === 'admin'
-  const visitorProfileCompanyName = profile?.companyName?.trim() ?? ''
   const activeProject =
     projects.find((project) => project.id === activeProjectId) ?? null
   const selectableProjects = useMemo(
@@ -1555,22 +1554,7 @@ export function SelectionDrawer() {
                     className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
                   />
                 </div>
-              ) : visitorProfileCompanyName ? (
-                <div>
-                  <p className="mb-2 block text-sm font-medium text-brand-100">
-                    Productora
-                  </p>
-                  <div className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100/88">
-                    <div className="flex min-h-12 items-center">
-                      {visitorProfileCompanyName}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-                  Completa la Productora en Mi cuenta. El proyecto puede crearse igual, pero no vas a poder enviarlo hasta agregarla en tu perfil.
-                </div>
-              )}
+              ) : null}
             </div>
 
             <div className="mt-6">
