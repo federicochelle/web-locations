@@ -553,7 +553,7 @@ export function SelectionPdfForm({
 
     return (
       <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
-        <div className={isCompact ? 'grid gap-x-4 gap-y-3 sm:grid-cols-2' : 'grid gap-x-4 gap-y-4 sm:grid-cols-2'}>
+        <div className={isCompact ? 'grid grid-cols-2 gap-x-4 gap-y-3' : 'grid grid-cols-2 gap-x-4 gap-y-4'}>
           {leftColumnFields.map((field) => {
             const errorId = `${field.name}-error`
             const hasError = Boolean(errors[field.name])

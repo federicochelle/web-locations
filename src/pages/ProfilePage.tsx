@@ -113,7 +113,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
+    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-0 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
       <div className="mx-auto max-w-[1720px]">
         <section className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
           <form className="w-full" onSubmit={handleSubmit}>
