@@ -6,7 +6,6 @@ import type {
 } from '@supabase/supabase-js'
 
 import { supabase } from '@/lib/supabase.ts'
-import { getProductionCompanyById } from '@/services/production-companies.service.ts'
 import type {
   SubscriptionPlan,
   SubscriptionStatus,
@@ -78,6 +77,13 @@ type SubscriptionRow = {
   expires_at: string | null
   cancel_at_period_end: boolean | null
   plans?: PlanRow | PlanRow[] | null
+}
+
+type MyProductionCompanyRow = {
+  id: string
+  name: string | null
+  logo_url: string | null
+  active: boolean | null
 }
 
 function buildRedirectUrl(path: string) {
@@ -160,8 +166,21 @@ async function resolveProfileProductionCompanyName(row: ProfileRow) {
     return null
   }
 
-  const productionCompany = await getProductionCompanyById(productionCompanyId)
-  return productionCompany?.name ?? null
+  const { data, error } = await supabase.rpc('get_my_production_company')
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const productionCompanyRow = Array.isArray(data)
+    ? ((data[0] ?? null) as MyProductionCompanyRow | null)
+    : ((data ?? null) as MyProductionCompanyRow | null)
+
+  if (!productionCompanyRow) {
+    return null
+  }
+
+  return productionCompanyRow.name?.trim() || null
 }
 
 async function mapProfileWithProductionCompany(row: ProfileRow): Promise<UserProfile> {
