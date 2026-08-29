@@ -851,8 +851,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       })
       setExportResult(submissionResult.exportResult)
       setFailedImages(submissionResult.exportResult.failedImages)
-      onPrepareForSuccessCleanup()
-      clearSelection()
       setIsLoadingModalOpen(false)
       setStep('success')
       setIsSuccessModalOpen(true)
@@ -878,6 +876,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   submitProposalRef.current = handleSubmitProposal
 
   function handleSuccessModalClose() {
+    onPrepareForSuccessCleanup()
+    clearSelection()
     resetFlowState()
     onSuccessComplete()
     navigate('/requests')
