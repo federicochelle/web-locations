@@ -299,7 +299,6 @@ export function SelectionDrawer() {
   const [newProjectProductionCompany, setNewProjectProductionCompany] = useState('')
   const [newProjectError, setNewProjectError] = useState<string | null>(null)
   const [isPdfFlowBusy, setIsPdfFlowBusy] = useState(false)
-  const [isPdfFlowInFinalState, setIsPdfFlowInFinalState] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
   const [pendingProjectIdAfterExit, setPendingProjectIdAfterExit] = useState<string | null | undefined>(undefined)
   const [projectAutosaveIndicator, setProjectAutosaveIndicator] =
@@ -597,7 +596,7 @@ export function SelectionDrawer() {
       !activeProjectId ||
       activeProject ||
       isPdfFlowDetached ||
-      isPdfFlowInFinalState
+      activeView === 'pdf-flow'
     ) {
       return
     }
@@ -609,10 +608,10 @@ export function SelectionDrawer() {
   }, [
     activeProject,
     activeProjectId,
+    activeView,
     hasLoadedOnce,
     isLoading,
     isPdfFlowDetached,
-    isPdfFlowInFinalState,
     resetSelectionFlow,
   ])
 
@@ -622,7 +621,7 @@ export function SelectionDrawer() {
       isLoading ||
       !activeProjectId ||
       !activeProject ||
-      isPdfFlowInFinalState
+      activeView === 'pdf-flow'
     ) {
       return
     }
@@ -645,9 +644,9 @@ export function SelectionDrawer() {
   }, [
     activeProject,
     activeProjectId,
+    activeView,
     hasLoadedOnce,
     isLoading,
-    isPdfFlowInFinalState,
     resetSelectionFlow,
     selectableProjects,
     setActiveProjectContext,
@@ -1671,8 +1670,6 @@ export function SelectionDrawer() {
             onSuccessComplete={forceCloseDrawerWithCleanup}
             isDetached={false}
             embeddedInDrawer
-            onStartProcessing={() => {}}
-            onRestoreAfterError={() => {}}
             activeProjectId={activeProjectId}
             activeProject={activeProject}
             draftProjects={selectableProjects}
@@ -1680,7 +1677,6 @@ export function SelectionDrawer() {
             onProjectSelectionChange={handleActiveProjectChange}
             onProjectsRefresh={refreshProjects}
             onBusyStateChange={setIsPdfFlowBusy}
-            onFinalStateChange={setIsPdfFlowInFinalState}
             onRegisterProjectFormFlush={(handler) => {
               projectFormFlushRef.current = handler
             }}
@@ -1898,12 +1894,6 @@ export function SelectionDrawer() {
                 onSuccessComplete={forceCloseDrawerWithCleanup}
                 isDetached
                 embeddedInDrawer={false}
-                onStartProcessing={() => {
-                  setIsPdfFlowDetached(true)
-                }}
-                onRestoreAfterError={() => {
-                  setIsPdfFlowDetached(false)
-                }}
                 activeProjectId={activeProjectId}
                 activeProject={activeProject}
                 draftProjects={selectableProjects}
@@ -1911,7 +1901,6 @@ export function SelectionDrawer() {
                 onProjectSelectionChange={handleActiveProjectChange}
                 onProjectsRefresh={refreshProjects}
                 onBusyStateChange={setIsPdfFlowBusy}
-                onFinalStateChange={setIsPdfFlowInFinalState}
                 onRegisterProjectFormFlush={(handler) => {
                   projectFormFlushRef.current = handler
                 }}

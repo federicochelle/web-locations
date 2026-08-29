@@ -513,11 +513,15 @@ export async function createSelectionPdf(
   }
 }
 
-export function downloadSelectionPdf(blob: Blob, fileName: string) {
-  if (tryShareSelectionPdfFile(blob, fileName)) {
+export async function downloadSelectionPdf(blob: Blob, fileName: string) {
+  if (shouldTryShareSelectionPdfFile() && await tryShareSelectionPdfFile(blob, fileName)) {
     return
   }
 
+  triggerSelectionPdfDownload(blob, fileName)
+}
+
+function triggerSelectionPdfDownload(blob: Blob, fileName: string) {
   const blobUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   const shouldOpenInNewTab = shouldUseSeparatePdfTabOnMobileSafari()
@@ -538,7 +542,15 @@ export function downloadSelectionPdf(blob: Blob, fileName: string) {
   }, PDF_BLOB_URL_REVOKE_DELAY_MS)
 }
 
-function tryShareSelectionPdfFile(blob: Blob, fileName: string) {
+function shouldTryShareSelectionPdfFile() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return window.matchMedia('(max-width: 767px)').matches
+}
+
+async function tryShareSelectionPdfFile(blob: Blob, fileName: string) {
   if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
     return false
   }
@@ -556,8 +568,12 @@ function tryShareSelectionPdfFile(blob: Blob, fileName: string) {
     return false
   }
 
-  void navigator.share(shareData).catch(() => {})
-  return true
+  try {
+    await navigator.share(shareData)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isMobileSafari() {

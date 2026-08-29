@@ -6,6 +6,7 @@ import drawerHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
+import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadingModal.tsx'
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
@@ -25,6 +26,7 @@ import type { RequestProjectLocation } from '@/types/request-project.ts'
 import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
+  SelectionPdfProgress,
 } from '@/types/selection-pdf.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import {
@@ -67,7 +69,7 @@ function EditProjectIcon() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-9 w-9 md:h-3.5 md:w-3.5"
+      className="h-[1.7rem] w-[1.7rem] shrink-0 sm:h-3.5 sm:w-3.5"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.9"
@@ -85,7 +87,7 @@ function DownloadPdfIcon() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-9 w-9 md:h-3.5 md:w-3.5"
+      className="h-[1.7rem] w-[1.7rem] shrink-0 sm:h-3.5 sm:w-3.5"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.9"
@@ -261,6 +263,31 @@ const drawerSecondaryButtonClassName =
 const drawerPrimaryButtonClassName =
   'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/60 bg-white/10 px-4.5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]'
 
+function getProgressStatusMessage(progress: SelectionPdfProgress | null) {
+  if (!progress) {
+    return 'Guardando proyecto y preparando el documento.'
+  }
+
+  switch (progress.stage) {
+    case 'saving-project':
+      return 'Guardando proyecto'
+    case 'preparing-images':
+      return `Preparando imagenes ${progress.current ?? 0} de ${progress.total ?? 0}${progress.locationCode ? ` · ${progress.locationCode}` : ''}`
+    case 'building-pdf':
+      return 'Armando PDF'
+    case 'uploading-pdf':
+      return 'Subiendo PDF'
+    case 'finalizing-project':
+      return 'Finalizando proyecto'
+    case 'completed':
+      return 'Proceso completado'
+    default:
+      return 'Preparando el documento.'
+  }
+}
+
+type SubmissionKind = 'initial' | 'revision'
+
 export function RequestDetailPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -310,10 +337,13 @@ export function RequestDetailPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
+  const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
   const [isEditNoticeModalOpen, setIsEditNoticeModalOpen] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
   const [isSubmittingOfficial, setIsSubmittingOfficial] = useState(false)
+  const [submissionProgress, setSubmissionProgress] = useState<SelectionPdfProgress | null>(null)
+  const [lastSubmissionKind, setLastSubmissionKind] = useState<SubmissionKind | null>(null)
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
   const [activeLightboxLocationId, setActiveLightboxLocationId] = useState<string | null>(null)
   const [activeLightboxIndex, setActiveLightboxIndex] = useState(0)
@@ -817,6 +847,7 @@ export function RequestDetailPage() {
     setValidationError(null)
     setSuccessMessage(null)
     setIsSuccessModalOpen(false)
+    setSubmissionProgress(null)
 
     const didFlushPendingProjectChanges = await flushPendingProjectChanges()
 
@@ -830,12 +861,23 @@ export function RequestDetailPage() {
       return
     }
 
+    const submissionKind: SubmissionKind = isDraft ? 'initial' : 'revision'
+
     setIsSubmittingOfficial(true)
+    setLastSubmissionKind(submissionKind)
+    setIsLoadingModalOpen(true)
+    setSubmissionProgress({
+      stage: 'saving-project',
+      percent: 0,
+    })
 
     try {
       const submissionResult = await submitRequestProjectWithOfficialPdf({
         projectId: project.id,
         payload: currentPdfPayload,
+        onProgress: (nextProgress) => {
+          setSubmissionProgress(nextProgress)
+        },
       })
 
       await refreshProject()
@@ -843,8 +885,15 @@ export function RequestDetailPage() {
       if (!isDraft) {
         finishProjectEditing(project.id)
       }
+      setSubmissionProgress({
+        stage: 'completed',
+        percent: 100,
+        current: submissionResult.exportResult.totalImages,
+        total: submissionResult.exportResult.totalImages,
+      })
+      setIsLoadingModalOpen(false)
       setSuccessMessage(
-        isDraft
+        submissionKind === 'initial'
           ? 'Tu proyecto fue enviado correctamente.'
           : 'La nueva versión del proyecto se envió correctamente.',
       )
@@ -857,6 +906,7 @@ export function RequestDetailPage() {
         )
       }
     } catch (submitError) {
+      setIsLoadingModalOpen(false)
       setValidationError(
         submitError instanceof Error
           ? submitError.message
@@ -864,6 +914,7 @@ export function RequestDetailPage() {
       )
     } finally {
       setIsSubmittingOfficial(false)
+      setSubmissionProgress(null)
     }
   }
 
@@ -982,7 +1033,9 @@ export function RequestDetailPage() {
                 <h1 className="min-w-0 truncate font-display text-2xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-[2.35rem]">
                   Datos del proyecto
                 </h1>
-                <RequestProjectStatusBadge status={project.status} />
+                <div className={isSentProject ? 'hidden sm:block' : undefined}>
+                  <RequestProjectStatusBadge status={project.status} />
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                 {isAutosaveEnabled && draftAutosaveIndicator !== 'hidden' ? (
@@ -1523,19 +1576,33 @@ export function RequestDetailPage() {
           setActiveLightboxIndex(0)
         }}
       />
+      <SubmissionLoadingModal
+        isOpen={isLoadingModalOpen}
+        title="Generando propuesta..."
+        description="Estamos guardando tu proyecto y preparando el PDF."
+        statusMessage={getProgressStatusMessage(submissionProgress)}
+        progressPercent={submissionProgress?.percent ?? 0}
+      />
       <SubmissionResultModal
         isOpen={isSuccessModalOpen}
         variant="success"
-        title={isDraft ? 'Proyecto enviado correctamente' : 'Nueva versión enviada correctamente'}
+        title={
+          lastSubmissionKind === 'revision'
+            ? 'Nueva versión enviada correctamente'
+            : 'Proyecto enviado correctamente'
+        }
         description={
           successMessage ??
-          (isDraft
-            ? 'Nuestro equipo recibió tu proyecto y ya está gestionándolo.'
-            : 'La nueva versión del proyecto se envió correctamente y ya está disponible para seguimiento.')
+          (lastSubmissionKind === 'revision'
+            ? 'Nuestro equipo recibió la nueva versión de tu propuesta y ya está gestionándola. Nos pondremos en contacto contigo para continuar con el proceso.'
+            : 'Nuestro equipo recibió tu propuesta y ya está gestionándola. Nos pondremos en contacto contigo para continuar con el proceso.')
         }
-        primaryActionLabel={isMobileCompletionFlow ? 'Seguir viendo el proyecto' : 'Cerrar'}
+        primaryActionLabel={isMobileCompletionFlow ? 'Ir al proyecto' : 'Ir a Mis proyectos'}
         tertiaryActionLabel="Contactar por WhatsApp"
-        onPrimaryAction={handleCloseSuccessModal}
+        onPrimaryAction={() => {
+          setIsSuccessModalOpen(false)
+          void navigate(isMobileCompletionFlow && project ? `/requests/${project.id}` : '/requests')
+        }}
         onTertiaryAction={handleContactByWhatsApp}
         onClose={handleCloseSuccessModal}
       />
