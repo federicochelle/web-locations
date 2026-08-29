@@ -22,6 +22,16 @@ function formatLocationCode(locationCode: string) {
   return locationCode.replaceAll('-', ' ')
 }
 
+function resolveLocationCardAlt(location: PublicLocationCard) {
+  const normalizedCoverAlt = location.coverImageAlt.trim()
+
+  if (normalizedCoverAlt && normalizedCoverAlt !== 'Imagen de locacion') {
+    return normalizedCoverAlt
+  }
+
+  return formatLocationCode(location.locationCode)
+}
+
 export function LocationCard({
   location,
   isFavorite = false,
@@ -44,6 +54,7 @@ export function LocationCard({
     fallbackSlug: location.slug,
   })
   const coverImageUrl = getCloudflareCardImageUrl(location.coverImageUrl)
+  const coverImageAlt = resolveLocationCardAlt(location)
   const detailLocationState = {
     from: {
       pathname: detailPath,
@@ -120,7 +131,7 @@ export function LocationCard({
               key={coverImageUrl}
               ref={imageRef}
               src={coverImageUrl}
-              alt={formattedLocationCode}
+              alt={coverImageAlt}
               loading={imageLoading}
               fetchPriority={imageFetchPriority}
               decoding="async"

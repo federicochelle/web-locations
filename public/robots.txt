@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Sitemap: https://web-locations.vercel.app/sitemap.xml
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /favorites
+Disallow: /requests
+Disallow: /requests/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /login
+Disallow: /register

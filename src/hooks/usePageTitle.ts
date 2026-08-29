@@ -1,7 +1,5 @@
-import { useEffect } from 'react'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 export function usePageTitle(title: string) {
-  useEffect(() => {
-    document.title = `${title} | Locaciones`
-  }, [title])
+  usePageSeo({ title })
 }

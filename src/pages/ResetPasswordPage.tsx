@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
 import { AuthPageShell } from '@/components/auth/AuthPageShell.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import {
   AUTH_MIN_PASSWORD_LENGTH,
   exchangeCodeForSession,
@@ -98,7 +98,12 @@ function getRecoveryUrlContext(searchParams: URLSearchParams): RecoveryUrlContex
 }
 
 export function ResetPasswordPage() {
-  usePageTitle('Restablecer contraseña')
+  usePageSeo({
+    title: 'Restablecer contraseña',
+    description: 'Actualización de contraseña en Film Locations Uruguay.',
+    canonicalPath: '/reset-password',
+    robots: 'noindex,nofollow',
+  })
 
   const navigate = useNavigate()
   const { session } = useAuth()

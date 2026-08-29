@@ -8,7 +8,7 @@ import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
 import { getCloudflareCardImageUrl } from '@/utils/cloudflare-images.ts'
@@ -28,6 +28,18 @@ function getCriticalImageCount(totalImages: number) {
       : 4
 
   return Math.min(totalImages, maxCriticalImages)
+}
+
+function buildLocationImageAlt(location: PublicLocationDetail, index: number) {
+  const locationCode = formatLocationCode(location.locationCode)
+  const locationContext = [location.departmentName, location.zoneName]
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0 && !value.startsWith('Sin '))
+    .join(' · ')
+
+  return locationContext
+    ? `${locationCode} · ${locationContext} · imagen ${index + 1}`
+    : `${locationCode} · imagen ${index + 1}`
 }
 
 const MAX_SELECTED_IMAGES = 80
@@ -156,7 +168,27 @@ export function LocationDetailPage() {
     lastRevealableImageIndex += 1
   }
 
-  usePageTitle(location?.locationCode ?? 'Detalle de locacion')
+  const locationDescription =
+    location?.description?.trim() ||
+    (location
+      ? `Explorá la locación ${formatLocationCode(location.locationCode)} en Film Locations Uruguay.`
+      : 'Explorá una locación publicada en Film Locations Uruguay.')
+  const canonicalPath = location
+    ? buildPublicLocationPath({
+        categorySlug: location.categorySlug,
+        locationCode: location.locationCode,
+        fallbackSlug: location.slug,
+      })
+    : routeCategorySlug && routeLocationCode
+    ? `/categorias/${routeCategorySlug}/${routeLocationCode}`
+    : null
+
+  usePageSeo({
+    title: location?.locationCode ?? 'Detalle de locación',
+    description: locationDescription,
+    canonicalPath,
+    ogImagePath: location?.images[0]?.url ?? undefined,
+  })
 
   useEffect(() => {
     let isMounted = true
@@ -187,7 +219,7 @@ export function LocationDetailPage() {
           return
         }
 
-        const canonicalPath = buildPublicLocationPath({
+        const resolvedCanonicalPath = buildPublicLocationPath({
           categorySlug: nextLocation.categorySlug,
           locationCode: nextLocation.locationCode,
           fallbackSlug: nextLocation.slug,
@@ -206,9 +238,9 @@ export function LocationDetailPage() {
           hasLegacyRoute ||
           hasInvalidCategorySlug ||
           hasNonCanonicalLocationCode ||
-          locationState.pathname !== canonicalPath
+          locationState.pathname !== resolvedCanonicalPath
         ) {
-          navigate(canonicalPath, { replace: true })
+          navigate(resolvedCanonicalPath, { replace: true })
           return
         }
 
@@ -381,9 +413,9 @@ export function LocationDetailPage() {
               <div className="min-w-0 flex-1 px-1">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <p className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
+                    <h1 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em] text-brand-300 sm:text-4xl">
                       {formatLocationCode(location.locationCode)}
-                    </p>
+                    </h1>
                     <button
                       type="button"
                       onClick={handleFavoriteIntent}
@@ -503,7 +535,7 @@ export function LocationDetailPage() {
                       <InlineGalleryImage
                         index={index}
                         imageUrl={image.url}
-                        alt={`${formatLocationCode(location.locationCode)} · imagen ${index + 1}`}
+                        alt={buildLocationImageAlt(location, index)}
                         loading={index < criticalInlineImageCount ? 'eager' : 'lazy'}
                         fetchPriority={index === 0 ? 'high' : 'auto'}
                         canReveal={index <= lastRevealableImageIndex}
@@ -534,7 +566,7 @@ export function LocationDetailPage() {
           location?.images.map((image, index) => ({
             id: image.id,
             url: image.url,
-            alt: `${formatLocationCode(location.locationCode)} · imagen ${index + 1}`,
+            alt: buildLocationImageAlt(location, index),
             isSelected: isSelected(
               getImageSelectionKey({
                 locationId: location.id,

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { AuthStatusModal } from '@/components/auth/AuthStatusModal.tsx'
 import { AuthPageShell } from '@/components/auth/AuthPageShell.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { requestPasswordReset } from '@/services/auth.service.ts'
 import { isValidEmail } from '@/utils/auth-validation.ts'
 
@@ -49,7 +49,12 @@ function isRateLimitedResetError(error: unknown) {
 }
 
 export function ForgotPasswordPage() {
-  usePageTitle('Recuperar contraseña')
+  usePageSeo({
+    title: 'Recuperar contraseña',
+    description: 'Recuperación de acceso a Film Locations Uruguay.',
+    canonicalPath: '/forgot-password',
+    robots: 'noindex,nofollow',
+  })
 
   const navigate = useNavigate()
   const [email, setEmail] = useState('')

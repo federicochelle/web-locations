@@ -8,7 +8,7 @@ import { SubmissionImagesField } from '@/components/submissions/SubmissionImages
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { SubmissionTurnstile } from '@/components/submissions/SubmissionTurnstile.tsx'
 import { useSubmissionImages } from '@/hooks/useSubmissionImages.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import {
   createLocationSubmission,
   getLocationSubmissionErrorMessage,
@@ -98,7 +98,12 @@ function validateForm(values: LocationSubmissionValues) {
 }
 
 export function LocationSubmissionPage() {
-  usePageTitle('Postular mi locacion')
+  usePageSeo({
+    title: 'Postular locación',
+    description:
+      'Postulá tu locación en Film Locations Uruguay para que pueda ser considerada en producciones audiovisuales, fotográficas y publicitarias.',
+    canonicalPath: '/postular-locacion',
+  })
 
   const navigate = useNavigate()
   const firstFieldRef = useRef<HTMLInputElement | null>(null)

@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 
 import { SearchResultsPagination } from '@/components/navigation/SearchResultsPagination.tsx'
 import { CategoryLocationsGrid } from '@/features/locations/components/CategoryLocationsGrid.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
 import { getPublicDepartmentsByCategory } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
@@ -87,7 +87,17 @@ export function CategoryLocationsPage() {
     normalizedDepartmentSlug ? `Departamento: ${normalizedDepartmentSlug}` : null,
   ].filter((part): part is string => Boolean(part))
 
-  usePageTitle(activeHeadingParts.length > 0 ? activeHeadingParts.join(' · ') : 'Categoria')
+  usePageSeo({
+    title: activeCategoryName
+      ? `${activeCategoryName} | Categoría`
+      : activeHeadingParts.length > 0
+      ? activeHeadingParts.join(' · ')
+      : 'Categoría',
+    description: activeCategoryName
+      ? `Explorá locaciones de ${activeCategoryName} en Film Locations Uruguay.`
+      : `Explorá locaciones publicadas en la categoría ${fallbackCategoryName}.`,
+    canonicalPath: slug ? `/categorias/${slug}` : '/busqueda',
+  })
 
   function buildSearchParams(nextPage: number, nextDepartmentSlug: string) {
     const nextSearchParams = new URLSearchParams()

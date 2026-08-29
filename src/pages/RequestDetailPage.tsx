@@ -10,7 +10,7 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
@@ -324,7 +324,12 @@ export function RequestDetailPage() {
   const hydratedProjectIdRef = useRef<string | null>(null)
   const autosaveEnabledRef = useRef(false)
 
-  usePageTitle(project?.title ?? 'Detalle de proyecto')
+  usePageSeo({
+    title: project?.title ?? 'Detalle de proyecto',
+    description: 'Detalle privado de proyecto en Film Locations Uruguay.',
+    canonicalPath: id ? `/requests/${id}` : '/requests',
+    robots: 'noindex,nofollow',
+  })
 
   useEffect(() => {
     if (!project) {
@@ -1100,15 +1105,12 @@ export function RequestDetailPage() {
 
         <div className="pt-5">
           {selectedImages.length > 0 ? (
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-              {visibleImages.map((image, index) => {
-                const shouldShowOverflowOverlay =
-                  index === visibleImages.length - 1 && hiddenImagesCount > 0
-
-                return (
+            <>
+              <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 pr-8 snap-x snap-mandatory sm:hidden">
+                {selectedImages.map((image, index) => (
                   <div
                     key={image.id}
-                    className="group relative aspect-[4/3] min-w-0 overflow-hidden rounded-[0.3rem] bg-white/6"
+                    className="group relative aspect-[16/11] w-[72%] shrink-0 snap-start overflow-hidden rounded-[0.3rem] bg-white/6"
                   >
                     <button
                       type="button"
@@ -1125,29 +1127,73 @@ export function RequestDetailPage() {
                       />
                     </button>
                     {canEditLocationImages ? (
-                      <span className="absolute right-2 top-2 z-20 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                      <span className="absolute right-2 top-2 z-20 opacity-100 transition">
                         <button
                           type="button"
                           onClick={() => {
                             void removeSelectedImage(item.location.id, image.id)
                           }}
                           disabled={isMutatingLocations}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/14 bg-black/65 text-white backdrop-blur-sm transition hover:bg-black/78 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/14 bg-black/65 text-white backdrop-blur-sm transition hover:bg-black/78 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
                           aria-label="Quitar imagen seleccionada"
                         >
                           <RemoveSelectedImageIcon />
                         </button>
                       </span>
                     ) : null}
-                    {shouldShowOverflowOverlay ? (
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/58 text-[1.75rem] font-semibold tracking-[-0.04em] text-white backdrop-blur-[1px] sm:text-[2rem]">
-                        +{hiddenImagesCount}
-                      </div>
-                    ) : null}
                   </div>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+
+              <div className="hidden grid-cols-4 gap-3 sm:grid">
+                {visibleImages.map((image, index) => {
+                  const shouldShowOverflowOverlay =
+                    index === visibleImages.length - 1 && hiddenImagesCount > 0
+
+                  return (
+                    <div
+                      key={image.id}
+                      className="group relative aspect-[4/3] min-w-0 overflow-hidden rounded-[0.3rem] bg-white/6"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveLightboxLocationId(item.location.id)
+                          setActiveLightboxIndex(index)
+                        }}
+                        className="h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                      >
+                        <img
+                          src={image.imageUrl}
+                          alt={`Imagen seleccionada de ${item.location.locationCode}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                      {canEditLocationImages ? (
+                        <span className="absolute right-2 top-2 z-20 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void removeSelectedImage(item.location.id, image.id)
+                            }}
+                            disabled={isMutatingLocations}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/14 bg-black/65 text-white backdrop-blur-sm transition hover:bg-black/78 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                            aria-label="Quitar imagen seleccionada"
+                          >
+                            <RemoveSelectedImageIcon />
+                          </button>
+                        </span>
+                      ) : null}
+                      {shouldShowOverflowOverlay ? (
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/58 text-[1.75rem] font-semibold tracking-[-0.04em] text-white backdrop-blur-[1px] sm:text-[2rem]">
+                          +{hiddenImagesCount}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           ) : (
             <div className="rounded-[1rem] border border-dashed border-white/10 bg-black/14 px-4 py-6 text-sm text-brand-300">
               Esta locación todavía no tiene imágenes seleccionadas.
@@ -1164,11 +1210,11 @@ export function RequestDetailPage() {
         {locations.length > 0 ? (
           <>
             {canAddLocations ? (
-              <div className="flex justify-end pb-1">
+              <div className="flex justify-end pb-3">
                 <button
                   type="button"
                   onClick={handleAddLocations}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-300 px-5 text-sm font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-brand-300 px-4 text-[0.8125rem] font-medium text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] sm:min-h-12 sm:gap-2 sm:px-5 sm:text-sm"
                 >
                   <AddLocationsIcon />
                   Agregar locaciones
@@ -1178,7 +1224,7 @@ export function RequestDetailPage() {
             {locations.map((locationItem, index) => (
             <div
               key={locationItem.id}
-              className={index > 0 ? 'border-t border-white/10 pt-5' : ''}
+              className={index > 0 ? 'border-t border-white/10 pt-5' : 'pt-2'}
             >
               {renderLocationCard(locationItem)}
             </div>
