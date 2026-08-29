@@ -9,7 +9,7 @@ import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import { useProductionCompanyLogoUrl } from '@/hooks/useProductionCompanyLogoUrl.ts'
+import { useProductionCompanyLogo } from '@/hooks/useProductionCompanyLogoUrl.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import {
   submitRequestProjectWithOfficialPdf,
@@ -22,7 +22,6 @@ import type {
   SelectionPdfFormErrors,
   SelectionPdfFormValues,
   SelectionPdfFlowStep,
-  SelectionPdfPayload,
   SelectionPdfProgress,
 } from '@/types/selection-pdf.ts'
 import {
@@ -32,7 +31,6 @@ import {
 import {
   downloadSelectionPdf,
   openSelectionPdfInNewTab,
-  shouldUseSeparatePdfTabOnMobileSafari,
 } from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
@@ -225,6 +223,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const [failedImages, setFailedImages] = useState<SelectionPdfFailedImage[]>([])
   const [exportError, setExportError] = useState<string | null>(null)
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null)
+  const [submittedProjectId, setSubmittedProjectId] = useState<string | null>(null)
   const [projectSavedBeforeError, setProjectSavedBeforeError] = useState(false)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
   const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
@@ -256,7 +255,9 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       productionCompanyId: activeProject.productionCompanyId,
     }
   }, [activeProject, values])
-  const productionCompanyLogoUrl = useProductionCompanyLogoUrl(
+  const {
+    logoUrl: productionCompanyLogoUrl,
+  } = useProductionCompanyLogo(
     protectedFormValues.productionCompanyId,
   )
   const livePreviewPayload = useMemo(
@@ -300,7 +301,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   const hasSelectedImages = images.length > 0
   const isBusy = isSubmittingProposal || isLoadingModalOpen
-  const shouldUseSeparatePdfTab = shouldUseSeparatePdfTabOnMobileSafari()
+  const isMobileCompletionFlow =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
 
   useEffect(() => {
     latestSnapshotRef.current = currentProjectSnapshot
@@ -331,6 +333,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setFailedImages([])
     setExportError(null)
     setCreatedProjectId(null)
+    setSubmittedProjectId(null)
     setProjectSavedBeforeError(false)
     setIsLoadingModalOpen(false)
     setIsSuccessModalOpen(false)
@@ -834,7 +837,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         stage: 'saving-project',
         percent: 5,
       })
-      const payload: SelectionPdfPayload = livePreviewPayload
       setProjectSavedBeforeError(true)
       setStep('generating')
       setIsLoadingModalOpen(true)
@@ -842,7 +844,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
       const submissionResult = await submitRequestProjectWithOfficialPdf({
         projectId: draftResult.projectId,
-        payload,
+        payload: livePreviewPayload,
         onProgress: (nextProgress) => {
           setProgress(nextProgress)
         },
@@ -858,13 +860,14 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         current: submissionResult.exportResult.totalImages,
         total: submissionResult.exportResult.totalImages,
       })
+      setSubmittedProjectId(submissionResult.project.id)
       setExportResult(submissionResult.exportResult)
       setFailedImages(submissionResult.exportResult.failedImages)
       setIsLoadingModalOpen(false)
       setStep('success')
       setIsSuccessModalOpen(true)
 
-      if (!shouldUseSeparatePdfTab) {
+      if (!isMobileCompletionFlow) {
         downloadSelectionPdf(
           submissionResult.exportResult.blob,
           submissionResult.exportResult.fileName,
@@ -887,7 +890,11 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function handleExitAfterSuccess() {
     resetFlowState()
     onSuccessComplete()
-    navigate('/requests')
+    navigate(
+      isMobileCompletionFlow && submittedProjectId
+        ? `/requests/${submittedProjectId}`
+        : '/requests',
+    )
   }
 
   function handleContactByWhatsApp() {
@@ -1167,11 +1174,11 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         variant="success"
         title="Proyecto enviado correctamente"
         description="Nuestro equipo recibió tu propuesta y ya está gestionándola. Nos pondremos en contacto contigo para continuar con el proceso."
-        primaryActionLabel="Ir a Mis proyectos"
-        secondaryActionLabel="Ver PDF"
+        primaryActionLabel={isMobileCompletionFlow ? 'Ir al proyecto' : 'Ir a Mis proyectos'}
+        secondaryActionLabel={isMobileCompletionFlow ? undefined : 'Ver PDF'}
         tertiaryActionLabel="Contactar por WhatsApp"
         onPrimaryAction={handleExitAfterSuccess}
-        onSecondaryAction={handleViewGeneratedPdf}
+        onSecondaryAction={isMobileCompletionFlow ? undefined : handleViewGeneratedPdf}
         onTertiaryAction={handleContactByWhatsApp}
         onClose={handleExitAfterSuccess}
       />

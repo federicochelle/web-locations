@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useAuth } from '@/hooks/useAuth.ts'
 import { getProductionCompanyById } from '@/services/production-companies.service.ts'
 
 const productionCompanyLogoUrlCache = new Map<string, string | null>()
 const productionCompanyLogoUrlRequests = new Map<string, Promise<string | null>>()
 
-async function resolveProductionCompanyLogoUrl(
+async function resolveProductionCompanyLogoUrlById(
   productionCompanyId: string,
 ): Promise<string | null> {
   const normalizedProductionCompanyId = productionCompanyId.trim()
@@ -49,21 +50,68 @@ async function resolveProductionCompanyLogoUrl(
   return request
 }
 
-export function useProductionCompanyLogoUrl(
+type UseProductionCompanyLogoResult = {
+  logoUrl: string | null
+  isResolving: boolean
+  ensureResolved: () => Promise<string | null>
+}
+
+export function useProductionCompanyLogo(
   productionCompanyId: string | null | undefined,
-) {
+) : UseProductionCompanyLogoResult {
+  const { profile, role } = useAuth()
   const normalizedProductionCompanyId = productionCompanyId?.trim() || ''
-  const [logoUrl, setLogoUrl] = useState<string | null>(() =>
-    normalizedProductionCompanyId
-      ? productionCompanyLogoUrlCache.get(normalizedProductionCompanyId) ?? null
-      : null,
-  )
+  const isVisitorAssociatedProductionCompany =
+    role !== 'admin' &&
+    Boolean(normalizedProductionCompanyId) &&
+    normalizedProductionCompanyId === (profile?.productionCompanyId?.trim() || '')
+  const visitorAssociatedLogoUrl = isVisitorAssociatedProductionCompany
+    ? profile?.productionCompanyLogoUrl?.trim() || null
+    : null
+  const [logoUrl, setLogoUrl] = useState<string | null>(() => {
+    if (visitorAssociatedLogoUrl !== null) {
+      return visitorAssociatedLogoUrl
+    }
+
+    if (normalizedProductionCompanyId) {
+      return productionCompanyLogoUrlCache.get(normalizedProductionCompanyId) ?? null
+    }
+
+    return null
+  })
+  const [isResolving, setIsResolving] = useState(false)
   const requestTokenRef = useRef<symbol | null>(null)
+
+  const ensureResolved = useCallback(async () => {
+    if (!normalizedProductionCompanyId) {
+      return null
+    }
+
+    if (isVisitorAssociatedProductionCompany) {
+      productionCompanyLogoUrlCache.set(normalizedProductionCompanyId, visitorAssociatedLogoUrl)
+      return visitorAssociatedLogoUrl
+    }
+
+    return resolveProductionCompanyLogoUrlById(normalizedProductionCompanyId)
+  }, [
+    isVisitorAssociatedProductionCompany,
+    normalizedProductionCompanyId,
+    visitorAssociatedLogoUrl,
+  ])
 
   useEffect(() => {
     if (!normalizedProductionCompanyId) {
       requestTokenRef.current = null
       setLogoUrl(null)
+      setIsResolving(false)
+      return
+    }
+
+    if (isVisitorAssociatedProductionCompany) {
+      productionCompanyLogoUrlCache.set(normalizedProductionCompanyId, visitorAssociatedLogoUrl)
+      requestTokenRef.current = null
+      setLogoUrl(visitorAssociatedLogoUrl)
+      setIsResolving(false)
       return
     }
 
@@ -71,29 +119,47 @@ export function useProductionCompanyLogoUrl(
       setLogoUrl(
         productionCompanyLogoUrlCache.get(normalizedProductionCompanyId) ?? null,
       )
+      setIsResolving(false)
       return
     }
 
     const requestToken = Symbol(normalizedProductionCompanyId)
     requestTokenRef.current = requestToken
     setLogoUrl(null)
+    setIsResolving(true)
 
-    void resolveProductionCompanyLogoUrl(normalizedProductionCompanyId).then(
+    void resolveProductionCompanyLogoUrlById(normalizedProductionCompanyId).then(
       (resolvedLogoUrl) => {
         if (requestTokenRef.current !== requestToken) {
           return
         }
 
         setLogoUrl(resolvedLogoUrl)
+        setIsResolving(false)
       },
     )
 
     return () => {
       if (requestTokenRef.current === requestToken) {
         requestTokenRef.current = null
+        setIsResolving(false)
       }
     }
-  }, [normalizedProductionCompanyId])
+  }, [
+    isVisitorAssociatedProductionCompany,
+    normalizedProductionCompanyId,
+    visitorAssociatedLogoUrl,
+  ])
 
-  return logoUrl
+  return {
+    logoUrl,
+    isResolving,
+    ensureResolved,
+  }
+}
+
+export function useProductionCompanyLogoUrl(
+  productionCompanyId: string | null | undefined,
+) {
+  return useProductionCompanyLogo(productionCompanyId).logoUrl
 }

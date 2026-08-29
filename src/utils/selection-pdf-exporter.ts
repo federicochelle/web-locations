@@ -18,6 +18,7 @@ const PDF_IMAGE_PREPARATION_CONCURRENCY = 4
 const PDF_BACKGROUND = [8, 8, 8] as const
 const PDF_TEXT_GOLD = [215, 192, 162] as const
 const PDF_BLOB_URL_REVOKE_DELAY_MS = 60_000
+const PDF_SHARE_TEXT = 'PDF de seleccion generado por Film Locations Uruguay.'
 function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
   doc.setTextColor(color[0], color[1], color[2])
 }
@@ -513,6 +514,10 @@ export async function createSelectionPdf(
 }
 
 export function downloadSelectionPdf(blob: Blob, fileName: string) {
+  if (tryShareSelectionPdfFile(blob, fileName)) {
+    return
+  }
+
   const blobUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   const shouldOpenInNewTab = shouldUseSeparatePdfTabOnMobileSafari()
@@ -531,6 +536,28 @@ export function downloadSelectionPdf(blob: Blob, fileName: string) {
   window.setTimeout(() => {
     URL.revokeObjectURL(blobUrl)
   }, PDF_BLOB_URL_REVOKE_DELAY_MS)
+}
+
+function tryShareSelectionPdfFile(blob: Blob, fileName: string) {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    return false
+  }
+
+  const pdfFile = new File([blob], fileName, {
+    type: blob.type || 'application/pdf',
+  })
+  const shareData: ShareData = {
+    files: [pdfFile],
+    title: fileName,
+    text: PDF_SHARE_TEXT,
+  }
+
+  if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [pdfFile] })) {
+    return false
+  }
+
+  void navigator.share(shareData).catch(() => {})
+  return true
 }
 
 function isMobileSafari() {
