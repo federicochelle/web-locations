@@ -57,6 +57,7 @@ type SelectionPdfFlowProps = {
   onProjectsRefresh: () => Promise<void>
   workspaceSidebarHeader?: ReactNode
   onBusyStateChange?: (isBusy: boolean) => void
+  onFinalStateChange?: (isInFinalState: boolean) => void
   onRegisterProjectFormFlush?: (handler: (() => Promise<boolean>) | null) => void
   onAutosaveIndicatorChange?: (state: DrawerAutosaveIndicatorState) => void
   onEmbeddedPreviewChange?: (preview: ReactNode | null) => void
@@ -202,6 +203,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onProjectsRefresh,
     workspaceSidebarHeader,
     onBusyStateChange,
+    onFinalStateChange,
     onRegisterProjectFormFlush,
     onAutosaveIndicatorChange,
     onEmbeddedPreviewChange,
@@ -312,6 +314,15 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       onBusyStateChange?.(false)
     }
   }, [isBusy, onBusyStateChange])
+
+  useEffect(() => {
+    const isInFinalState = step === 'success' && isSuccessModalOpen
+    onFinalStateChange?.(isInFinalState)
+
+    return () => {
+      onFinalStateChange?.(false)
+    }
+  }, [isSuccessModalOpen, onFinalStateChange, step])
 
   function resetFlowState() {
     setStep('form')
