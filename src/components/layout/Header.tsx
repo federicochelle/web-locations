@@ -2,7 +2,6 @@ import { NavLink, useLocation } from 'react-router-dom'
 
 import { useAuth } from '@/hooks/useAuth.ts'
 import { UserMenu } from '@/components/layout/UserMenu.tsx'
-import { GOLDEN_PI_URL } from '@/utils/external-links.ts'
 import logoUrl from '../../../logo.webp'
 
 export function Header() {
@@ -19,18 +18,6 @@ export function Header() {
   return (
     <header className="sticky top-0 z-20">
       <div className="relative border-b border-white/10 bg-[#14110f]/84 shadow-[0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-sm">
-        <a
-          href={GOLDEN_PI_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative hidden overflow-hidden bg-[#daa61a] px-4 py-0.5 text-center text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white [font-family:var(--font-lato)] transition hover:bg-[#d4a63d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0908] md:block"
-        >
-          <span className="relative z-10">Conocé Golden Proyectos Inmobiliarios</span>
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 top-[65%] bg-[linear-gradient(180deg,rgba(20,17,15,0)_0%,rgba(20,17,15,0.18)_38%,rgba(20,17,15,0.5)_100%)]"
-          />
-        </a>
         <div className="mx-auto grid w-full max-w-[1700px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3.5 sm:px-6 sm:py-4 lg:px-8 lg:py-2 xl:px-10 2xl:px-12">
           <div className="flex items-center">
             <NavLink

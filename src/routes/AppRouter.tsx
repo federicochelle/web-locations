@@ -6,6 +6,7 @@ import { PublicLayout } from '@/layouts/PublicLayout.tsx'
 import { HomePage } from '@/pages/HomePage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage.tsx'
 import { ProtectedRoute } from '@/routes/ProtectedRoute.tsx'
+import { RouteErrorBoundary } from '@/routes/RouteErrorBoundary.tsx'
 import { PublicOnlyRoute } from '@/routes/PublicOnlyRoute.tsx'
 import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
 
@@ -104,6 +105,7 @@ function withRouteSuspense(
 const router = createBrowserRouter([
   {
     path: '/',
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <AuthLayout />,

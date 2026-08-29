@@ -8,7 +8,6 @@ import { ScrollManager } from '@/components/routing/ScrollManager.tsx'
 import { SelectionDrawer } from '@/components/selection/SelectionDrawer.tsx'
 import { SelectionDrawerTrigger } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
-import { GOLDEN_PI_URL } from '@/utils/external-links.ts'
 import { hasPasswordRecoveryPending } from '@/utils/password-recovery-session.ts'
 import logoUrl from '../../logo.webp'
 
@@ -45,18 +44,6 @@ export function PublicLayout() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(10,8,7,0.7),rgba(10,8,7,0.56)_24%,rgba(10,8,7,0.62)_72%,rgba(10,8,7,0.76))]" />
       </div>
       <ScrollManager />
-      <a
-        href={GOLDEN_PI_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="sticky top-0 z-30 block overflow-hidden bg-[#daa61a] px-4 py-0.5 text-center text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white [font-family:var(--font-lato)] shadow-[0_8px_24px_rgba(0,0,0,0.18)] md:hidden"
-      >
-        <span className="relative z-10">Golden Proyectos Inmobiliarios</span>
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[65%] bg-[linear-gradient(180deg,rgba(20,17,15,0)_0%,rgba(20,17,15,0.18)_38%,rgba(20,17,15,0.5)_100%)]"
-        />
-      </a>
       <div className={shouldShowHeaderOnMobile ? 'relative z-20' : 'relative z-20 hidden md:block'}>
         <Header />
       </div>
