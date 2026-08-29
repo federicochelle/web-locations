@@ -274,7 +274,6 @@ export function SelectionDrawer() {
   const {
     activeEditingProjectId,
     createProject,
-    finishProjectEditing,
     flushAndFinishProjectEditing,
     isCreating,
     projects,
@@ -588,24 +587,6 @@ export function SelectionDrawer() {
     setIsRendered(false)
     closeDrawer()
     focusTriggerButton()
-  }
-
-  function prepareForSubmittedProjectCleanup() {
-    if (activeEditingProjectId) {
-      finishProjectEditing(activeEditingProjectId)
-    }
-
-    isProjectTransitioningRef.current = false
-    hasHydratedActiveProjectSelectionRef.current = false
-    cancelPendingAutosave()
-    clearSelectionProjectPersistenceGuard()
-    hydrationRequestIdRef.current += 1
-    activeHydrationProjectIdRef.current = null
-    setActiveProjectId(null)
-    setIsLoadingProjectContent(false)
-    setIsHydratingPersistedContext(false)
-    persistSelectionActiveContext({ mode: 'new' })
-    persistedContextRef.current = { mode: 'new' }
   }
 
   useEffect(() => {
@@ -1678,7 +1659,6 @@ export function SelectionDrawer() {
           <SelectionPdfFlow
             onClose={closeDrawer}
             onSuccessComplete={forceCloseDrawerWithCleanup}
-            onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
             isDetached={false}
             embeddedInDrawer
             onStartProcessing={() => {}}
@@ -1905,7 +1885,6 @@ export function SelectionDrawer() {
               <SelectionPdfFlow
                 onClose={closeDrawer}
                 onSuccessComplete={forceCloseDrawerWithCleanup}
-                onPrepareForSuccessCleanup={prepareForSubmittedProjectCleanup}
                 isDetached
                 embeddedInDrawer={false}
                 onStartProcessing={() => {

@@ -45,7 +45,6 @@ import { buildWhatsAppUrl } from '@/utils/whatsapp.ts'
 type SelectionPdfFlowProps = {
   onClose: () => void
   onSuccessComplete: () => void
-  onPrepareForSuccessCleanup: () => void
   isDetached: boolean
   embeddedInDrawer?: boolean
   onStartProcessing: () => void
@@ -191,7 +190,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const {
     onClose,
     onSuccessComplete,
-    onPrepareForSuccessCleanup,
     isDetached,
     embeddedInDrawer = false,
     onStartProcessing,
@@ -211,7 +209,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   } = props
   const navigate = useNavigate()
   const { role } = useAuth()
-  const { images, clearSelection } = useImageSelection()
+  const { images } = useImageSelection()
   const {
     activeEditingProjectId,
     registerProjectEditingExitHandler,
@@ -875,9 +873,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   submitProposalRef.current = handleSubmitProposal
 
-  function handleSuccessModalClose() {
-    onPrepareForSuccessCleanup()
-    clearSelection()
+  function handleExitAfterSuccess() {
     resetFlowState()
     onSuccessComplete()
     navigate('/requests')
@@ -1163,10 +1159,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         primaryActionLabel="Ir a Mis proyectos"
         secondaryActionLabel="Ver PDF"
         tertiaryActionLabel="Contactar por WhatsApp"
-        onPrimaryAction={handleSuccessModalClose}
+        onPrimaryAction={handleExitAfterSuccess}
         onSecondaryAction={handleViewGeneratedPdf}
         onTertiaryAction={handleContactByWhatsApp}
-        onClose={handleSuccessModalClose}
+        onClose={handleExitAfterSuccess}
       />
     </>
   )
