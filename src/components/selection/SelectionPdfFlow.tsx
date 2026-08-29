@@ -30,7 +30,6 @@ import {
 } from '@/utils/selection-pdf-workspace.ts'
 import {
   downloadSelectionPdf,
-  openSelectionPdfInNewTab,
 } from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
@@ -45,8 +44,6 @@ type SelectionPdfFlowProps = {
   onSuccessComplete: () => void
   isDetached: boolean
   embeddedInDrawer?: boolean
-  onStartProcessing: () => void
-  onRestoreAfterError: () => void
   activeProjectId: string | null
   activeProject: RequestProject | null
   draftProjects: RequestProject[]
@@ -55,7 +52,6 @@ type SelectionPdfFlowProps = {
   onProjectsRefresh: () => Promise<void>
   workspaceSidebarHeader?: ReactNode
   onBusyStateChange?: (isBusy: boolean) => void
-  onFinalStateChange?: (isInFinalState: boolean) => void
   onRegisterProjectFormFlush?: (handler: (() => Promise<boolean>) | null) => void
   onAutosaveIndicatorChange?: (state: DrawerAutosaveIndicatorState) => void
   onEmbeddedPreviewChange?: (preview: ReactNode | null) => void
@@ -191,8 +187,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onSuccessComplete,
     isDetached,
     embeddedInDrawer = false,
-    onStartProcessing,
-    onRestoreAfterError,
     activeProjectId,
     activeProject,
     draftProjects,
@@ -201,7 +195,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onProjectsRefresh,
     workspaceSidebarHeader,
     onBusyStateChange,
-    onFinalStateChange,
     onRegisterProjectFormFlush,
     onAutosaveIndicatorChange,
     onEmbeddedPreviewChange,
@@ -316,15 +309,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       onBusyStateChange?.(false)
     }
   }, [isBusy, onBusyStateChange])
-
-  useEffect(() => {
-    const isInFinalState = step === 'success' && isSuccessModalOpen
-    onFinalStateChange?.(isInFinalState)
-
-    return () => {
-      onFinalStateChange?.(false)
-    }
-  }, [isSuccessModalOpen, onFinalStateChange, step])
 
   function resetFlowState() {
     setStep('form')
@@ -840,7 +824,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       setProjectSavedBeforeError(true)
       setStep('generating')
       setIsLoadingModalOpen(true)
-      onStartProcessing()
 
       const submissionResult = await submitRequestProjectWithOfficialPdf({
         projectId: draftResult.projectId,
@@ -875,7 +858,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       }
     } catch (error) {
       setIsLoadingModalOpen(false)
-      onRestoreAfterError()
       setExportError(
         error instanceof Error ? error.message : 'No pudimos completar la propuesta.',
       )
@@ -903,14 +885,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Film Locations Uruguay.`
 
     window.open(buildWhatsAppUrl(message), '_blank', 'noopener,noreferrer')
-  }
-
-  function handleViewGeneratedPdf() {
-    if (!exportResult) {
-      return
-    }
-
-    openSelectionPdfInNewTab(exportResult.blob, exportResult.fileName)
   }
 
   function renderDetachedPreview() {
@@ -1175,10 +1149,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         title="Proyecto enviado correctamente"
         description="Nuestro equipo recibió tu propuesta y ya está gestionándola. Nos pondremos en contacto contigo para continuar con el proceso."
         primaryActionLabel={isMobileCompletionFlow ? 'Ir al proyecto' : 'Ir a Mis proyectos'}
-        secondaryActionLabel={isMobileCompletionFlow ? undefined : 'Ver PDF'}
         tertiaryActionLabel="Contactar por WhatsApp"
         onPrimaryAction={handleExitAfterSuccess}
-        onSecondaryAction={isMobileCompletionFlow ? undefined : handleViewGeneratedPdf}
         onTertiaryAction={handleContactByWhatsApp}
         onClose={handleExitAfterSuccess}
       />

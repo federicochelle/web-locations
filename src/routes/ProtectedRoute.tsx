@@ -12,8 +12,9 @@ type ProtectedRouteProps = {
 export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const location = useLocation()
   const { isAuthenticated, loading, profile, role } = useAuth()
+  const isInitialAuthHydration = loading && !isAuthenticated
 
-  if (loading) {
+  if (isInitialAuthHydration) {
     return (
       <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black px-4 py-10 sm:px-6 sm:py-12 lg:px-10 lg:py-14 2xl:px-14">
         <div className="mx-auto flex max-w-[1720px] justify-center">
@@ -25,6 +26,10 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate replace to="/login" state={{ from: location }} />
+  }
+
+  if (loading) {
+    return <Outlet />
   }
 
   if (!profile) {

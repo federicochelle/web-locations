@@ -70,16 +70,25 @@ export function SubmissionResultModal({
       panelClassName="max-w-lg p-5 sm:p-6"
     >
       <div>
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-4">
-            <div
-              className={`inline-flex h-12 w-12 items-center justify-center rounded-full border text-xl font-semibold ${accentClassName}`}
-              aria-hidden="true"
-            >
-              {icon}
-            </div>
+        <div className="relative">
+          <div
+            className={`absolute left-0 top-0 inline-flex h-12 w-12 items-center justify-center rounded-full border text-xl font-semibold ${accentClassName}`}
+            aria-hidden="true"
+          >
+            {icon}
+          </div>
 
-            <div className="space-y-3 text-center">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-0 top-0 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-300 text-brand-950 transition hover:bg-brand-100"
+            aria-label="Cerrar modal"
+          >
+            <CloseIcon />
+          </button>
+
+          <div className="mx-auto flex max-w-md flex-col items-center space-y-4 px-6 text-center sm:px-10">
+            <div className="space-y-3 pt-16">
               <h2
                 id="submission-result-title"
                 className="font-display text-3xl font-semibold leading-none tracking-[-0.04em] text-brand-100"
@@ -94,15 +103,6 @@ export function SubmissionResultModal({
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-300 text-brand-950 transition hover:bg-brand-100"
-            aria-label="Cerrar modal"
-          >
-            <CloseIcon />
-          </button>
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">

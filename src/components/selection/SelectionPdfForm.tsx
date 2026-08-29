@@ -525,12 +525,13 @@ export function SelectionPdfForm({
     const messageField = visibleFields.find((field) => field.name === 'message')
 
     return (
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
-        <div className={isCompact ? 'grid grid-cols-2 gap-x-4 gap-y-3' : 'grid grid-cols-2 gap-x-4 gap-y-4'}>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <div className={isCompact ? 'grid gap-x-4 gap-y-3 sm:grid-cols-2' : 'grid gap-x-4 gap-y-4 sm:grid-cols-2'}>
           {leftColumnFields.map((field) => {
             const errorId = `${field.name}-error`
             const hasError = Boolean(errors[field.name])
             const isDateField = field.type === 'date'
+            const isTextareaField = field.type === 'textarea'
             const isReadOnly = readOnlyFieldSet.has(field.name)
             const fieldValue = (
               typeof values[field.name] === 'string' ? values[field.name] : ''
@@ -541,12 +542,20 @@ export function SelectionPdfForm({
                 : undefined
 
             return (
-              <div key={field.name}>
+              <div
+                key={field.name}
+                className={
+                  field.name === 'product' || field.name === 'productionCompany' || isTextareaField
+                    ? 'sm:col-span-2'
+                    : undefined
+                }
+              >
                 {isReadOnly ? (
                   <StaticField
                     label={field.label}
                     value={getStaticFieldValue(field.name, fieldValue)}
                     compact={isCompact}
+                    multiline={isTextareaField}
                   />
                 ) : field.name === 'productionCompany' ? (
                   <ProductionCompanyField
@@ -569,6 +578,33 @@ export function SelectionPdfForm({
                     compact={isCompact}
                     onChange={onChange}
                   />
+                ) : isTextareaField ? (
+                  <>
+                    <label
+                      htmlFor={field.name}
+                      className="mb-2 block text-sm font-medium text-brand-100"
+                    >
+                      {field.label}
+                    </label>
+                    <textarea
+                      id={field.name}
+                      name={field.name}
+                      value={fieldValue}
+                      placeholder={field.placeholder}
+                      disabled={disabled}
+                      rows={isCompact ? 5 : 6}
+                      onChange={(event) => {
+                        onChange(field.name, event.target.value)
+                      }}
+                      aria-invalid={hasError}
+                      aria-describedby={hasError ? errorId : undefined}
+                      className={`${isCompact ? 'rounded-xl px-3.5 py-3' : 'rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+                        hasError
+                          ? 'border-red-300 focus-visible:ring-red-300'
+                          : 'border-white/12'
+                      }`}
+                    />
+                  </>
                 ) : (
                   <>
                     <label
@@ -631,13 +667,13 @@ export function SelectionPdfForm({
                   value={values.message}
                   placeholder={messageField.placeholder}
                   disabled={disabled}
-                  rows={isCompact ? 5 : 6}
+                  rows={isCompact ? 4 : 5}
                   onChange={(event) => {
                     onChange(messageField.name, event.target.value)
                   }}
                   aria-invalid={Boolean(errors[messageField.name])}
                   aria-describedby={errors[messageField.name] ? `${messageField.name}-error` : undefined}
-                  className={`${isCompact ? 'rounded-xl px-3.5 py-3' : 'rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
+                  className={`${isCompact ? 'min-h-[7.75rem] rounded-xl px-3.5 py-3' : 'min-h-[8.75rem] rounded-2xl px-4 py-3'} w-full border bg-white/6 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 ${
                     errors[messageField.name]
                       ? 'border-red-300 focus-visible:ring-red-300'
                       : 'border-white/12'
@@ -685,7 +721,16 @@ export function SelectionPdfForm({
         return (
           <div
             key={field.name}
-            className={isTextareaField && useTwoColumns ? 'sm:col-span-2' : undefined}
+            className={
+              useTwoColumns && (
+                field.name === 'product' ||
+                field.name === 'productionCompany' ||
+                isTextareaField ||
+                (desktopMessageSplit && field.name === 'message')
+              )
+                ? 'sm:col-span-2'
+                : undefined
+            }
           >
             {isReadOnly ? (
               <StaticField
