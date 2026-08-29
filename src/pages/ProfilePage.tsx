@@ -85,6 +85,9 @@ export function ProfilePage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const hasAssociatedProductionCompany = Boolean(profile?.productionCompanyId)
+  const effectiveCompanyName =
+    profile?.productionCompanyName?.trim() || profile?.companyName?.trim() || ''
 
   useEffect(() => {
     if (!profile) {
@@ -206,21 +209,31 @@ export function ProfilePage() {
                       <span className="text-xs font-medium uppercase tracking-[0.2em] text-brand-100/58">
                         Empresa
                       </span>
-                      <input
-                        type="text"
-                        value={values.companyName}
-                        onChange={(event) => {
-                          setValues((current) => ({
-                            ...current,
-                            companyName: event.target.value,
-                          }))
-                          setSubmitError(null)
-                        }}
-                        className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
-                        placeholder="Nombre de tu empresa"
-                        autoComplete="organization"
-                        disabled={isSubmitting}
-                      />
+                      {hasAssociatedProductionCompany ? (
+                        <input
+                          type="text"
+                          value={effectiveCompanyName}
+                          className="min-h-13 w-full rounded-2xl border border-white/8 bg-white/4 px-4 text-sm text-brand-100/64 outline-none"
+                          disabled
+                          readOnly
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={values.companyName}
+                          onChange={(event) => {
+                            setValues((current) => ({
+                              ...current,
+                              companyName: event.target.value,
+                            }))
+                            setSubmitError(null)
+                          }}
+                          className="min-h-13 w-full rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/32 focus:border-brand-300"
+                          placeholder="Nombre de tu empresa"
+                          autoComplete="organization"
+                          disabled={isSubmitting}
+                        />
+                      )}
                     </label>
 
                     <label className="block space-y-2">

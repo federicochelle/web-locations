@@ -1503,9 +1503,6 @@ export function SelectionDrawer() {
             <h3 className="text-center font-display text-2xl font-semibold tracking-[-0.03em] text-brand-100">
               Creá tu proyecto
             </h3>
-            <p className="mt-3 text-center text-sm leading-6 text-brand-300">
-              Completá los campos y comenzá a seleccionar tus locaciones.
-            </p>
 
             <div className="mt-6 space-y-4">
               <div>
@@ -1566,7 +1563,7 @@ export function SelectionDrawer() {
                 disabled={isCreating || newProjectProduct.trim().length === 0}
                 className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand-300 px-5 text-sm font-semibold text-brand-950 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
               >
-                {isCreating ? 'Creando...' : 'Crear proyecto'}
+                {isCreating ? 'Creando...' : 'Confirmar'}
               </button>
             </div>
           </div>
