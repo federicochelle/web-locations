@@ -299,6 +299,7 @@ export function SelectionDrawer() {
   const [newProjectProductionCompany, setNewProjectProductionCompany] = useState('')
   const [newProjectError, setNewProjectError] = useState<string | null>(null)
   const [isPdfFlowBusy, setIsPdfFlowBusy] = useState(false)
+  const [isPdfFlowInFinalState, setIsPdfFlowInFinalState] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
   const [pendingProjectIdAfterExit, setPendingProjectIdAfterExit] = useState<string | null | undefined>(undefined)
   const [projectAutosaveIndicator, setProjectAutosaveIndicator] =
@@ -595,7 +596,8 @@ export function SelectionDrawer() {
       isLoading ||
       !activeProjectId ||
       activeProject ||
-      isPdfFlowDetached
+      isPdfFlowDetached ||
+      isPdfFlowInFinalState
     ) {
       return
     }
@@ -610,11 +612,18 @@ export function SelectionDrawer() {
     hasLoadedOnce,
     isLoading,
     isPdfFlowDetached,
+    isPdfFlowInFinalState,
     resetSelectionFlow,
   ])
 
   useEffect(() => {
-    if (!hasLoadedOnce || isLoading || !activeProjectId || !activeProject) {
+    if (
+      !hasLoadedOnce ||
+      isLoading ||
+      !activeProjectId ||
+      !activeProject ||
+      isPdfFlowInFinalState
+    ) {
       return
     }
 
@@ -638,6 +647,7 @@ export function SelectionDrawer() {
     activeProjectId,
     hasLoadedOnce,
     isLoading,
+    isPdfFlowInFinalState,
     resetSelectionFlow,
     selectableProjects,
     setActiveProjectContext,
@@ -1670,6 +1680,7 @@ export function SelectionDrawer() {
             onProjectSelectionChange={handleActiveProjectChange}
             onProjectsRefresh={refreshProjects}
             onBusyStateChange={setIsPdfFlowBusy}
+            onFinalStateChange={setIsPdfFlowInFinalState}
             onRegisterProjectFormFlush={(handler) => {
               projectFormFlushRef.current = handler
             }}
@@ -1900,6 +1911,7 @@ export function SelectionDrawer() {
                 onProjectSelectionChange={handleActiveProjectChange}
                 onProjectsRefresh={refreshProjects}
                 onBusyStateChange={setIsPdfFlowBusy}
+                onFinalStateChange={setIsPdfFlowInFinalState}
                 onRegisterProjectFormFlush={(handler) => {
                   projectFormFlushRef.current = handler
                 }}
