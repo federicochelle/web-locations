@@ -11,7 +11,6 @@ type AboutSectionProps = {
   body: string[]
   headingLevel?: 'h1' | 'h2'
   reverseOnDesktop?: boolean
-  eyebrow?: string
   ctaLabel?: string
   ctaHref?: string
   extraTopSpacing?: boolean
@@ -39,7 +38,6 @@ function AboutSection({
   body,
   headingLevel = 'h2',
   reverseOnDesktop = false,
-  eyebrow,
   ctaLabel,
   ctaHref,
   extraTopSpacing = false,
@@ -59,11 +57,6 @@ function AboutSection({
     >
       <div className="grid items-center gap-7 md:gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-14">
         <div className={`space-y-5 ${reverseOnDesktop ? 'lg:order-2' : ''}`}>
-          {eyebrow ? (
-            <p className="text-xs font-medium uppercase tracking-[0.24em] text-brand-300">
-              {eyebrow}
-            </p>
-          ) : null}
           <HeadingTag className="font-display text-[2rem] font-semibold leading-[0.96] tracking-[-0.04em] text-brand-100 sm:text-[2.35rem] lg:text-[2.65rem]">
             {title}
           </HeadingTag>
@@ -77,7 +70,7 @@ function AboutSection({
               href={ctaHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 pt-2 text-sm font-semibold text-brand-300 transition hover:text-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0908]"
+              className="inline-flex min-h-14 items-center gap-3 rounded-full border border-brand-300 bg-brand-300 px-6 text-base font-bold text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0908]"
             >
               <span>{ctaLabel}</span>
               <svg
@@ -136,7 +129,7 @@ export function AboutPage() {
   usePageTitle('Nosotros')
 
   return (
-    <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
+    <div className="relative left-1/2 w-screen -translate-x-1/2">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <AboutSection
           headingLevel="h1"
@@ -166,7 +159,6 @@ export function AboutPage() {
 
         <AboutSection
           title="Una alianza que amplía nuestra mirada"
-          eyebrow="GOLDEN PI"
           ctaLabel="Conocé Golden Pi"
           ctaHref={GOLDEN_PI_URL}
           extraTopSpacing
