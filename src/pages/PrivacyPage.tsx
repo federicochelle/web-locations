@@ -1,8 +1,13 @@
 import { LegalPageLayout } from '@/components/legal/LegalPageLayout.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 export function PrivacyPage() {
-  usePageTitle('Política de Privacidad')
+  usePageSeo({
+    title: 'Política de Privacidad',
+    description:
+      'Consultá cómo Film Locations Uruguay recopila, utiliza y protege los datos personales y la información vinculada a la plataforma.',
+    canonicalPath: '/privacidad',
+  })
 
   return (
     <LegalPageLayout title="Política de Privacidad">

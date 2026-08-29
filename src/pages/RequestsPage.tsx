@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { RequestProjectsSectionIllustration } from '@/components/requests/RequestProjectsSectionIllustrations.tsx'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import type { RequestProject } from '@/types/request-project.ts'
 
@@ -164,7 +164,12 @@ function ProjectsSection({
 }
 
 export function RequestsPage() {
-  usePageTitle('Mis proyectos')
+  usePageSeo({
+    title: 'Mis proyectos',
+    description: 'Proyectos privados de Film Locations Uruguay.',
+    canonicalPath: '/requests',
+    robots: 'noindex,nofollow',
+  })
 
   const { openDrawer, setActiveProjectContext } = useImageSelection()
   const {

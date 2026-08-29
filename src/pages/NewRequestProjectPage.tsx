@@ -4,11 +4,16 @@ import {
   RequestProjectForm,
   type RequestProjectFormValues,
 } from '@/components/requests/RequestProjectForm.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 
 export function NewRequestProjectPage() {
-  usePageTitle('Nuevo proyecto')
+  usePageSeo({
+    title: 'Nuevo proyecto',
+    description: 'Creación privada de proyectos en Film Locations Uruguay.',
+    canonicalPath: '/requests/new',
+    robots: 'noindex,nofollow',
+  })
 
   const navigate = useNavigate()
   const { createProject, error, isCreating } = useRequestProjects()

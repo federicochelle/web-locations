@@ -1,8 +1,13 @@
 import { LegalPageLayout } from '@/components/legal/LegalPageLayout.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 export function TermsPage() {
-  usePageTitle('Términos y Condiciones')
+  usePageSeo({
+    title: 'Términos y Condiciones',
+    description:
+      'Leé los términos y condiciones de uso de Film Locations Uruguay para la búsqueda, selección y gestión de locaciones.',
+    canonicalPath: '/terminos',
+  })
 
   return (
     <LegalPageLayout title="Términos y Condiciones">

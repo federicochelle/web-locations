@@ -7,7 +7,7 @@ import { HomePublishLocationSection } from '@/features/home/components/HomePubli
 import { HomeSearchSection } from '@/features/home/components/HomeSearchSection.tsx'
 import { buildHomeCategoryCards } from '@/features/home/mocks/home.mock.ts'
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { getCategories } from '@/services/categories.service.ts'
 import type { Category } from '@/types/location.ts'
 
@@ -23,7 +23,12 @@ function getCriticalImageCount(totalImages: number) {
 }
 
 export function HomePage() {
-  usePageTitle('Home')
+  usePageSeo({
+    title: 'Film Locations Uruguay',
+    description:
+      'Explorá locaciones para producciones audiovisuales en Uruguay y encontrá espacios únicos para cine, fotografía, publicidad y proyectos creativos.',
+    canonicalPath: '/',
+  })
   const [categories, setCategories] = useState<Category[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
   const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)

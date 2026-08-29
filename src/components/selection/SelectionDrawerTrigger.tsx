@@ -15,6 +15,7 @@ export function SelectionDrawerTrigger() {
   const { projects } = useRequestProjects()
   const isProjectDetailRoute = /^\/requests\/[^/]+$/u.test(location.pathname)
   const hasImages = images.length > 0
+  const isCreatingProject = activeProjectId === null
   const activeProjectName =
     activeProjectId !== null
       ? projects.find((project) => project.id === activeProjectId)?.title ?? null
@@ -49,17 +50,19 @@ export function SelectionDrawerTrigger() {
       }`}
       style={triggerStyle}
     >
-      <span
-        className={`pointer-events-none absolute -bottom-2 -left-12 z-20 inline-flex max-w-28 items-center justify-center rounded-full border px-3 py-1.5 text-center text-xs font-semibold leading-none shadow-[0_10px_22px_rgba(0,0,0,0.18)] lg:-bottom-2 lg:-left-12 lg:max-w-28 ${
-          hasImages
-            ? 'border-brand-300/35 bg-brand-100 text-brand-950'
-            : 'border-white/10 bg-white/10 text-brand-100 backdrop-blur-md'
-        }`}
-      >
-        <span className="block w-full overflow-hidden text-ellipsis whitespace-nowrap">
-          {activeProjectName ?? 'Selección'}
+      {isCreatingProject ? null : (
+        <span
+          className={`pointer-events-none absolute -bottom-2 -left-12 z-20 inline-flex max-w-28 items-center justify-center rounded-full border px-3 py-1.5 text-center text-xs font-semibold leading-none shadow-[0_10px_22px_rgba(0,0,0,0.18)] lg:-bottom-2 lg:-left-12 lg:max-w-28 ${
+            hasImages
+              ? 'border-brand-300/35 bg-brand-100 text-brand-950'
+              : 'border-white/10 bg-white/10 text-brand-100 backdrop-blur-md'
+          }`}
+        >
+          <span className="block w-full overflow-hidden text-ellipsis whitespace-nowrap">
+            {activeProjectName ?? 'Selección'}
+          </span>
         </span>
-      </span>
+      )}
       <div className="relative z-10 flex items-center justify-center">
         <svg
           aria-hidden="true"

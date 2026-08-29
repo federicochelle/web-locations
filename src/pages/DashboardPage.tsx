@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/hooks/useAuth.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 function formatSubscriptionDate(value: string | null) {
   if (!value) {
@@ -16,7 +16,12 @@ function formatSubscriptionDate(value: string | null) {
 }
 
 export function DashboardPage() {
-  usePageTitle('Panel del visitante')
+  usePageSeo({
+    title: 'Panel del visitante',
+    description: 'Panel privado de Film Locations Uruguay.',
+    canonicalPath: '/dashboard',
+    robots: 'noindex,nofollow',
+  })
 
   const { hasActiveSubscription, plan, profile, subscription, user } = useAuth()
   const displayName = profile?.fullName?.trim() || user?.email || 'visitante'

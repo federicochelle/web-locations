@@ -1,10 +1,15 @@
 import { FavoritesEmptyState } from '@/components/favorites/FavoritesEmptyState.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
 import { useFavorites } from '@/hooks/useFavorites.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 export function FavoritesPage() {
-  usePageTitle('Favoritos')
+  usePageSeo({
+    title: 'Favoritos',
+    description: 'Favoritos privados de Film Locations Uruguay.',
+    canonicalPath: '/favorites',
+    robots: 'noindex,nofollow',
+  })
   const {
     favorites,
     favoriteIds,

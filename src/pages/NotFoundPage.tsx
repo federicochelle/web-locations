@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom'
 
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 export function NotFoundPage() {
-  usePageTitle('404')
+  usePageSeo({
+    title: '404',
+    description: 'Página no encontrada en Film Locations Uruguay.',
+    canonicalPath: '/404',
+    robots: 'noindex,nofollow',
+  })
 
   return (
     <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">

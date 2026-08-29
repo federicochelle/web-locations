@@ -2,7 +2,7 @@ import goldenPiImageUrl from '@/assets/goldenpi.jpeg'
 import aboutImageOneUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (1).webp'
 import aboutImageTwoUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM.webp'
 import { ScrollReveal } from '@/components/ui/ScrollReveal.tsx'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 
 const GOLDEN_PI_URL = 'https://www.goldenpi.com.uy/'
 
@@ -126,7 +126,12 @@ function AboutSection({
 }
 
 export function AboutPage() {
-  usePageTitle('Nosotros')
+  usePageSeo({
+    title: 'Nosotros',
+    description:
+      'Conocé Film Locations Uruguay y nuestra propuesta para conectar locaciones con producciones audiovisuales, fotográficas y creativas.',
+    canonicalPath: '/nosotros',
+  })
 
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2">

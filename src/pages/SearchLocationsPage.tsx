@@ -13,7 +13,7 @@ import {
   searchSupabaseLocationCardsV3,
   useSupabaseLocationSearchV3,
 } from '@/features/search/supabase/useSupabaseLocationSearchV3.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { getCategories } from '@/services/categories.service.ts'
 import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
@@ -381,7 +381,15 @@ export function SearchLocationsPage() {
     return nextSearchParams
   }
 
-  usePageTitle('Resultados de búsqueda')
+  usePageSeo({
+    title: trimmedSearchQuery
+      ? `Búsqueda: ${trimmedSearchQuery}`
+      : 'Búsqueda de locaciones',
+    description: trimmedSearchQuery
+      ? `Explorá resultados para "${trimmedSearchQuery}" en Film Locations Uruguay.`
+      : 'Explorá locaciones publicadas en Film Locations Uruguay.',
+    canonicalPath: '/busqueda',
+  })
 
   useEffect(() => {
     if (!import.meta.env.DEV || !hasSearchQuery) {

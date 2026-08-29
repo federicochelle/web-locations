@@ -4,7 +4,7 @@ import submissionFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2
 import submissionHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (2).webp'
 import { PhoneInput } from '@/components/ui/PhoneInput.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
-import { usePageTitle } from '@/hooks/usePageTitle.ts'
+import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import {
   getAuthErrorMessage,
   updateUserProfile,
@@ -49,7 +49,12 @@ function FormActionIcon() {
 }
 
 export function ProfilePage() {
-  usePageTitle('Mi perfil')
+  usePageSeo({
+    title: 'Mi perfil',
+    description: 'Perfil privado de Film Locations Uruguay.',
+    canonicalPath: '/profile',
+    robots: 'noindex,nofollow',
+  })
 
   const { plan, profile, refreshProfile, user } = useAuth()
   const [values, setValues] = useState<ProfileFormValues>({
