@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/react'
 import { Link } from 'react-router-dom'
 
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
@@ -51,15 +50,6 @@ export function NotFoundPage() {
               >
                 Volver al inicio
               </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  Sentry.captureException(new Error('Sentry controlled test'))
-                }}
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/14 bg-white/8 px-5 text-sm font-medium text-brand-100 transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
-              >
-                Probar Sentry
-              </button>
             </div>
           </div>
         </div>
