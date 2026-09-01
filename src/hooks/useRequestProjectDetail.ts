@@ -23,8 +23,10 @@ import {
 
 type UpdateProjectValues = {
   title: string
+  productLogoUrl: string | null
   productionCompany: string
   productionCompanyId: string | null
+  productionCompanyLogoUrl: string | null
   message: string
   tentativeStartDate: string | null
   tentativeEndDate: string | null
@@ -208,8 +210,10 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const saveProject = useCallback(
     async ({
       title,
+      productLogoUrl,
       productionCompany,
       productionCompanyId,
+      productionCompanyLogoUrl,
       message,
       tentativeStartDate,
       tentativeEndDate,
@@ -225,8 +229,10 @@ export function useRequestProjectDetail(projectId: string | undefined) {
 
         const nextProject = await updateRequestProject(projectId, {
           title,
+          productLogoUrl: productLogoUrl?.trim() || null,
           productionCompany: productionCompany.trim() || null,
           productionCompanyId,
+          productionCompanyLogoUrl: productionCompanyLogoUrl?.trim() || null,
           message: message.trim() || null,
           tentativeStartDate,
           tentativeEndDate,

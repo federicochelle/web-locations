@@ -12,14 +12,18 @@ import { Link } from 'react-router-dom'
 
 import drawerFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (3).webp'
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
+import { ProductionCompanyField } from '@/components/selection/ProductionCompanyField.tsx'
 import { SelectionDrawerHeader } from '@/components/selection/SelectionDrawerHeader.tsx'
 import { SelectedLocationGroup } from '@/components/selection/SelectedLocationGroup.tsx'
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
 import { SELECTION_DRAWER_TRIGGER_ID } from '@/components/selection/SelectionDrawerTrigger.tsx'
-import { useAuth } from '@/hooks/useAuth.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
+import {
+  uploadRequestProjectProductLogo,
+  uploadRequestProjectProductionCompanyLogo,
+} from '@/services/request-project-production-company-logos.service.ts'
 import { syncRequestProjectSelection } from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import {
@@ -258,7 +262,6 @@ function BackArrowIcon() {
 }
 
 export function SelectionDrawer() {
-  const { role } = useAuth()
   const {
     activeProjectId: selectionProjectId,
     images,
@@ -296,7 +299,18 @@ export function SelectionDrawer() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [newProjectProduct, setNewProjectProduct] = useState('')
+  const [newProjectProductLogoUrl, setNewProjectProductLogoUrl] = useState<string | null>(null)
+  const [newProjectProductLogoUploadStatus, setNewProjectProductLogoUploadStatus] =
+    useState<'idle' | 'uploading' | 'error'>('idle')
+  const [newProjectProductLogoUploadError, setNewProjectProductLogoUploadError] =
+    useState<string | null>(null)
   const [newProjectProductionCompany, setNewProjectProductionCompany] = useState('')
+  const [newProjectProductionCompanyLogoUrl, setNewProjectProductionCompanyLogoUrl] =
+    useState<string | null>(null)
+  const [newProjectProductionCompanyLogoUploadStatus, setNewProjectProductionCompanyLogoUploadStatus] =
+    useState<'idle' | 'uploading' | 'error'>('idle')
+  const [newProjectProductionCompanyLogoUploadError, setNewProjectProductionCompanyLogoUploadError] =
+    useState<string | null>(null)
   const [newProjectError, setNewProjectError] = useState<string | null>(null)
   const [isPdfFlowBusy, setIsPdfFlowBusy] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
@@ -335,7 +349,6 @@ export function SelectionDrawer() {
     () => groupImagesByLocation(images),
     [images],
   )
-  const isAdmin = role === 'admin'
   const activeProject =
     projects.find((project) => project.id === activeProjectId) ?? null
   const selectableProjects = useMemo(
@@ -1317,6 +1330,44 @@ export function SelectionDrawer() {
     await performActiveProjectChange(projectId)
   }
 
+  async function handleNewProjectProductionCompanyLogoSelect(file: File) {
+    setNewProjectProductionCompanyLogoUploadStatus('uploading')
+    setNewProjectProductionCompanyLogoUploadError(null)
+    setNewProjectError(null)
+
+    try {
+      const uploadResult = await uploadRequestProjectProductionCompanyLogo({
+        file,
+      })
+
+      setNewProjectProductionCompanyLogoUrl(uploadResult.publicUrl)
+      setNewProjectProductionCompanyLogoUploadStatus('idle')
+    } catch (error) {
+      setNewProjectProductionCompanyLogoUploadStatus('error')
+      setNewProjectProductionCompanyLogoUploadError(
+        error instanceof Error ? error.message : 'No pudimos subir el logo.',
+      )
+    }
+  }
+
+  async function handleNewProjectProductLogoSelect(file: File) {
+    setNewProjectProductLogoUploadStatus('uploading')
+    setNewProjectProductLogoUploadError(null)
+    setNewProjectError(null)
+
+    try {
+      const uploadResult = await uploadRequestProjectProductLogo({ file })
+
+      setNewProjectProductLogoUrl(uploadResult.publicUrl)
+      setNewProjectProductLogoUploadStatus('idle')
+    } catch (error) {
+      setNewProjectProductLogoUploadStatus('error')
+      setNewProjectProductLogoUploadError(
+        error instanceof Error ? error.message : 'No pudimos subir el logo.',
+      )
+    }
+  }
+
   async function handleCreateProject() {
     const normalizedProduct = newProjectProduct.trim()
 
@@ -1334,8 +1385,10 @@ export function SelectionDrawer() {
 
     const createdProject = await createProject({
       title: normalizedProduct,
-      productionCompany: isAdmin ? newProjectProductionCompany.trim() || null : null,
+      productLogoUrl: newProjectProductLogoUrl,
+      productionCompany: newProjectProductionCompany.trim() || null,
       productionCompanyId: null,
+      productionCompanyLogoUrl: newProjectProductionCompanyLogoUrl,
       message: null,
       tentativeStartDate: null,
       tentativeEndDate: null,
@@ -1365,7 +1418,13 @@ export function SelectionDrawer() {
     setIsLoadingProjectContent(false)
     setDraftNotice(null)
     setNewProjectProduct('')
+    setNewProjectProductLogoUrl(null)
+    setNewProjectProductLogoUploadStatus('idle')
+    setNewProjectProductLogoUploadError(null)
     setNewProjectProductionCompany('')
+    setNewProjectProductionCompanyLogoUrl(null)
+    setNewProjectProductionCompanyLogoUploadStatus('idle')
+    setNewProjectProductionCompanyLogoUploadError(null)
 
     if (!hasSelectionToAssociate) {
       lastQueuedSnapshotRef.current = selectionSnapshot
@@ -1494,54 +1553,56 @@ export function SelectionDrawer() {
               Creá tu proyecto
             </h3>
 
-            <div className="mt-6 space-y-4">
+            <p className="mx-auto mt-2 max-w-xs text-center text-sm leading-6 text-brand-100/58">
+              Completá el producto y la productora. Si querés, podés sumar sus logos para personalizar el proyecto.
+            </p>
+
+            <div className="mt-5 space-y-4">
               <div>
-                <label
-                  htmlFor="new-project-product"
-                  className="mb-2 block text-sm font-medium text-brand-100"
-                >
-                  Producto
-                </label>
-                <input
-                  id="new-project-product"
-                  type="text"
+                <ProductionCompanyField
+                  inputId="new-project-product"
+                  label="Producto"
+                  placeholder="Ej. Campaña verano 2026"
+                  autoComplete="organization-title"
+                  uploadLabel="logo del producto"
                   value={newProjectProduct}
-                  onChange={(event) => {
-                    setNewProjectProduct(event.target.value)
+                  logoUrl={newProjectProductLogoUrl}
+                  uploadStatus={newProjectProductLogoUploadStatus}
+                  uploadError={newProjectProductLogoUploadError}
+                  disabled={isCreating}
+                  compact={false}
+                  onValueChange={(nextValue) => {
+                    setNewProjectProduct(nextValue)
                     if (newProjectError) {
                       setNewProjectError(null)
                     }
                   }}
-                  autoComplete="organization-title"
-                  placeholder="Ej. Campaña verano 2026"
-                  className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
+                  onLogoFileSelect={(file) => {
+                    void handleNewProjectProductLogoSelect(file)
+                  }}
                 />
               </div>
 
-              {isAdmin ? (
-                <div>
-                  <label
-                    htmlFor="new-project-production-company"
-                    className="mb-2 block text-sm font-medium text-brand-100"
-                  >
-                    Productora
-                  </label>
-                  <input
-                    id="new-project-production-company"
-                    type="text"
-                    value={newProjectProductionCompany}
-                    onChange={(event) => {
-                      setNewProjectProductionCompany(event.target.value)
-                      if (newProjectError) {
-                        setNewProjectError(null)
-                      }
-                    }}
-                    autoComplete="organization"
-                    placeholder="Nombre de la productora"
-                    className="min-h-12 w-full rounded-2xl border border-white/12 bg-white/6 px-4 text-sm text-brand-100 outline-none transition placeholder:text-brand-100/40 focus-visible:ring-2 focus-visible:ring-brand-300 hover:bg-white/8"
-                  />
-                </div>
-              ) : null}
+              <div>
+                <ProductionCompanyField
+                  inputId="new-project-production-company"
+                  value={newProjectProductionCompany}
+                  logoUrl={newProjectProductionCompanyLogoUrl}
+                  uploadStatus={newProjectProductionCompanyLogoUploadStatus}
+                  uploadError={newProjectProductionCompanyLogoUploadError}
+                  disabled={isCreating}
+                  compact={false}
+                  onValueChange={(nextValue) => {
+                    setNewProjectProductionCompany(nextValue)
+                    if (newProjectError) {
+                      setNewProjectError(null)
+                    }
+                  }}
+                  onLogoFileSelect={(file) => {
+                    void handleNewProjectProductionCompanyLogoSelect(file)
+                  }}
+                />
+              </div>
             </div>
 
             <div className="mt-6">

@@ -4,8 +4,10 @@ import type { RequestProject } from '@/types/request-project.ts'
 
 export type CreateRequestProjectValues = {
   title: string
+  productLogoUrl?: string | null
   productionCompany?: string | null
   productionCompanyId?: string | null
+  productionCompanyLogoUrl?: string | null
   message: string | null
   tentativeStartDate?: string | null
   tentativeEndDate?: string | null
@@ -13,8 +15,10 @@ export type CreateRequestProjectValues = {
 
 export type UpdateRequestProjectValues = {
   title: string
+  productLogoUrl?: string | null
   productionCompany?: string | null
   productionCompanyId?: string | null
+  productionCompanyLogoUrl?: string | null
   message: string | null
   tentativeStartDate: string | null
   tentativeEndDate: string | null

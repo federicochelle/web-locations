@@ -85,8 +85,10 @@ export function mapRequestProjectToPdfFormValues(
 ): SelectionPdfFormValues {
   const values: SelectionPdfFormValues = {
     product: project.title,
+    productLogoUrl: project.productLogoUrl,
     productionCompany: project.productionCompany ?? '',
     productionCompanyId: project.productionCompanyId,
+    productionCompanyLogoUrl: project.productionCompanyLogoUrl,
     tentativeStartDate: project.tentativeStartDate ?? '',
     tentativeEndDate: project.tentativeEndDate ?? '',
     message: project.message ?? '',
@@ -134,8 +136,10 @@ export function buildSelectionPdfPayloadFromImages(
   return {
     project: {
       product: normalizeValue(values.product),
+      productLogoUrl: values.productLogoUrl?.trim() || null,
       productionCompany: normalizeValue(values.productionCompany),
       productionCompanyId: values.productionCompanyId,
+      productionCompanyLogoUrl: values.productionCompanyLogoUrl?.trim() || null,
       tentativeStartDate: normalizeValue(values.tentativeStartDate),
       tentativeEndDate: normalizeValue(values.tentativeEndDate),
       message: normalizeValue(values.message),
@@ -234,8 +238,11 @@ export function buildSelectionPdfPayloadFromProject(
   return {
     project: {
       product: normalizeValue(projectIdOrValues.product),
+      productLogoUrl: projectIdOrValues.productLogoUrl?.trim() || null,
       productionCompany: normalizeValue(projectIdOrValues.productionCompany),
       productionCompanyId: projectIdOrValues.productionCompanyId,
+      productionCompanyLogoUrl:
+        projectIdOrValues.productionCompanyLogoUrl?.trim() || null,
       tentativeStartDate: normalizeValue(projectIdOrValues.tentativeStartDate),
       tentativeEndDate: normalizeValue(projectIdOrValues.tentativeEndDate),
       message: normalizeValue(projectIdOrValues.message),

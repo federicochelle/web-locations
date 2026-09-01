@@ -7,10 +7,12 @@ import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadi
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
-import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
-import { useProductionCompanyLogo } from '@/hooks/useProductionCompanyLogoUrl.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
+import {
+  uploadRequestProjectProductLogo,
+  uploadRequestProjectProductionCompanyLogo,
+} from '@/services/request-project-production-company-logos.service.ts'
 import {
   submitRequestProjectWithOfficialPdf,
   syncRequestProjectSelection,
@@ -60,8 +62,10 @@ type SelectionPdfFlowProps = {
 
 const initialValues: SelectionPdfFormValues = {
   product: '',
+  productLogoUrl: null,
   productionCompany: '',
   productionCompanyId: null,
+  productionCompanyLogoUrl: null,
   tentativeStartDate: '',
   tentativeEndDate: '',
   message: '',
@@ -76,7 +80,6 @@ const selectionPdfFieldOrder: (keyof SelectionPdfFormValues)[] = [
 ]
 const readOnlySentProjectFields: Array<keyof SelectionPdfFormValues> = [
   'product',
-  'productionCompany',
 ]
 
 type DrawerAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -201,7 +204,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onEmbeddedFooterChange,
   } = props
   const navigate = useNavigate()
-  const { role } = useAuth()
   const { images } = useImageSelection()
   const {
     activeEditingProjectId,
@@ -222,6 +224,13 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [productionCompanyLogoUploadStatus, setProductionCompanyLogoUploadStatus] =
+    useState<'idle' | 'uploading' | 'error'>('idle')
+  const [productionCompanyLogoUploadError, setProductionCompanyLogoUploadError] =
+    useState<string | null>(null)
+  const [productLogoUploadStatus, setProductLogoUploadStatus] =
+    useState<'idle' | 'uploading' | 'error'>('idle')
+  const [productLogoUploadError, setProductLogoUploadError] = useState<string | null>(null)
   const [, setAutosaveStatus] = useState<DrawerAutosaveStatus>('idle')
   const [autosaveIndicator, setAutosaveIndicator] = useState<DrawerAutosaveIndicatorState>('hidden')
   const autosaveTimeoutRef = useRef<number | null>(null)
@@ -244,31 +253,11 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     return {
       ...values,
       product: activeProject.title,
-      productionCompany: activeProject.productionCompany ?? '',
-      productionCompanyId: activeProject.productionCompanyId,
     }
   }, [activeProject, values])
-  const {
-    logoUrl: productionCompanyLogoUrl,
-  } = useProductionCompanyLogo(
-    protectedFormValues.productionCompanyId,
-  )
   const livePreviewPayload = useMemo(
-    () => {
-      const basePayload = buildSelectionPdfPayloadFromImages(
-        protectedFormValues,
-        images,
-      )
-
-      return {
-        ...basePayload,
-        project: {
-          ...basePayload.project,
-          productionCompanyLogoUrl,
-        },
-      }
-    },
-    [images, productionCompanyLogoUrl, protectedFormValues],
+    () => buildSelectionPdfPayloadFromImages(protectedFormValues, images),
+    [images, protectedFormValues],
   )
   const normalizedProjectValues = useMemo(
     () => normalizeRequestProjectFormValues(protectedFormValues),
@@ -366,6 +355,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       persistedSnapshotRef.current = null
       setAutosaveStatus('idle')
       setAutosaveIndicator('hidden')
+      setProductionCompanyLogoUploadStatus('idle')
+      setProductionCompanyLogoUploadError(null)
       setValues(initialValues)
       setErrors({})
       setDraftNotice(null)
@@ -386,14 +377,20 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     const mappedValues = {
       ...initialValues,
       product: project.title,
+      productLogoUrl: project.productLogoUrl,
       productionCompany: project.productionCompany ?? '',
       productionCompanyId: project.productionCompanyId,
+      productionCompanyLogoUrl: project.productionCompanyLogoUrl,
       tentativeStartDate: project.tentativeStartDate ?? '',
       tentativeEndDate: project.tentativeEndDate ?? '',
       message: project.message ?? '',
     }
 
     hydratedProjectIdRef.current = project.id
+    setProductionCompanyLogoUploadStatus('idle')
+    setProductionCompanyLogoUploadError(null)
+    setProductLogoUploadStatus('idle')
+    setProductLogoUploadError(null)
     setValues(mappedValues)
     setErrors({})
     setDraftNotice(null)
@@ -524,11 +521,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   ) {
     if (
       activeProject?.status !== 'draft' &&
-      (
-        field === 'product' ||
-        field === 'productionCompany' ||
-        field === 'productionCompanyId'
-      )
+      field === 'product'
     ) {
       return
     }
@@ -536,14 +529,11 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setValues((currentValues) => ({
       ...currentValues,
       [field]:
-        field === 'productionCompanyId'
+        field === 'productionCompanyId' ||
+        field === 'productionCompanyLogoUrl' ||
+        field === 'productLogoUrl'
           ? value
           : value ?? '',
-      ...(field === 'productionCompany' &&
-      currentValues.productionCompanyId &&
-      value !== currentValues.productionCompany
-        ? { productionCompanyId: null }
-        : {}),
     }))
 
     setErrors((currentErrors) => {
@@ -573,8 +563,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         : {
             ...nextValues,
             title: activeProject.title,
-            productionCompany: activeProject.productionCompany ?? '',
-            productionCompanyId: activeProject.productionCompanyId,
+            productionCompanyId: null,
           }
 
     const autosaveExecutionToken = Symbol('drawer-project-autosave')
@@ -589,8 +578,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
         const savedProject = await updateProject(activeProjectId, {
           title: protectedProjectValues.title,
+          productLogoUrl: protectedProjectValues.productLogoUrl,
           productionCompany: protectedProjectValues.productionCompany,
-          productionCompanyId: protectedProjectValues.productionCompanyId,
+          productionCompanyId: null,
+          productionCompanyLogoUrl: protectedProjectValues.productionCompanyLogoUrl,
           message: protectedProjectValues.message,
           tentativeStartDate: protectedProjectValues.tentativeStartDate,
           tentativeEndDate: protectedProjectValues.tentativeEndDate,
@@ -707,10 +698,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function validateProposalSubmission() {
     const nextErrors = validateSelectionPdfForm(values)
 
-    if (role !== 'admin' && nextErrors.productionCompany) {
-      nextErrors.productionCompany = 'Completa la Productora en Mi cuenta antes de enviar el proyecto.'
-    }
-
     if (Object.keys(nextErrors).length === 0) {
       setErrors({})
       return true
@@ -735,13 +722,10 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           ? values.product.trim()
           : activeProject.title,
       productionCompany:
-        activeProject.status === 'draft'
-          ? values.productionCompany.trim() || null
-          : activeProject.productionCompany,
-      productionCompanyId:
-        activeProject.status === 'draft'
-          ? values.productionCompanyId
-          : activeProject.productionCompanyId,
+        values.productionCompany.trim() || null,
+      productLogoUrl: values.productLogoUrl,
+      productionCompanyId: null,
+      productionCompanyLogoUrl: values.productionCompanyLogoUrl,
       message: values.message.trim() || null,
       tentativeStartDate: values.tentativeStartDate.trim() || null,
       tentativeEndDate: values.tentativeEndDate.trim() || null,
@@ -786,6 +770,55 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       )
       setDraftNotice(null)
       return null
+    }
+  }
+
+  async function handleProductionCompanyLogoSelect(file: File) {
+    setProductionCompanyLogoUploadStatus('uploading')
+    setProductionCompanyLogoUploadError(null)
+    setDraftNotice(null)
+
+    try {
+      const uploadResult = await uploadRequestProjectProductionCompanyLogo({
+        projectId: activeProjectId,
+        file,
+      })
+
+      setValues((currentValues) => ({
+        ...currentValues,
+        productionCompanyId: null,
+        productionCompanyLogoUrl: uploadResult.publicUrl,
+      }))
+      setProductionCompanyLogoUploadStatus('idle')
+    } catch (error) {
+      setProductionCompanyLogoUploadStatus('error')
+      setProductionCompanyLogoUploadError(
+        error instanceof Error ? error.message : 'No pudimos subir el logo.',
+      )
+    }
+  }
+
+  async function handleProductLogoSelect(file: File) {
+    setProductLogoUploadStatus('uploading')
+    setProductLogoUploadError(null)
+    setDraftNotice(null)
+
+    try {
+      const uploadResult = await uploadRequestProjectProductLogo({
+        projectId: activeProjectId,
+        file,
+      })
+
+      setValues((currentValues) => ({
+        ...currentValues,
+        productLogoUrl: uploadResult.publicUrl,
+      }))
+      setProductLogoUploadStatus('idle')
+    } catch (error) {
+      setProductLogoUploadStatus('error')
+      setProductLogoUploadError(
+        error instanceof Error ? error.message : 'No pudimos subir el logo.',
+      )
     }
   }
 
@@ -1036,6 +1069,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           disabled={isBusy || isProjectLocked}
           readOnlyFields={readOnlyFields}
           columns={2}
+          productLogoUploadStatus={productLogoUploadStatus}
+          productLogoUploadError={productLogoUploadError}
+          onProductLogoSelect={handleProductLogoSelect}
+          productionCompanyLogoUploadStatus={productionCompanyLogoUploadStatus}
+          productionCompanyLogoUploadError={productionCompanyLogoUploadError}
+          onProductionCompanyLogoSelect={handleProductionCompanyLogoSelect}
         />
       </div>
     )

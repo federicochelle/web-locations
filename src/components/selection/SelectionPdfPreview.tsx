@@ -41,16 +41,25 @@ export function SelectionPdfPreview({
   const [isProductionLogoVisible, setIsProductionLogoVisible] = useState(
     Boolean(payload.project.productionCompanyLogoUrl),
   )
+  const [isProductLogoVisible, setIsProductLogoVisible] = useState(
+    Boolean(payload.project.productLogoUrl),
+  )
   const coverDetails = [
     ['Producto', payload.project.product],
     ['Productora', payload.project.productionCompany],
   ] as const
   const hasProductionLogo = Boolean(payload.project.productionCompanyLogoUrl)
   const showProductionLogo = hasProductionLogo && isProductionLogoVisible
+  const hasProductLogo = Boolean(payload.project.productLogoUrl)
+  const showProductLogo = hasProductLogo && isProductLogoVisible
 
   useEffect(() => {
     setIsProductionLogoVisible(hasProductionLogo)
   }, [hasProductionLogo, payload.project.productionCompanyLogoUrl])
+
+  useEffect(() => {
+    setIsProductLogoVisible(hasProductLogo)
+  }, [hasProductLogo, payload.project.productLogoUrl])
 
   const locationPages = payload.locations.flatMap((location) =>
     buildLocationPages(location),
@@ -90,6 +99,16 @@ export function SelectionPdfPreview({
             <div className="mt-12 space-y-4">
               {coverDetails.map(([label, value]) => (
                 <div key={label} className="text-center">
+                  {label === 'Producto' && showProductLogo ? (
+                    <img
+                      src={payload.project.productLogoUrl ?? undefined}
+                      alt={payload.project.product.trim() || 'Producto'}
+                      className="mx-auto mb-3 h-auto max-h-[3.75rem] max-w-[14rem] object-contain"
+                      onError={() => {
+                        setIsProductLogoVisible(false)
+                      }}
+                    />
+                  ) : null}
                   <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[#d7c0a2]">
                     {label}
                   </p>

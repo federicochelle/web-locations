@@ -17,11 +17,20 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'chromium-desktop',
       use: {
         ...devices['Desktop Chrome'],
         browserName: 'chromium',
       },
+      testIgnore: /.*\.mobile\.spec\.ts/,
+    },
+    {
+      name: 'chromium-mobile',
+      use: {
+        ...devices['iPhone 13'],
+        browserName: 'chromium',
+      },
+      testMatch: /.*\.mobile\.spec\.ts/,
     },
   ],
   webServer: configuredBaseURL
