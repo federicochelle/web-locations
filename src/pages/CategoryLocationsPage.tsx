@@ -6,10 +6,12 @@ import { CategoryLocationsGrid } from '@/features/locations/components/CategoryL
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
 import { getPublicDepartmentsByCategory } from '@/services/departments.service.ts'
-import { getLocations } from '@/services/locations.service.ts'
+import {
+  CATEGORY_LOCATIONS_PAGE_SIZE,
+  getLocations,
+} from '@/services/locations.service.ts'
 import type { Department, PublicLocationCard } from '@/types/location.ts'
 
-const CATEGORY_RESULTS_PAGE_SIZE = 20
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
 
 function getCriticalImageCount(totalImages: number) {
@@ -214,7 +216,7 @@ export function CategoryLocationsPage() {
           categorySlug: slug,
           departmentSlug: normalizedDepartmentSlug || null,
           page: initialPage,
-          pageSize: CATEGORY_RESULTS_PAGE_SIZE,
+          pageSize: CATEGORY_LOCATIONS_PAGE_SIZE,
           search: trimmedSearchQuery,
           featureSlugs: normalizedFeatureSlugs,
         })
