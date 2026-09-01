@@ -99,6 +99,7 @@ type GetLocationsFromRpcResult = {
   totalCount: number
 }
 
+export const CATEGORY_LOCATIONS_PAGE_SIZE = 32
 const DEFAULT_LOCATIONS_PAGE_SIZE = 20
 
 function sortImages(images: LocationImageRow[] | null | undefined) {

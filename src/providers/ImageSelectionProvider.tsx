@@ -1,6 +1,7 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { useAuth } from '@/hooks/useAuth.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import {
   clearImageSelectionStorage,
@@ -106,6 +107,7 @@ export const ImageSelectionContext = createContext<ImageSelectionContextValue | 
 export function ImageSelectionProvider({
   children,
 }: ImageSelectionProviderProps) {
+  const { isAuthenticated, loading: authLoading } = useAuth()
   const initialSelectionCache = useMemo(() => restoreImageSelectionCache(), [])
   const initialActiveProjectId = useMemo(
     () => resolveContextProjectId(restoreSelectionActiveContext()),
@@ -181,6 +183,8 @@ export function ImageSelectionProvider({
         [projectId]: normalizeImages(nextSelection),
       }))
       markProjectSelectionUpdated(projectId)
+    } catch {
+      // Rehydration is best-effort. Callers intentionally do not need to handle it.
     } finally {
       if (
         hydrationRequestIdRef.current === requestId &&
@@ -218,7 +222,10 @@ export function ImageSelectionProvider({
     options: SetActiveProjectContextOptions = {},
   ) => {
     const normalizedProjectId = normalizeProjectId(projectId)
-    const shouldHydrate = options.hydrate ?? Boolean(normalizedProjectId)
+    const shouldHydrate =
+      (options.hydrate ?? Boolean(normalizedProjectId)) &&
+      !authLoading &&
+      isAuthenticated
     const shouldPersist = options.persist ?? true
 
     hydrationRequestIdRef.current += 1
@@ -251,7 +258,7 @@ export function ImageSelectionProvider({
     if (shouldHydrate) {
       void hydrateProjectSelection(normalizedProjectId)
     }
-  }, [hydrateProjectSelection])
+  }, [authLoading, hydrateProjectSelection, isAuthenticated])
 
   useEffect(() => {
     function handleSelectionActiveContextChange(event: Event) {
@@ -298,12 +305,31 @@ export function ImageSelectionProvider({
   }, [setActiveProjectContext])
 
   useEffect(() => {
-    if (!initialActiveProjectId) {
+    if (!initialActiveProjectId || authLoading || !isAuthenticated) {
       return
     }
 
     void hydrateProjectSelection(initialActiveProjectId)
-  }, [hydrateProjectSelection, initialActiveProjectId])
+  }, [authLoading, hydrateProjectSelection, initialActiveProjectId, isAuthenticated])
+
+  useEffect(() => {
+    if (authLoading || isAuthenticated) {
+      return
+    }
+
+    // A project context belongs to the signed-in user. Public selections remain intact.
+    hydrationRequestIdRef.current += 1
+    activeProjectIdRef.current = null
+    projectSelectionVersionsRef.current = {}
+    pendingPersistedContextEventRef.current = null
+    setActiveProjectId(null)
+    setProjectSelections({})
+    setIsHydratingActiveProjectSelection(false)
+
+    if (restoreSelectionActiveContext()?.mode === 'project') {
+      persistSelectionActiveContext({ mode: 'new' })
+    }
+  }, [authLoading, isAuthenticated])
 
   const addImage = useCallback((image: SelectedLocationImage) => {
     const normalizedImage = normalizeImages([image])[0]

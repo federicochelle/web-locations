@@ -1,5 +1,21 @@
+import type { Page } from '@playwright/test'
+
 import { expectNoVisibleLoaders } from './support/app'
 import { expect, expectNoUnexpectedRuntimeIssues, test } from './support/test'
+
+const PERSISTED_PROJECT_CONTEXT_KEY = 'selection-active-context:v1'
+
+async function seedPersistedProjectContext(page: Page) {
+  await page.addInitScript((storageKey) => {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        mode: 'project',
+        projectId: '00000000-0000-0000-0000-000000000000',
+      }),
+    )
+  }, PERSISTED_PROJECT_CONTEXT_KEY)
+}
 
 test('/login renderiza y valida campos vacíos o inválidos sin usar credenciales reales', async ({
   page,
@@ -25,6 +41,26 @@ test('/login renderiza y valida campos vacíos o inválidos sin usar credenciale
 
   await expect(page.getByText('Ingresá un correo electrónico válido.')).toBeVisible()
   await expectNoVisibleLoaders(page)
+  await expectNoUnexpectedRuntimeIssues(page, diagnostics)
+})
+
+test('rutas públicas no rehidratan un proyecto persistido sin sesión', async ({
+  page,
+  diagnostics,
+}) => {
+  await seedPersistedProjectContext(page)
+
+  for (const path of ['/forgot-password', '/login', '/register', '/reset-password', '/terminos']) {
+    await page.goto(path)
+    await expect(page.getByRole('heading', { name: /Ocurrió un problema/i })).not.toBeVisible()
+
+    await expect
+      .poll(() => page.evaluate((storageKey) => window.localStorage.getItem(storageKey), PERSISTED_PROJECT_CONTEXT_KEY))
+      .toBe(JSON.stringify({ mode: 'new' }))
+  }
+
+  await page.reload()
+  await expect(page.getByRole('heading', { name: /Ocurrió un problema/i })).not.toBeVisible()
   await expectNoUnexpectedRuntimeIssues(page, diagnostics)
 })
 

@@ -80,6 +80,7 @@ const selectionPdfFieldOrder: (keyof SelectionPdfFormValues)[] = [
 ]
 const readOnlySentProjectFields: Array<keyof SelectionPdfFormValues> = [
   'product',
+  'productionCompany',
 ]
 
 type DrawerAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'

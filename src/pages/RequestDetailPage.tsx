@@ -465,7 +465,7 @@ export function RequestDetailPage() {
       ]
     }
 
-    return ['product']
+    return ['product', 'productionCompany']
   }, [isEditingProject, isSentProject])
 
   function handleFieldChange(
