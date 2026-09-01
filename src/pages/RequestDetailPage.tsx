@@ -11,12 +11,14 @@ import { SubmissionResultModal } from '@/components/submissions/SubmissionResult
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
 import { RequestProjectFavoritesModal } from '@/components/requests/RequestProjectFavoritesModal.tsx'
 import { AppModal } from '@/components/ui/AppModal.tsx'
-import { useAuth } from '@/hooks/useAuth.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
-import { useProductionCompanyLogo } from '@/hooks/useProductionCompanyLogoUrl.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
+import {
+  uploadRequestProjectProductLogo,
+  uploadRequestProjectProductionCompanyLogo,
+} from '@/services/request-project-production-company-logos.service.ts'
 import {
   downloadOfficialRequestProjectPdf,
   submitRequestProjectWithOfficialPdf,
@@ -292,7 +294,6 @@ export function RequestDetailPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { id } = useParams()
-  const { role } = useAuth()
   const {
     getProjectSelection,
     hasProjectSelection,
@@ -327,13 +328,22 @@ export function RequestDetailPage() {
   } = useRequestProjectDetail(id)
   const [values, setValues] = useState<SelectionPdfFormValues>({
     product: '',
+    productLogoUrl: null,
     productionCompany: '',
     productionCompanyId: null,
+    productionCompanyLogoUrl: null,
     tentativeStartDate: '',
     tentativeEndDate: '',
     message: '',
   })
   const [formErrors, setFormErrors] = useState<SelectionPdfFormErrors>({})
+  const [productionCompanyLogoUploadStatus, setProductionCompanyLogoUploadStatus] =
+    useState<'idle' | 'uploading' | 'error'>('idle')
+  const [productionCompanyLogoUploadError, setProductionCompanyLogoUploadError] =
+    useState<string | null>(null)
+  const [productLogoUploadStatus, setProductLogoUploadStatus] =
+    useState<'idle' | 'uploading' | 'error'>('idle')
+  const [productLogoUploadError, setProductLogoUploadError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
@@ -388,6 +398,10 @@ export function RequestDetailPage() {
 
     hydratedProjectIdRef.current = project.id
     lastQueuedDraftSnapshotRef.current = nextPersistedSnapshot
+    setProductionCompanyLogoUploadStatus('idle')
+    setProductionCompanyLogoUploadError(null)
+    setProductLogoUploadStatus('idle')
+    setProductLogoUploadError(null)
     setValues(mapRequestProjectToPdfFormValues(project))
     setFormErrors({})
     setValidationError(null)
@@ -451,7 +465,7 @@ export function RequestDetailPage() {
       ]
     }
 
-    return ['product', 'productionCompany']
+    return ['product']
   }, [isEditingProject, isSentProject])
 
   function handleFieldChange(
@@ -461,14 +475,11 @@ export function RequestDetailPage() {
     setValues((current) => ({
       ...current,
       [field]:
-        field === 'productionCompanyId'
+        field === 'productionCompanyId' ||
+        field === 'productionCompanyLogoUrl' ||
+        field === 'productLogoUrl'
           ? value
           : value ?? '',
-      ...(field === 'productionCompany' &&
-      current.productionCompanyId &&
-      value !== current.productionCompany
-        ? { productionCompanyId: null }
-        : {}),
     }))
     setValidationError(null)
 
@@ -511,30 +522,14 @@ export function RequestDetailPage() {
       finishProjectEditing(project.id)
     }
   }, [activeEditingProjectId, finishProjectEditing, project])
-  const {
-    logoUrl: productionCompanyLogoUrl,
-  } = useProductionCompanyLogo(
-    values.productionCompanyId,
-  )
-
   const currentPdfPayload = useMemo(
-    () => {
-      const generatedAt = new Date().toISOString()
-      const basePayload = buildSelectionPdfPayloadFromProject(
+    () =>
+      buildSelectionPdfPayloadFromProject(
         values,
         locations,
-        generatedAt,
-      )
-
-      return {
-        ...basePayload,
-        project: {
-          ...basePayload.project,
-          productionCompanyLogoUrl,
-        },
-      }
-    },
-    [locations, productionCompanyLogoUrl, values],
+        new Date().toISOString(),
+      ),
+    [locations, values],
   )
   const isMobileCompletionFlow =
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
@@ -665,8 +660,10 @@ export function RequestDetailPage() {
         const savedProject = await saveProject(
           {
             title: nextValues.title,
+            productLogoUrl: nextValues.productLogoUrl,
             productionCompany: nextValues.productionCompany,
-            productionCompanyId: nextValues.productionCompanyId,
+            productionCompanyId: null,
+            productionCompanyLogoUrl: nextValues.productionCompanyLogoUrl,
             message: nextValues.message,
             tentativeStartDate: nextValues.tentativeStartDate,
             tentativeEndDate: nextValues.tentativeEndDate,
@@ -772,8 +769,10 @@ export function RequestDetailPage() {
     if (currentDraftSnapshot !== persistedDraftSnapshotRef.current) {
       const savedProject = await saveProject({
         title: normalizedDraftValues.title,
+        productLogoUrl: normalizedDraftValues.productLogoUrl,
         productionCompany: normalizedDraftValues.productionCompany,
-        productionCompanyId: normalizedDraftValues.productionCompanyId,
+        productionCompanyId: null,
+        productionCompanyLogoUrl: normalizedDraftValues.productionCompanyLogoUrl,
         message: normalizedDraftValues.message,
         tentativeStartDate: normalizedDraftValues.tentativeStartDate,
         tentativeEndDate: normalizedDraftValues.tentativeEndDate,
@@ -834,9 +833,6 @@ export function RequestDetailPage() {
     }
 
     const nextErrors = validateSelectionPdfForm(values)
-    if (role !== 'admin' && nextErrors.productionCompany) {
-      nextErrors.productionCompany = 'Completa la Productora en Mi cuenta antes de enviar el proyecto.'
-    }
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors)
       setValidationError('Revisa los datos del proyecto antes de enviarlo.')
@@ -915,6 +911,55 @@ export function RequestDetailPage() {
     } finally {
       setIsSubmittingOfficial(false)
       setSubmissionProgress(null)
+    }
+  }
+
+  async function handleProductionCompanyLogoSelect(file: File) {
+    setProductionCompanyLogoUploadStatus('uploading')
+    setProductionCompanyLogoUploadError(null)
+    setValidationError(null)
+
+    try {
+      const uploadResult = await uploadRequestProjectProductionCompanyLogo({
+        projectId: project?.id,
+        file,
+      })
+
+      setValues((currentValues) => ({
+        ...currentValues,
+        productionCompanyId: null,
+        productionCompanyLogoUrl: uploadResult.publicUrl,
+      }))
+      setProductionCompanyLogoUploadStatus('idle')
+    } catch (error) {
+      setProductionCompanyLogoUploadStatus('error')
+      setProductionCompanyLogoUploadError(
+        error instanceof Error ? error.message : 'No pudimos subir el logo.',
+      )
+    }
+  }
+
+  async function handleProductLogoSelect(file: File) {
+    setProductLogoUploadStatus('uploading')
+    setProductLogoUploadError(null)
+    setValidationError(null)
+
+    try {
+      const uploadResult = await uploadRequestProjectProductLogo({
+        projectId: project?.id,
+        file,
+      })
+
+      setValues((currentValues) => ({
+        ...currentValues,
+        productLogoUrl: uploadResult.publicUrl,
+      }))
+      setProductLogoUploadStatus('idle')
+    } catch (error) {
+      setProductLogoUploadStatus('error')
+      setProductLogoUploadError(
+        error instanceof Error ? error.message : 'No pudimos subir el logo.',
+      )
     }
   }
 
@@ -1123,6 +1168,12 @@ export function RequestDetailPage() {
               columns={2}
               showTentativeDates
               desktopMessageSplit
+              productLogoUploadStatus={productLogoUploadStatus}
+              productLogoUploadError={productLogoUploadError}
+              onProductLogoSelect={handleProductLogoSelect}
+              productionCompanyLogoUploadStatus={productionCompanyLogoUploadStatus}
+              productionCompanyLogoUploadError={productionCompanyLogoUploadError}
+              onProductionCompanyLogoSelect={handleProductionCompanyLogoSelect}
             />
           </div>
 

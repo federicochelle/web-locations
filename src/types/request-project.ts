@@ -10,8 +10,10 @@ export type RequestProjectStatus =
 export type RequestProject = {
   id: string
   title: string
+  productLogoUrl: string | null
   productionCompany: string | null
   productionCompanyId: string | null
+  productionCompanyLogoUrl: string | null
   message: string | null
   status: RequestProjectStatus
   hasUnsubmittedChanges: boolean

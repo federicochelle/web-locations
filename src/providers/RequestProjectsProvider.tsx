@@ -24,7 +24,7 @@ type RequestProjectsProviderProps = {
 export function RequestProjectsProvider({
   children,
 }: RequestProjectsProviderProps) {
-  const { isAuthenticated, loading: authLoading, profile, role } = useAuth()
+  const { isAuthenticated, loading: authLoading } = useAuth()
   const [projects, setProjects] = useState<RequestProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
@@ -108,8 +108,10 @@ export function RequestProjectsProvider({
 
   const createProject = useCallback(async ({
     title,
+    productLogoUrl = null,
     productionCompany = null,
     productionCompanyId = null,
+    productionCompanyLogoUrl = null,
     message,
     tentativeStartDate = null,
     tentativeEndDate = null,
@@ -118,18 +120,12 @@ export function RequestProjectsProvider({
       setIsCreating(true)
       setError(null)
 
-      const isAdmin = role === 'admin'
-      const resolvedProductionCompany = isAdmin
-        ? productionCompany?.trim() || null
-        : profile?.productionCompanyName?.trim() || profile?.companyName?.trim() || null
-      const resolvedProductionCompanyId = isAdmin
-        ? productionCompanyId
-        : profile?.productionCompanyId?.trim() || null
-
       const nextProject = await createRequestProject({
         title,
-        productionCompany: resolvedProductionCompany,
-        productionCompanyId: resolvedProductionCompanyId,
+        productLogoUrl: productLogoUrl?.trim() || null,
+        productionCompany: productionCompany?.trim() || null,
+        productionCompanyId,
+        productionCompanyLogoUrl: productionCompanyLogoUrl?.trim() || null,
         message: message?.trim() || null,
         tentativeStartDate,
         tentativeEndDate,
@@ -143,7 +139,7 @@ export function RequestProjectsProvider({
     } finally {
       setIsCreating(false)
     }
-  }, [profile?.companyName, profile?.productionCompanyId, profile?.productionCompanyName, role])
+  }, [])
 
   const replaceProject = useCallback((nextProject: RequestProject) => {
     setProjects((currentProjects) =>
@@ -157,8 +153,10 @@ export function RequestProjectsProvider({
     projectId: string,
     {
       title,
+      productLogoUrl = null,
       productionCompany = null,
       productionCompanyId = null,
+      productionCompanyLogoUrl = null,
       message,
       tentativeStartDate,
       tentativeEndDate,
@@ -169,8 +167,10 @@ export function RequestProjectsProvider({
 
       const nextProject = await updateRequestProject(projectId, {
         title,
+        productLogoUrl: productLogoUrl?.trim() || null,
         productionCompany: productionCompany?.trim() || null,
         productionCompanyId,
+        productionCompanyLogoUrl: productionCompanyLogoUrl?.trim() || null,
         message: message?.trim() || null,
         tentativeStartDate,
         tentativeEndDate,

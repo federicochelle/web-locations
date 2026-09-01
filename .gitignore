@@ -26,3 +26,5 @@ dist-ssr
 playwright-report/
 test-results/
 .playwright/
+load-tests/results/*.json
+load-tests/results/*.txt

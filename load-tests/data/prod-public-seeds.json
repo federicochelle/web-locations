@@ -1,0 +1,288 @@
+{
+  "searchTerms": [
+    "montevideo",
+    "apartamento",
+    "bar",
+    "cafeteria",
+    "biblioteca",
+    "almacen",
+    "playa",
+    "hotel"
+  ],
+  "departments": [
+    {
+      "id": "09e6f702-b04a-4f0b-a76c-6026b20d4be2",
+      "name": "Canelones",
+      "slug": "canelones"
+    },
+    {
+      "id": "548d61ce-05ab-4f57-a91d-bfeb2c3c476c",
+      "name": "Colonia",
+      "slug": "colonia"
+    },
+    {
+      "id": "bd9fa60f-dcc7-4f1a-b921-9a9b5b62b102",
+      "name": "Maldonado",
+      "slug": "maldonado"
+    },
+    {
+      "id": "0b097d09-9134-4743-97a4-3ea34fe4e186",
+      "name": "Montevideo",
+      "slug": "montevideo"
+    }
+  ],
+  "categories": [
+    {
+      "id": "0c37b7aa-23c3-4783-bd58-c434ca661369",
+      "name": "Almacenes",
+      "slug": "almacenes",
+      "departments": [
+        {
+          "id": "0b097d09-9134-4743-97a4-3ea34fe4e186",
+          "name": "Montevideo",
+          "slug": "montevideo"
+        }
+      ],
+      "locations": [
+        {
+          "id": "f5f02500-ae88-47f3-9ac0-1ca54da0fb91",
+          "categorySlug": "almacenes",
+          "locationCode": "ALMACEN-001",
+          "title": "ALMACEN-001"
+        }
+      ]
+    },
+    {
+      "id": "68bde4ff-c8b0-44f8-bce6-7f2319e6b3bf",
+      "name": "Apartamentos",
+      "slug": "apartamentos",
+      "departments": [
+        {
+          "id": "0b097d09-9134-4743-97a4-3ea34fe4e186",
+          "name": "Montevideo",
+          "slug": "montevideo"
+        }
+      ],
+      "locations": [
+        {
+          "id": "993b4285-ac88-4df2-a531-7a98daba9552",
+          "categorySlug": "apartamentos",
+          "locationCode": "APARTAMENTO-001",
+          "title": "APARTAMENTO-001"
+        },
+        {
+          "id": "c17a54d2-11b3-47d4-98e7-29be58d227d3",
+          "categorySlug": "apartamentos",
+          "locationCode": "APARTAMENTO-002",
+          "title": "APARTAMENTO-002"
+        },
+        {
+          "id": "ee25cbfb-59df-445d-a15e-a390e6ca0fee",
+          "categorySlug": "apartamentos",
+          "locationCode": "APARTAMENTO-003",
+          "title": "APARTAMENTO-003"
+        },
+        {
+          "id": "57f2556e-a311-41d8-aaf7-3e90d514f50a",
+          "categorySlug": "apartamentos",
+          "locationCode": "APARTAMENTO-004",
+          "title": "APARTAMENTO-004"
+        }
+      ]
+    },
+    {
+      "id": "e0937b3b-ba06-4f58-b058-1e9cdde9e376",
+      "name": "Bares",
+      "slug": "bares",
+      "departments": [
+        {
+          "id": "0b097d09-9134-4743-97a4-3ea34fe4e186",
+          "name": "Montevideo",
+          "slug": "montevideo"
+        }
+      ],
+      "locations": [
+        {
+          "id": "6f4e2e88-fda0-4d2c-88de-453a3dd89b97",
+          "categorySlug": "bares",
+          "locationCode": "BAR-001",
+          "title": "BAR-001"
+        },
+        {
+          "id": "21d9672a-4f0b-49ce-bef2-c58c6d4fb8df",
+          "categorySlug": "bares",
+          "locationCode": "BAR-002",
+          "title": "BAR-002"
+        },
+        {
+          "id": "9a1abf5b-2bf8-4008-a688-fafb31db7707",
+          "categorySlug": "bares",
+          "locationCode": "BAR-003",
+          "title": "BAR-003"
+        },
+        {
+          "id": "90992c17-82a1-4209-bee4-fdd0272ccd16",
+          "categorySlug": "bares",
+          "locationCode": "BAR-004",
+          "title": "BAR-004"
+        },
+        {
+          "id": "c11016c7-5179-499b-b358-6aab158b653e",
+          "categorySlug": "bares",
+          "locationCode": "BAR-005",
+          "title": "BAR-005"
+        }
+      ]
+    },
+    {
+      "id": "75edfeb8-b336-4723-b1f9-85bcf3830199",
+      "name": "Bibliotecas",
+      "slug": "bibliotecas",
+      "departments": [
+        {
+          "id": "0b097d09-9134-4743-97a4-3ea34fe4e186",
+          "name": "Montevideo",
+          "slug": "montevideo"
+        }
+      ],
+      "locations": [
+        {
+          "id": "6b3ac4e7-a621-4c54-a5ad-b662252871fd",
+          "categorySlug": "bibliotecas",
+          "locationCode": "BIBLIOTECA-001",
+          "title": "BIBLIOTECA-001"
+        }
+      ]
+    },
+    {
+      "id": "cc6719c3-476f-4385-9b04-84a2226ecfc7",
+      "name": "Cafeterias",
+      "slug": "cafeterias",
+      "departments": [
+        {
+          "id": "0b097d09-9134-4743-97a4-3ea34fe4e186",
+          "name": "Montevideo",
+          "slug": "montevideo"
+        }
+      ],
+      "locations": [
+        {
+          "id": "c1dcd363-660c-4c14-9fcb-bf606ae67b75",
+          "categorySlug": "cafeterias",
+          "locationCode": "CAFETERIA-001",
+          "title": "CAFETERIA-001"
+        },
+        {
+          "id": "d4e92fe8-31c0-48dc-9314-a99451f397a1",
+          "categorySlug": "cafeterias",
+          "locationCode": "CAFETERIA-002",
+          "title": "CAFETERIA-002"
+        },
+        {
+          "id": "c81d4699-7b50-4861-8249-e264559b5c1a",
+          "categorySlug": "cafeterias",
+          "locationCode": "CAFETERIA-003",
+          "title": "CAFETERIA-003"
+        },
+        {
+          "id": "705be74b-9c0d-4d17-9eb4-d3df52824262",
+          "categorySlug": "cafeterias",
+          "locationCode": "CAFETERIA-004",
+          "title": "CAFETERIA-004"
+        }
+      ]
+    }
+  ],
+  "locations": [
+    {
+      "id": "f5f02500-ae88-47f3-9ac0-1ca54da0fb91",
+      "categorySlug": "almacenes",
+      "locationCode": "ALMACEN-001",
+      "title": "ALMACEN-001"
+    },
+    {
+      "id": "993b4285-ac88-4df2-a531-7a98daba9552",
+      "categorySlug": "apartamentos",
+      "locationCode": "APARTAMENTO-001",
+      "title": "APARTAMENTO-001"
+    },
+    {
+      "id": "c17a54d2-11b3-47d4-98e7-29be58d227d3",
+      "categorySlug": "apartamentos",
+      "locationCode": "APARTAMENTO-002",
+      "title": "APARTAMENTO-002"
+    },
+    {
+      "id": "ee25cbfb-59df-445d-a15e-a390e6ca0fee",
+      "categorySlug": "apartamentos",
+      "locationCode": "APARTAMENTO-003",
+      "title": "APARTAMENTO-003"
+    },
+    {
+      "id": "57f2556e-a311-41d8-aaf7-3e90d514f50a",
+      "categorySlug": "apartamentos",
+      "locationCode": "APARTAMENTO-004",
+      "title": "APARTAMENTO-004"
+    },
+    {
+      "id": "6f4e2e88-fda0-4d2c-88de-453a3dd89b97",
+      "categorySlug": "bares",
+      "locationCode": "BAR-001",
+      "title": "BAR-001"
+    },
+    {
+      "id": "21d9672a-4f0b-49ce-bef2-c58c6d4fb8df",
+      "categorySlug": "bares",
+      "locationCode": "BAR-002",
+      "title": "BAR-002"
+    },
+    {
+      "id": "9a1abf5b-2bf8-4008-a688-fafb31db7707",
+      "categorySlug": "bares",
+      "locationCode": "BAR-003",
+      "title": "BAR-003"
+    },
+    {
+      "id": "90992c17-82a1-4209-bee4-fdd0272ccd16",
+      "categorySlug": "bares",
+      "locationCode": "BAR-004",
+      "title": "BAR-004"
+    },
+    {
+      "id": "c11016c7-5179-499b-b358-6aab158b653e",
+      "categorySlug": "bares",
+      "locationCode": "BAR-005",
+      "title": "BAR-005"
+    },
+    {
+      "id": "6b3ac4e7-a621-4c54-a5ad-b662252871fd",
+      "categorySlug": "bibliotecas",
+      "locationCode": "BIBLIOTECA-001",
+      "title": "BIBLIOTECA-001"
+    },
+    {
+      "id": "c1dcd363-660c-4c14-9fcb-bf606ae67b75",
+      "categorySlug": "cafeterias",
+      "locationCode": "CAFETERIA-001",
+      "title": "CAFETERIA-001"
+    },
+    {
+      "id": "d4e92fe8-31c0-48dc-9314-a99451f397a1",
+      "categorySlug": "cafeterias",
+      "locationCode": "CAFETERIA-002",
+      "title": "CAFETERIA-002"
+    },
+    {
+      "id": "c81d4699-7b50-4861-8249-e264559b5c1a",
+      "categorySlug": "cafeterias",
+      "locationCode": "CAFETERIA-003",
+      "title": "CAFETERIA-003"
+    },
+    {
+      "id": "705be74b-9c0d-4d17-9eb4-d3df52824262",
+      "categorySlug": "cafeterias",
+      "locationCode": "CAFETERIA-004",
+      "title": "CAFETERIA-004"
+    }
+  ]
+}

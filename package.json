@@ -9,6 +9,12 @@
     "build:sitemap": "node scripts/generate-sitemap.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:load:smoke": "k6 run load-tests/smoke.js",
+    "test:load:normal": "k6 run load-tests/normal.js",
+    "test:load:prod-capacity-no-ai": "k6 run load-tests/prod-capacity-no-ai.js",
+    "test:load:prod-moderate": "k6 run load-tests/prod-moderate.js",
+    "test:load:stress": "k6 run load-tests/stress.js",
+    "test:load:spike": "k6 run load-tests/spike.js",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"

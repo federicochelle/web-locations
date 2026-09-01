@@ -198,10 +198,51 @@ function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[], renderY = 18) {
   return renderY + logosLayout.maxRenderedHeight
 }
 
+function getProductLogoLayout(logo: PreparedCoverLogo | null) {
+  if (!logo) {
+    return null
+  }
+
+  const maxLogoWidth = 56
+  const maxLogoHeight = 16
+  const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
+
+  return {
+    ...logo,
+    renderWidth: logo.width * scale,
+    renderHeight: logo.height * scale,
+  }
+}
+
+function addProductLogo(
+  doc: jsPDF,
+  logo: ReturnType<typeof getProductLogoLayout>,
+  renderY: number,
+) {
+  if (!logo) {
+    return renderY
+  }
+
+  const pageWidth = doc.internal.pageSize.getWidth()
+  doc.addImage(
+    logo.dataUrl,
+    logo.format,
+    (pageWidth - logo.renderWidth) / 2,
+    renderY,
+    logo.renderWidth,
+    logo.renderHeight,
+    undefined,
+    'FAST',
+  )
+
+  return renderY + logo.renderHeight
+}
+
 function addCoverPage(
   doc: jsPDF,
   payload: SelectionPdfPayload,
   logos: PreparedCoverLogo[],
+  productLogo: PreparedCoverLogo | null,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -215,12 +256,19 @@ function addCoverPage(
     ['Productora', payload.project.productionCompany],
   ] as const
   const hasProductionCompany = payload.project.productionCompany.trim().length > 0
-  const detailsBlockHeight = details.reduce((totalHeight, [, value]) => {
+  const productLogoLayout = getProductLogoLayout(productLogo)
+  const detailsBlockHeight = details.reduce((totalHeight, [, value], index) => {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(18)
     const lines = doc.splitTextToSize(value || '—', maxTextWidth)
 
-    return totalHeight + 8 + lines.length * 8 + 8
+    return (
+      totalHeight +
+      (index === 0 && productLogoLayout ? productLogoLayout.renderHeight + 5 : 0) +
+      8 +
+      lines.length * 8 +
+      8
+    )
   }, 0)
 
   if (hasProductionCompany) {
@@ -242,7 +290,11 @@ function addCoverPage(
   }
 
   let currentY = topCardY
-  details.forEach(([label, value]) => {
+  details.forEach(([label, value], index) => {
+    if (index === 0 && productLogoLayout) {
+      currentY = addProductLogo(doc, productLogoLayout, currentY) + 5
+    }
+
     setTextColor(doc, PDF_TEXT_GOLD)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
@@ -450,6 +502,7 @@ export async function createSelectionPdf(
   let pdfCompositionDurationMs = 0
 
   const coverLogos: PreparedCoverLogo[] = []
+  let preparedProductLogo: PreparedCoverLogo | null = null
 
   try {
     const preparedLogo = await prepareImageForPdf(logoUrl, {
@@ -480,8 +533,22 @@ export async function createSelectionPdf(
     }
   }
 
+  if (payload.project.productLogoUrl) {
+    try {
+      const preparedLogo = await prepareImageForPdf(payload.project.productLogoUrl, {
+        mimeType: 'image/png',
+      })
+      preparedProductLogo = {
+        ...preparedLogo,
+        format: 'PNG',
+      }
+    } catch {
+      // Ignore product logo failures and keep generating the PDF.
+    }
+  }
+
   const coverPageStartedAt = performance.now()
-  addCoverPage(doc, payload, coverLogos)
+  addCoverPage(doc, payload, coverLogos, preparedProductLogo)
   pdfCompositionDurationMs += performance.now() - coverPageStartedAt
 
   let globalImageIndex = 0

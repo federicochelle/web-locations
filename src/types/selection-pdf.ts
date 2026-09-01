@@ -1,5 +1,6 @@
 export type SelectionPdfProject = {
   product: string
+  productLogoUrl?: string | null
   productionCompany: string
   productionCompanyId?: string | null
   productionCompanyLogoUrl?: string | null
@@ -69,8 +70,10 @@ export type SelectionPdfExportResult = {
 
 export type SelectionPdfFormValues = {
   product: string
+  productLogoUrl: string | null
   productionCompany: string
   productionCompanyId: string | null
+  productionCompanyLogoUrl: string | null
   tentativeStartDate: string
   tentativeEndDate: string
   message: string

@@ -31,8 +31,10 @@ type RequestProjectLocationRow = {
 type RequestProjectRow = {
   id: string
   title?: string | null
+  product_logo_url?: string | null
   production_company?: string | null
   production_company_id?: string | null
+  production_company_logo_url?: string | null
   message?: string | null
   status?: RequestProjectStatus | null
   has_unsubmitted_changes?: boolean | null
@@ -129,8 +131,10 @@ type RequestProjectLocationRelationRow = {
 
 type CreateRequestProjectInput = {
   title: string
+  productLogoUrl?: string | null
   productionCompany?: string | null
   productionCompanyId?: string | null
+  productionCompanyLogoUrl?: string | null
   message: string | null
   tentativeStartDate?: string | null
   tentativeEndDate?: string | null
@@ -138,8 +142,10 @@ type CreateRequestProjectInput = {
 
 type UpdateRequestProjectInput = {
   title: string
+  productLogoUrl?: string | null
   productionCompany?: string | null
   productionCompanyId?: string | null
+  productionCompanyLogoUrl?: string | null
   message: string | null
   tentativeStartDate: string | null
   tentativeEndDate: string | null
@@ -185,8 +191,10 @@ const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 const REQUEST_PROJECT_SELECT = `
   id,
   title,
+  product_logo_url,
   production_company,
   production_company_id,
+  production_company_logo_url,
   message,
   status,
   has_unsubmitted_changes,
@@ -365,8 +373,10 @@ function mapRequestProject(row: RequestProjectRow): RequestProject {
   return {
     id: row.id,
     title: row.title?.trim() || 'Solicitud sin titulo',
+    productLogoUrl: row.product_logo_url?.trim() || null,
     productionCompany: row.production_company?.trim() || null,
     productionCompanyId: row.production_company_id?.trim() || null,
+    productionCompanyLogoUrl: row.production_company_logo_url?.trim() || null,
     message: row.message?.trim() || null,
     status: row.status ?? 'draft',
     hasUnsubmittedChanges: row.has_unsubmitted_changes ?? false,
@@ -817,8 +827,10 @@ export async function getRequestProjectById(id: string) {
 
 export async function createRequestProject({
   title,
+  productLogoUrl = null,
   productionCompany = null,
   productionCompanyId = null,
+  productionCompanyLogoUrl = null,
   message,
   tentativeStartDate = null,
   tentativeEndDate = null,
@@ -830,8 +842,10 @@ export async function createRequestProject({
     .insert({
       user_id: userId,
       title: title.trim(),
+      product_logo_url: productLogoUrl?.trim() || null,
       production_company: productionCompany?.trim() || null,
       production_company_id: productionCompanyId,
+      production_company_logo_url: productionCompanyLogoUrl?.trim() || null,
       message: message?.trim() || null,
       tentative_start_date: tentativeStartDate,
       tentative_end_date: tentativeEndDate,
@@ -850,8 +864,10 @@ export async function updateRequestProject(
   id: string,
   {
     title,
+    productLogoUrl = null,
     productionCompany = null,
     productionCompanyId = null,
+    productionCompanyLogoUrl = null,
     message,
     tentativeStartDate,
     tentativeEndDate,
@@ -861,8 +877,10 @@ export async function updateRequestProject(
     .from('request_projects')
     .update({
       title: title.trim(),
+      product_logo_url: productLogoUrl?.trim() || null,
       production_company: productionCompany?.trim() || null,
       production_company_id: productionCompanyId,
+      production_company_logo_url: productionCompanyLogoUrl?.trim() || null,
       message: message?.trim() || null,
       tentative_start_date: tentativeStartDate,
       tentative_end_date: tentativeEndDate,
@@ -944,6 +962,7 @@ async function finalizeRequestProjectSubmission({
     p_title: payload.project.product,
     p_production_company: payload.project.productionCompany || null,
     p_production_company_id: payload.project.productionCompanyId || null,
+    p_production_company_logo_url: payload.project.productionCompanyLogoUrl || null,
     p_message: payload.project.message || null,
     p_tentative_start_date: payload.project.tentativeStartDate || null,
     p_tentative_end_date: payload.project.tentativeEndDate || null,
@@ -1112,6 +1131,7 @@ export async function ensureInitialRequestProjectVersion(
     p_title: payload.project.product,
     p_production_company: payload.project.productionCompany || null,
     p_production_company_id: payload.project.productionCompanyId || null,
+    p_production_company_logo_url: payload.project.productionCompanyLogoUrl || null,
     p_message: payload.project.message || null,
     p_tentative_start_date: payload.project.tentativeStartDate || null,
     p_tentative_end_date: payload.project.tentativeEndDate || null,
