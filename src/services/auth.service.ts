@@ -160,7 +160,7 @@ function mapProfile(row: ProfileRow): UserProfile {
   }
 }
 
-async function resolveMyProductionCompany(row: ProfileRow) {
+async function resolveMyProductionCompany(row: Pick<ProfileRow, 'production_company_id'>) {
   const productionCompanyId = row.production_company_id?.trim() || null
 
   if (!productionCompanyId) {
@@ -345,17 +345,21 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     .from('profiles')
     .select('id, user_id, full_name, company_name, production_company_id, phone, role, status')
     .eq('user_id', userId)
-    .single()
+    .maybeSingle()
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
-    }
+  if (error) throw toAppError(error)
 
-    throw new Error(error.message)
+  // Only a successful query with no visible row is missing. Query errors stay errors.
+  return data ? mapProfile(data satisfies ProfileRow) : null
+}
+
+export async function getProfileProductionCompany(profile: UserProfile): Promise<UserProfile> {
+  const company = await resolveMyProductionCompany({ production_company_id: profile.productionCompanyId })
+  return {
+    ...profile,
+    productionCompanyName: company?.name ?? null,
+    productionCompanyLogoUrl: company?.logoUrl ?? null,
   }
-
-  return await mapProfileWithProductionCompany(data satisfies ProfileRow)
 }
 
 export async function updateUserProfile(

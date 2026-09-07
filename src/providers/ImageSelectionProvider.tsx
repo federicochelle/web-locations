@@ -108,7 +108,9 @@ export const ImageSelectionContext = createContext<ImageSelectionContextValue | 
 export function ImageSelectionProvider({
   children,
 }: ImageSelectionProviderProps) {
-  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { canUsePrivateFeatures, user, loading: authLoading } = useAuth()
+  const privateOwnerRef = useRef<string | undefined>(undefined)
+  privateOwnerRef.current = canUsePrivateFeatures ? user?.id : undefined
   const initialSelectionCache = useMemo(() => restoreImageSelectionCache(), [])
   const initialActiveProjectId = useMemo(
     () => resolveContextProjectId(restoreSelectionActiveContext()),
@@ -164,6 +166,8 @@ export function ImageSelectionProvider({
   }, [])
 
   const hydrateProjectSelection = useCallback(async (projectId: string) => {
+    const owner = privateOwnerRef.current
+    if (!owner) return
     const requestId = hydrationRequestIdRef.current + 1
     const selectionVersionAtRequestStart =
       projectSelectionVersionsRef.current[projectId] ?? 0
@@ -174,6 +178,7 @@ export function ImageSelectionProvider({
       const nextSelection = await fetchProjectSelectionImages(projectId)
 
       if (
+        privateOwnerRef.current !== owner ||
         hydrationRequestIdRef.current !== requestId ||
         activeProjectIdRef.current !== projectId ||
         (projectSelectionVersionsRef.current[projectId] ?? 0) !== selectionVersionAtRequestStart
@@ -228,7 +233,7 @@ export function ImageSelectionProvider({
     const shouldHydrate =
       (options.hydrate ?? Boolean(normalizedProjectId)) &&
       !authLoading &&
-      isAuthenticated
+      canUsePrivateFeatures
     const shouldPersist = options.persist ?? true
 
     hydrationRequestIdRef.current += 1
@@ -261,7 +266,7 @@ export function ImageSelectionProvider({
     if (shouldHydrate) {
       void hydrateProjectSelection(normalizedProjectId)
     }
-  }, [authLoading, hydrateProjectSelection, isAuthenticated])
+  }, [authLoading, hydrateProjectSelection, canUsePrivateFeatures])
 
   useEffect(() => {
     function handleSelectionActiveContextChange(event: Event) {
@@ -308,15 +313,16 @@ export function ImageSelectionProvider({
   }, [setActiveProjectContext])
 
   useEffect(() => {
-    if (!initialActiveProjectId || authLoading || !isAuthenticated) {
+    if (!initialActiveProjectId || authLoading || !canUsePrivateFeatures) {
       return
     }
 
     void hydrateProjectSelection(initialActiveProjectId)
-  }, [authLoading, hydrateProjectSelection, initialActiveProjectId, isAuthenticated])
+  }, [authLoading, hydrateProjectSelection, initialActiveProjectId, canUsePrivateFeatures])
 
   useEffect(() => {
-    if (authLoading || isAuthenticated) {
+    if (!canUsePrivateFeatures) setIsDrawerOpen(false)
+    if (authLoading || canUsePrivateFeatures) {
       return
     }
 
@@ -332,7 +338,7 @@ export function ImageSelectionProvider({
     if (restoreSelectionActiveContext()?.mode === 'project') {
       persistSelectionActiveContext({ mode: 'new' })
     }
-  }, [authLoading, isAuthenticated])
+  }, [authLoading, canUsePrivateFeatures])
 
   const addImage = useCallback((image: SelectedLocationImage) => {
     const normalizedImage = normalizeImages([image])[0]

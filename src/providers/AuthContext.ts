@@ -8,10 +8,14 @@ import type {
   UserSubscription,
 } from '@/types/auth.ts'
 
+export type ProfileState = 'idle' | 'loading' | 'ready' | 'missing' | 'error'
+
 export type AuthContextValue = {
   session: Session | null
   user: User | null
   profile: UserProfile | null
+  profileState: ProfileState
+  canUsePrivateFeatures: boolean
   subscription: UserSubscription | null
   plan: SubscriptionPlan | null
   role: UserRole | null

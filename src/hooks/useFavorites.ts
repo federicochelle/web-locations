@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/hooks/useAuth.ts'
@@ -12,7 +12,10 @@ import type { PublicLocationCard } from '@/types/location.ts'
 export function useFavorites() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, loading: authLoading, user } = useAuth()
+  const { canUsePrivateFeatures, loading: authLoading, user } = useAuth()
+
+  const ownerRef = useRef<string | undefined>(undefined)
+  ownerRef.current = canUsePrivateFeatures ? user?.id : undefined
 
   const [favorites, setFavorites] = useState<PublicLocationCard[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -25,7 +28,8 @@ export function useFavorites() {
   )
 
   const refreshFavorites = useCallback(async () => {
-    if (!user) {
+    const owner = ownerRef.current
+    if (!user || !canUsePrivateFeatures) {
       setFavorites([])
       setError(null)
       setIsLoading(false)
@@ -37,17 +41,19 @@ export function useFavorites() {
       setError(null)
 
       const nextFavorites = await getFavorites(user.id)
+      if (ownerRef.current !== owner) return
       setFavorites(nextFavorites)
     } catch (loadError) {
+      if (ownerRef.current !== owner) return
       setError(
         loadError instanceof Error
           ? loadError.message
           : 'No se pudieron cargar los favoritos.',
       )
     } finally {
-      setIsLoading(false)
+      if (ownerRef.current === owner) setIsLoading(false)
     }
-  }, [user])
+  }, [user, canUsePrivateFeatures])
 
   useEffect(() => {
     if (authLoading) {
@@ -63,7 +69,7 @@ export function useFavorites() {
         return
       }
 
-      if (!isAuthenticated) {
+      if (!canUsePrivateFeatures) {
         navigate('/login', {
           state: {
             from: location,
@@ -72,10 +78,11 @@ export function useFavorites() {
         return
       }
 
-      if (!user) {
+      if (!user || !canUsePrivateFeatures) {
         return
       }
 
+      const owner = ownerRef.current
       const locationId = locationCard.id
 
       if (pendingIds.includes(locationId)) {
@@ -90,6 +97,7 @@ export function useFavorites() {
       try {
         if (isCurrentlyFavorite) {
           await removeFavorite(user.id, locationId)
+          if (ownerRef.current !== owner) return
           setFavorites((currentFavorites) =>
             currentFavorites.filter((favorite) => favorite.id !== locationId),
           )
@@ -97,6 +105,7 @@ export function useFavorites() {
         }
 
         await addFavorite(user.id, locationId)
+        if (ownerRef.current !== owner) return
 
         if ('locationCode' in locationCard) {
           setFavorites((currentFavorites) => [locationCard, ...currentFavorites])
@@ -104,6 +113,7 @@ export function useFavorites() {
           await refreshFavorites()
         }
       } catch (toggleError) {
+        if (ownerRef.current !== owner) return
         setError(
           toggleError instanceof Error
             ? toggleError.message
@@ -118,7 +128,7 @@ export function useFavorites() {
     [
       authLoading,
       favoriteIds,
-      isAuthenticated,
+      canUsePrivateFeatures,
       location,
       navigate,
       pendingIds,
