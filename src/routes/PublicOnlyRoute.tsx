@@ -1,17 +1,27 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
+import { ProfileRecovery } from '@/components/auth/ProfileRecovery.tsx'
+import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { getDefaultRouteByRole } from '@/utils/auth-routing.ts'
 
 export function PublicOnlyRoute() {
   const location = useLocation()
-  const { isAuthenticated, loading, role } = useAuth()
+  const { isAuthenticated, loading, role, profile, profileState } = useAuth()
   const isEmailConfirmationLanding =
     location.pathname === '/login' &&
     new URLSearchParams(location.search).get('confirmed') === '1'
 
   if (loading) {
-    return <Outlet />
+    return <AppLoading label="Cargando tu sesión..." />
+  }
+
+  if (isAuthenticated && (profileState === 'missing' || profileState === 'error')) {
+    return <ProfileRecovery />
+  }
+
+  if (isAuthenticated && profile?.status !== 'active') {
+    return <ProfileRecovery unavailable />
   }
 
   if (isEmailConfirmationLanding) {

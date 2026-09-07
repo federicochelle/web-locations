@@ -3,12 +3,15 @@ export type ReplayEnvelope = Parameters<ReturnType<typeof makeFetchTransport>['s
 
 export function createPrivateReplay() {
   return replayIntegration({
-    maskAllText: false,
-    maskAllInputs: false,
-    blockAllMedia: false,
+    maskAllText: true,
+    maskAllInputs: true,
+    blockAllMedia: true,
     unmask: [],
     unblock: [],
     block: [
+      'form', 'input', 'textarea', 'select', '[contenteditable]',
+      'iframe', 'canvas', '[data-private]', '[data-sentry-private]',
+      '[style*="url("]', 'a[href^="mailto:"]', 'a[href^="tel:"]',
       '[data-sentry-secret]', '[data-secret]', '[data-credentials]',
       'input[type="password"]', 'input[type="hidden"]',
       '[autocomplete="current-password"]', '[autocomplete="new-password"]',
@@ -18,7 +21,7 @@ export function createPrivateReplay() {
         `input[id*="${name}" i]`, `textarea[id*="${name}" i]`,
       ]),
     ],
-    maskAttributes: [],
+    maskAttributes: ['title', 'placeholder', 'aria-label', 'alt', 'href', 'src', 'srcset', 'value'],
     networkDetailAllowUrls: [],
     networkCaptureBodies: false,
     networkRequestHeaders: [],
@@ -31,8 +34,7 @@ export function createPrivateReplay() {
   })
 }
 
-// Preserve visual attributes, CSS and public image URLs. Scrub credentials in
-// URLs (including password recovery links), bearer tokens and JWTs before sending.
+// Scrub credentials as an additional safeguard after masking private content.
 function scrubSecrets(value: string): string {
   return value
     .replace(/([?&#](?:[^=&#\s]*(?:token|secret|password|credential|signature|api[_-]?key)[^=&#\s]*|code|key|sig)=)[^&#\s"'<>)]*/gi, '$1[redacted]')
@@ -41,17 +43,22 @@ function scrubSecrets(value: string): string {
     .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+\b/g, '[redacted]')
 }
 
+const layoutAttributes = new Set(['class', 'width', 'height', 'colspan', 'rowspan', 'type', 'rr_width', 'rr_height'])
+
 function scrubRecordingValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(scrubRecordingValue)
   if (typeof value === 'string') return scrubSecrets(value)
   if (!value || typeof value !== 'object') return value
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+    if (key === 'href') return [key, 'https://redacted.invalid/']
     if (key === 'attributes' && entry && typeof entry === 'object' && !Array.isArray(entry)) {
       // Applies to initial DOM nodes and subsequent attribute mutations alike.
       return [key, Object.fromEntries(Object.entries(entry).map(([name, attribute]) => [
         name,
-        /(?:token|secret|password|credential|authorization|api[_-]?key)/i.test(name)
-          ? '' : scrubRecordingValue(attribute),
+        attribute === null || layoutAttributes.has(name) ? scrubRecordingValue(attribute)
+          : (name === 'style' || name === '_cssText') && typeof attribute === 'string'
+            ? scrubSecrets(attribute.replace(/url\s*\([^)]*\)/gi, 'none'))
+            : '',
       ]))]
     }
     return [key, scrubRecordingValue(entry)]

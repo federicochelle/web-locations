@@ -24,7 +24,11 @@ type RequestProjectsProviderProps = {
 export function RequestProjectsProvider({
   children,
 }: RequestProjectsProviderProps) {
-  const { isAuthenticated, loading: authLoading } = useAuth()
+  const { canUsePrivateFeatures, user, loading: authLoading } = useAuth()
+  const accessKey = canUsePrivateFeatures ? user?.id : undefined
+  const accessRef = useRef(accessKey)
+  accessRef.current = accessKey
+  const projectsRequestId = useRef(0)
   const [projects, setProjects] = useState<RequestProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
@@ -43,27 +47,36 @@ export function RequestProjectsProvider({
   }, [activeEditingProjectId])
 
   const refreshProjects = useCallback(async () => {
+    const owner = accessRef.current
+    if (!owner) return
+    const requestId = ++projectsRequestId.current
     try {
       setIsLoading(true)
       setError(null)
 
       const nextProjects = await getMyRequestProjects()
+      if (accessRef.current !== owner || projectsRequestId.current !== requestId) return
       setProjects(nextProjects)
     } catch (loadError) {
+      if (accessRef.current !== owner || projectsRequestId.current !== requestId) return
       setError(getRequestProjectErrorMessage(loadError))
       setProjects([])
     } finally {
-      setHasLoadedOnce(true)
-      setIsLoading(false)
+      if (accessRef.current === owner && projectsRequestId.current === requestId) {
+        setHasLoadedOnce(true)
+        setIsLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
+    projectsRequestId.current += 1
     if (authLoading) {
+      setProjects([])
       return
     }
 
-    if (!isAuthenticated) {
+    if (!canUsePrivateFeatures) {
       setProjects([])
       setError(null)
       setHasLoadedOnce(true)
@@ -75,7 +88,7 @@ export function RequestProjectsProvider({
 
     setHasLoadedOnce(false)
     void refreshProjects()
-  }, [authLoading, isAuthenticated, refreshProjects])
+  }, [accessKey, authLoading, canUsePrivateFeatures, refreshProjects])
 
   useEffect(() => {
     if (!activeEditingProjectId) {
@@ -116,6 +129,8 @@ export function RequestProjectsProvider({
     tentativeStartDate = null,
     tentativeEndDate = null,
   }: CreateRequestProjectValues) => {
+    const owner = accessRef.current
+    if (!owner) return null
     try {
       setIsCreating(true)
       setError(null)
@@ -131,13 +146,15 @@ export function RequestProjectsProvider({
         tentativeEndDate,
       })
 
+      if (accessRef.current !== owner) return null
       setProjects((currentProjects) => [nextProject, ...currentProjects])
       return nextProject
     } catch (createError) {
+      if (accessRef.current !== owner) return null
       setError(getRequestProjectErrorMessage(createError))
       return null
     } finally {
-      setIsCreating(false)
+      if (accessRef.current === owner) setIsCreating(false)
     }
   }, [])
 
@@ -162,6 +179,8 @@ export function RequestProjectsProvider({
       tentativeEndDate,
     }: UpdateRequestProjectValues,
   ) => {
+    const owner = accessRef.current
+    if (!owner) return null
     try {
       setError(null)
 
@@ -176,6 +195,7 @@ export function RequestProjectsProvider({
         tentativeEndDate,
       })
 
+      if (accessRef.current !== owner) return null
       setProjects((currentProjects) =>
         currentProjects.map((project) =>
           project.id === projectId ? nextProject : project,
@@ -184,26 +204,31 @@ export function RequestProjectsProvider({
 
       return nextProject
     } catch (updateError) {
+      if (accessRef.current !== owner) return null
       setError(getRequestProjectErrorMessage(updateError))
       return null
     }
   }, [])
 
   const removeProject = useCallback(async (projectId: string) => {
+    const owner = accessRef.current
+    if (!owner) return false
     try {
       setDeletingProjectId(projectId)
       setError(null)
 
       await deleteRequestProject(projectId)
+      if (accessRef.current !== owner) return false
       setProjects((currentProjects) =>
         currentProjects.filter((project) => project.id !== projectId),
       )
       return true
     } catch (deleteError) {
+      if (accessRef.current !== owner) return false
       setError(getRequestProjectErrorMessage(deleteError))
       return false
     } finally {
-      setDeletingProjectId(null)
+      if (accessRef.current === owner) setDeletingProjectId(null)
     }
   }, [])
 

@@ -14,7 +14,7 @@ import logoUrl from '../../logo.webp'
 export function PublicLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, canUsePrivateFeatures } = useAuth()
   const isNotFoundRoute = location.pathname === '/404'
   const shouldShowHeaderOnMobile = isNotFoundRoute
 
@@ -56,8 +56,8 @@ export function PublicLayout() {
         <Footer />
       </div>
       <MobileBottomNavigation />
-      {!loading && isAuthenticated ? <SelectionDrawerTrigger /> : null}
-      <SelectionDrawer />
+      {canUsePrivateFeatures ? <SelectionDrawerTrigger /> : null}
+      {canUsePrivateFeatures ? <SelectionDrawer /> : null}
     </div>
   )
 }
