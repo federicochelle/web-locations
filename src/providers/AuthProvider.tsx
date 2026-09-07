@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/react'
 
 import { AuthContext } from '@/providers/AuthContext.ts'
 import type { AuthContextValue } from '@/providers/AuthContext.ts'
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     setSession(nextSession)
     setUser(nextUser)
+    Sentry.setUser(nextUser ? { id: nextUser.id } : null)
     setProfile(null)
     setSubscription(null)
     setPlan(null)
@@ -112,6 +114,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signOut = useCallback(async () => {
     await signOutFromService()
+    Sentry.setUser(null)
   }, [])
 
   useEffect(() => {
@@ -130,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (isActive) {
           setSession(null)
           setUser(null)
+          Sentry.setUser(null)
           setProfile(null)
           setSubscription(null)
           setPlan(null)
