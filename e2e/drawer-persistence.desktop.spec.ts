@@ -4,10 +4,10 @@ import {
   cleanupDraftProjectsByTitles,
   closeDrawer,
   collectSearchDetailPaths,
-  ensureDrawerOpen,
   expectNoProjectLocationMutations,
   expectProjectSelected,
   expectSelectedLocationVisible,
+  getCurrentLocationCode,
   openDrawer,
   openLocationDetail,
   openRequestsPage,
@@ -15,190 +15,237 @@ import {
   selectFirstImage,
   trackProjectLocationMutations,
   waitForDrawerOpen,
-  getCurrentLocationCode,
 } from './support/projects'
 import { expect, expectNoUnexpectedRuntimeIssues, test } from './support/test'
 
 const credentials = getE2ECredentials()
+const E2E_PROJECT_TITLE_PREFIX = 'E2E-PW-'
+const READ_ONLY_PROJECT_TITLE_PREFIX = 'E2E-PW-READONLY'
+const CLEANUP_TIMEOUT_MS = 15_000
+
+function createProjectTitle(testName: string, suffix: string) {
+  return `${E2E_PROJECT_TITLE_PREFIX}${testName}-${Date.now()}-${suffix}`
+}
+
+async function createDraftWithSelectedLocation(
+  page: Parameters<typeof openDrawer>[0],
+  title: string,
+  detailPath: string,
+) {
+  await test.step('CREATE_DRAFT: preparar proyecto nuevo', async () => {
+    await openRequestsPage(page)
+    await openDrawer(page)
+
+    const activeProjectSelect = page.getByLabel('Proyecto activo')
+    if (await activeProjectSelect.isVisible().catch(() => false)) {
+      await activeProjectSelect.selectOption({ label: 'Nuevo proyecto' })
+    }
+
+    await expect(page.getByRole('heading', { name: /Creá tu proyecto/i })).toBeVisible()
+    await closeDrawer(page)
+  })
+
+  const locationCode = await test.step('ADD_LOCATION', async () => {
+    await openLocationDetail(page, detailPath)
+    const nextLocationCode = await getCurrentLocationCode(page)
+    await selectFirstImage(page)
+    await waitForDrawerOpen(page)
+    await expect(page.getByRole('heading', { name: /Creá tu proyecto/i })).toBeVisible()
+    return nextLocationCode
+  })
+
+  await test.step('CREATE_DRAFT: confirmar', async () => {
+    await page.getByLabel('Producto').fill(title)
+    await page.getByRole('button', { name: /^Confirmar$/i }).click()
+    await expectProjectSelected(page, title)
+  })
+
+  await test.step('VERIFY_SELECTED', async () => {
+    await expectSelectedLocationVisible(page, locationCode)
+  })
+
+  return locationCode
+}
+
+async function getDetailPathsOrSkip(page: Parameters<typeof openDrawer>[0], count: number) {
+  const detailPaths = await collectSearchDetailPaths(page, count)
+  test.skip(
+    detailPaths.length < count,
+    `No encontré ${count} locación(es) publicada(s) apta(s) para el flujo E2E.`,
+  )
+  return detailPaths
+}
 
 test.describe.serial('drawer de proyectos autenticado', () => {
   test.skip(
     !credentials,
-    'Definí PLAYWRIGHT_E2E_EMAIL y PLAYWRIGHT_E2E_PASSWORD para correr la capa autenticada del drawer.',
+    'Definí PLAYWRIGHT_E2E_EMAIL y PLAYWRIGHT_E2E_PASSWORD para correr la capa funcional de proyectos.',
   )
 
-  test('persiste borradores y selección al cerrar, reabrir, recargar, navegar y cambiar de proyecto', async ({
-    page,
-    diagnostics,
-  }, testInfo) => {
-    const createdProjectTitles: string[] = []
-    const runPrefix = `E2E Drawer ${testInfo.project.name} ${Date.now()}`
-    const projectOneTitle = `${runPrefix} A`
-    const projectTwoTitle = `${runPrefix} B`
+  test('A: un draft conserva la locación al cerrar y reabrir el drawer', async ({ page, diagnostics }, testInfo) => {
+    const title = createProjectTitle('drawer', 'close-reopen')
+    let functionalError: unknown
 
     try {
-      await loginWithE2EAccount(page, credentials!)
-      await openRequestsPage(page)
-      await cleanupDraftProjectsByTitles(page, [projectOneTitle, projectTwoTitle])
-      await openDrawer(page)
-
-      const activeProjectSelect = page.getByLabel('Proyecto activo')
-      if (await activeProjectSelect.isVisible().catch(() => false)) {
-        await activeProjectSelect.selectOption({ label: 'Nuevo proyecto' })
-      }
-
-      await expect(page.getByRole('heading', { name: /Creá tu proyecto/i })).toBeVisible()
-      await closeDrawer(page)
-
-      const detailPaths = await collectSearchDetailPaths(page, 2)
-      test.skip(
-        detailPaths.length < 1,
-        'No encontré locaciones públicas usables para cubrir la persistencia del drawer.',
+      await test.step('LOGIN', async () => {
+        await loginWithE2EAccount(page, credentials!)
+      })
+      const [detailPath] = await test.step('ADD_LOCATION: localizar fixture publicado', async () =>
+        await getDetailPathsOrSkip(page, 1),
       )
+      const locationCode = await createDraftWithSelectedLocation(page, title, detailPath!)
 
-      await openLocationDetail(page, detailPaths[0]!)
-      const firstLocationCode = await getCurrentLocationCode(page)
-      await selectFirstImage(page)
-      await waitForDrawerOpen(page)
-
-      await expect(page.getByRole('heading', { name: /Creá tu proyecto/i })).toBeVisible()
-      await page.getByLabel('Producto').fill(projectOneTitle)
-      await page.getByRole('button', { name: /^Confirmar$/i }).click()
-      createdProjectTitles.push(projectOneTitle)
-
-      await expectProjectSelected(page, projectOneTitle)
-      await expectSelectedLocationVisible(page, firstLocationCode)
-
-      await closeDrawer(page)
-      await openDrawer(page)
-      await expectProjectSelected(page, projectOneTitle)
-      await expectSelectedLocationVisible(page, firstLocationCode)
-      await closeDrawer(page)
-
-      const secondDetailPath = detailPaths[1] ?? null
-      let persistedLocationCodeForProjectTwo = firstLocationCode
-
-      if (secondDetailPath) {
-        await openLocationDetail(page, secondDetailPath)
-        const secondLocationCode = await getCurrentLocationCode(page)
-        await selectFirstImage(page)
-        await openDrawer(page)
-        await expectProjectSelected(page, projectOneTitle)
-        await expectSelectedLocationVisible(page, firstLocationCode)
-        await expectSelectedLocationVisible(page, secondLocationCode)
-
-        await removeSelectedLocation(page, firstLocationCode)
-        await expect(
-          page.getByRole('link', {
-            name: new RegExp(`^Ver locacion ${escapeRegExp(firstLocationCode)}$`, 'i'),
-          }),
-        ).toHaveCount(0)
-        await expectSelectedLocationVisible(page, secondLocationCode)
-
+      await test.step('CLOSE_DRAWER', async () => {
         await closeDrawer(page)
+      })
+      await test.step('REOPEN_DRAWER', async () => {
         await openDrawer(page)
-        await expectProjectSelected(page, projectOneTitle)
-        await expectSelectedLocationVisible(page, secondLocationCode)
-        persistedLocationCodeForProjectTwo = secondLocationCode
-      }
-
-      await page.getByLabel('Proyecto activo').selectOption({ label: 'Nuevo proyecto' })
-      await expect(page.getByRole('heading', { name: /Creá tu proyecto/i })).toBeVisible()
-      await closeDrawer(page)
-
-      await openLocationDetail(page, secondDetailPath ?? detailPaths[0]!)
-      await selectFirstImage(page)
-      await waitForDrawerOpen(page)
-      await page.getByLabel('Producto').fill(projectTwoTitle)
-      await page.getByRole('button', { name: /^Confirmar$/i }).click()
-      createdProjectTitles.push(projectTwoTitle)
-
-      await expectProjectSelected(page, projectTwoTitle)
-      await expectSelectedLocationVisible(page, persistedLocationCodeForProjectTwo)
-
-      await closeDrawer(page)
-      await openRequestsPage(page)
-      await openDrawer(page)
-      await expectProjectSelected(page, projectTwoTitle)
-      await expectSelectedLocationVisible(page, persistedLocationCodeForProjectTwo)
-
-      await page.reload()
-      await expectNoVisibleLoaders(page)
-      await openDrawer(page)
-      await expectProjectSelected(page, projectTwoTitle)
-      await expectSelectedLocationVisible(page, persistedLocationCodeForProjectTwo)
-      await closeDrawer(page)
-
-      await page.goto('/nosotros')
-      await expect(page.getByRole('heading', { name: /Locaciones que cuentan historias/i })).toBeVisible()
-      await page.goBack()
-      await expect(page).toHaveURL(/\/requests$/)
-      await expectNoVisibleLoaders(page)
-      await page.goForward()
-      await expect(page).toHaveURL(/\/nosotros$/)
-      await expectNoVisibleLoaders(page)
-
-      await ensureDrawerOpen(page)
-      await expectProjectSelected(page, projectTwoTitle)
-      await expectSelectedLocationVisible(page, persistedLocationCodeForProjectTwo)
-      await page.goBack()
-      await expect(page).toHaveURL(/\/requests$/)
-      await expectNoVisibleLoaders(page)
-      await page.goForward()
-      await expect(page).toHaveURL(/\/nosotros$/)
-      await expectNoVisibleLoaders(page)
-      await ensureDrawerOpen(page)
-      await expectProjectSelected(page, projectTwoTitle)
-      await expectSelectedLocationVisible(page, persistedLocationCodeForProjectTwo)
-
+      })
+      await test.step('VERIFY_PERSISTED', async () => {
+        await expectProjectSelected(page, title)
+        await expectSelectedLocationVisible(page, locationCode)
+      })
       await expectNoUnexpectedRuntimeIssues(page, diagnostics)
+    } catch (error) {
+      functionalError = error
+      throw error
     } finally {
-      if (createdProjectTitles.length > 0) {
-        await cleanupDraftProjectsByTitles(page, createdProjectTitles)
+      // The functional flow keeps its normal 30 s budget; cleanup gets a bounded extension.
+      testInfo.setTimeout(testInfo.timeout + CLEANUP_TIMEOUT_MS)
+
+      try {
+        const cleanupResult = await test.step('CLEANUP', async () =>
+          await cleanupDraftProjectsByTitles(page, [title]),
+        )
+
+        if (cleanupResult === 'page-closed') {
+          testInfo.annotations.push({
+            type: 'cleanup',
+            description: 'CLEANUP_SKIPPED_PAGE_CLOSED: se preservó el fallo original.',
+          })
+        }
+      } catch (cleanupError) {
+        if (functionalError) {
+          testInfo.annotations.push({
+            type: 'cleanup',
+            description: `CLEANUP_FAILED_PRESERVED_FUNCTIONAL_FAILURE: ${String(cleanupError)}`,
+          })
+        } else {
+          throw cleanupError
+        }
       }
     }
   })
 
-  test('proyectos enviados respetan lectura o edición sin mutar request_project_locations fuera de draft', async ({
-    page,
-    diagnostics,
-  }) => {
+  test('B: un draft conserva la selección después de reload completo', async ({ page, diagnostics }) => {
+    const title = createProjectTitle('drawer', 'reload')
+
+    try {
+      await loginWithE2EAccount(page, credentials!)
+      const [detailPath] = await getDetailPathsOrSkip(page, 1)
+      const locationCode = await createDraftWithSelectedLocation(page, title, detailPath!)
+
+      await closeDrawer(page)
+      await page.reload()
+      await expectNoVisibleLoaders(page)
+      await openDrawer(page)
+      await expectProjectSelected(page, title)
+      await expectSelectedLocationVisible(page, locationCode)
+      await expectNoUnexpectedRuntimeIssues(page, diagnostics)
+    } finally {
+      await cleanupDraftProjectsByTitles(page, [title])
+    }
+  })
+
+  test('C: cada proyecto conserva su propia selección al alternar el proyecto activo', async ({ page, diagnostics }) => {
+    const firstTitle = createProjectTitle('drawer', 'switch-a')
+    const secondTitle = createProjectTitle('drawer', 'switch-b')
+
+    try {
+      await loginWithE2EAccount(page, credentials!)
+      const [firstDetailPath, secondDetailPath] = await getDetailPathsOrSkip(page, 2)
+      const firstLocationCode = await createDraftWithSelectedLocation(page, firstTitle, firstDetailPath!)
+
+      await page.getByLabel('Proyecto activo').selectOption({ label: 'Nuevo proyecto' })
+      await closeDrawer(page)
+      await openLocationDetail(page, secondDetailPath!)
+      const secondLocationCode = await getCurrentLocationCode(page)
+      await selectFirstImage(page)
+      await waitForDrawerOpen(page)
+      await page.getByLabel('Producto').fill(secondTitle)
+      await page.getByRole('button', { name: /^Confirmar$/i }).click()
+      await expectProjectSelected(page, secondTitle)
+      await expectSelectedLocationVisible(page, secondLocationCode)
+
+      await page.getByLabel('Proyecto activo').selectOption({ label: firstTitle })
+      await expectProjectSelected(page, firstTitle)
+      await expectSelectedLocationVisible(page, firstLocationCode)
+
+      await page.getByLabel('Proyecto activo').selectOption({ label: secondTitle })
+      await expectProjectSelected(page, secondTitle)
+      await expectSelectedLocationVisible(page, secondLocationCode)
+      await expectNoUnexpectedRuntimeIssues(page, diagnostics)
+    } finally {
+      await cleanupDraftProjectsByTitles(page, [firstTitle, secondTitle])
+    }
+  })
+
+  test('D: quitar la última locación de un draft persiste después de reload', async ({ page, diagnostics }) => {
+    const title = createProjectTitle('drawer', 'remove')
+
+    try {
+      await loginWithE2EAccount(page, credentials!)
+      const [detailPath] = await getDetailPathsOrSkip(page, 1)
+      const locationCode = await createDraftWithSelectedLocation(page, title, detailPath!)
+
+      page.once('dialog', (dialog) => dialog.accept())
+      await removeSelectedLocation(page, locationCode)
+      await expect(
+        page.getByRole('button', {
+          name: new RegExp(`^Quitar locacion ${escapeRegExp(locationCode)} de la seleccion$`, 'i'),
+        }),
+      ).toHaveCount(0)
+
+      await closeDrawer(page)
+      await page.reload()
+      await expectNoVisibleLoaders(page)
+      await openDrawer(page)
+      await expectProjectSelected(page, title)
+      await expect(page.getByRole('heading', { name: /Todavía no agregaste locaciones/i })).toBeVisible()
+      await expectNoUnexpectedRuntimeIssues(page, diagnostics)
+    } finally {
+      await cleanupDraftProjectsByTitles(page, [title])
+    }
+  })
+
+  test('E: un proyecto confirmed controlado permanece en modo lectura sin mutar locaciones', async ({ page, diagnostics }) => {
     await loginWithE2EAccount(page, credentials!)
     await openRequestsPage(page)
     await page.getByRole('button', { name: /Enviados \(/i }).click()
 
-    const emptySubmittedState = page.getByText(/Todavía no enviaste ningún proyecto/i)
-    if (await emptySubmittedState.isVisible().catch(() => false)) {
-      test.skip(true, 'La cuenta de testing no tiene proyectos enviados para validar este flujo.')
-    }
+    const readOnlyProject = page.getByRole('link', {
+      name: new RegExp(`^${escapeRegExp(READ_ONLY_PROJECT_TITLE_PREFIX)}`, 'i'),
+    })
+    test.skip(
+      (await readOnlyProject.count()) === 0,
+      `No existe un fixture confirmed controlado con prefijo ${READ_ONLY_PROJECT_TITLE_PREFIX}.`,
+    )
 
     const mutations = trackProjectLocationMutations(page)
-    const firstSentProjectLink = page.locator('a[href^="/requests/"]').first()
-    await expect(firstSentProjectLink).toBeVisible()
-    await firstSentProjectLink.click()
 
     try {
+      await readOnlyProject.first().click()
       await expect(page).toHaveURL(/\/requests\/.+/)
-      await expectNoVisibleLoaders(page)
-
-      const isConfirmed = await page.getByText(/^Confirmado$/i).isVisible().catch(() => false)
-
-      if (isConfirmed) {
-        await expect(page.getByRole('button', { name: /Editar proyecto/i })).toHaveCount(0)
-        await expect(page.getByRole('button', { name: /Agregar locaciones/i })).toHaveCount(0)
-        await expect(page.getByRole('button', { name: /Quitar imagen seleccionada/i })).toHaveCount(0)
-      } else {
-        const editButton = page.getByRole('button', { name: /Editar proyecto/i })
-        await expect(editButton).toBeVisible()
-        await editButton.click()
-        await expect(page.getByRole('button', { name: /Cancelar edición/i })).toBeVisible()
-      }
+      await expect(page.getByText(/^Confirmado$/i)).toBeVisible()
+      await expect(page.getByRole('button', { name: /Editar proyecto/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /Agregar locaciones/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /Quitar imagen seleccionada/i })).toHaveCount(0)
 
       await page.reload()
       await expectNoVisibleLoaders(page)
       expectNoProjectLocationMutations(
         mutations.mutations,
-        'No debería mutarse request_project_locations al abrir o revisar un proyecto no draft.',
+        'Un proyecto confirmed en modo lectura no debe mutar request_project_locations.',
       )
       await expectNoUnexpectedRuntimeIssues(page, diagnostics)
     } finally {

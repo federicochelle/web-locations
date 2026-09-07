@@ -1,3 +1,4 @@
+import { recoverableImport } from '@/version-recovery/browser.ts'
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -44,7 +45,7 @@ function buildLocationImageAlt(location: PublicLocationDetail, index: number) {
 
 const MAX_SELECTED_IMAGES = 80
 const LocationApproxMap = lazy(async () => {
-  const module = await import('@/features/locations/components/LocationApproxMap.tsx')
+  const module = await recoverableImport(() => import('@/features/locations/components/LocationApproxMap.tsx'))
 
   return {
     default: module.LocationApproxMap,

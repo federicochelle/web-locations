@@ -1,3 +1,4 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
@@ -130,6 +131,8 @@ export function ImageSelectionProvider({
   const hydrationRequestIdRef = useRef(0)
   const pendingPersistedContextEventRef = useRef<PendingPersistedContextEvent | null>(null)
   const projectSelectionVersionsRef = useRef<Record<string, number>>({})
+
+  useCriticalState(pendingSelectionImages.length > 0 || isHydratingActiveProjectSelection || globalImages.length > 0 || Object.values(projectSelections).some(images => images.length > 0))
 
   const images = activeProjectId
     ? projectSelections[activeProjectId] ?? []

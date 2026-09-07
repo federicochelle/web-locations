@@ -1,3 +1,4 @@
+import { recoverableImport } from '@/version-recovery/browser.ts'
 import { supabase } from '@/lib/supabase.ts'
 import { getSession, getSessionUser } from '@/services/auth.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
@@ -13,7 +14,6 @@ import type {
   SelectionPdfProgress,
 } from '@/types/selection-pdf.ts'
 import { mapPublicLocationCard } from '@/utils/location-public.ts'
-import { createSelectionPdf } from '@/utils/selection-pdf-exporter.ts'
 
 type RequestProjectLocationRow = {
   id?: string | null
@@ -1003,6 +1003,7 @@ export async function submitRequestProjectWithOfficialPdf({
   onProgress,
   onPdfReady,
 }: SubmitRequestProjectWithOfficialPdfInput): Promise<SubmitRequestProjectWithOfficialPdfResult> {
+  const { createSelectionPdf } = await recoverableImport(() => import('@/utils/selection-pdf-exporter.ts'))
   const exportResult = await createSelectionPdf(payload, {
     onProgress,
   })

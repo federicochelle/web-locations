@@ -1,3 +1,4 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
 import { useState } from 'react'
 
 export type RequestProjectFormValues = {
@@ -31,6 +32,8 @@ export function RequestProjectForm({
 }: RequestProjectFormProps) {
   const [values, setValues] = useState<RequestProjectFormValues>(INITIAL_VALUES)
   const [validationError, setValidationError] = useState<string | null>(null)
+
+  useCriticalState(isSubmitting || Boolean(values.title || values.message))
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()

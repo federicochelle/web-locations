@@ -1,3 +1,4 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -124,6 +125,8 @@ export function LocationSubmissionPage() {
     resetItems,
     uploadImages,
   } = useSubmissionImages()
+
+  useCriticalState(isSubmitting || isUploading || submissionImages.length > 0 || JSON.stringify(values) !== JSON.stringify(INITIAL_VALUES))
 
   useEffect(() => {
     if (!submissionResult) {
