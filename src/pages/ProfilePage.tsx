@@ -1,3 +1,4 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
 import { useEffect, useState } from 'react'
 
 import submissionFooterBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (1).webp'
@@ -100,6 +101,8 @@ export function ProfilePage() {
       phone: normalizePhoneForInput(profile.phone),
     })
   }, [profile])
+
+  useCriticalState(isSubmitting || Boolean(profile && (values.fullName !== (profile.fullName ?? '') || values.phone !== normalizePhoneForInput(profile.phone) || values.companyName !== (profile.companyName ?? ''))))
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()

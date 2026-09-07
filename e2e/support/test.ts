@@ -22,11 +22,18 @@ type ConsoleIssue = {
   location: string | null
 }
 
+export type ExternalRuntimeIssue = {
+  kind: 'http-error' | 'request-failed' | 'console-error'
+  url: string
+  detail: string
+}
+
 export type RuntimeDiagnostics = {
   pageErrors: string[]
   httpErrors: HttpIssue[]
   failedRequests: FailedRequestIssue[]
   consoleErrors: ConsoleIssue[]
+  externalIssues: ExternalRuntimeIssue[]
 }
 
 const TRACKED_RESOURCE_TYPES = new Set([
@@ -41,6 +48,15 @@ const IGNORED_FAILED_REQUEST_PATTERNS = [
   /^https:\/\/fonts\.googleapis\.com\//i,
   /^https:\/\/fonts\.gstatic\.com\//i,
 ]
+
+function isCloudflareChallengeUrl(url: string) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return hostname === 'challenges.cloudflare.com' || hostname.endsWith('.challenges.cloudflare.com')
+  } catch {
+    return false
+  }
+}
 
 function shouldIgnoreFailedRequest(url: string, resourceType: string, errorText: string) {
   if (!shouldTrackRequest(url, resourceType)) {
@@ -74,6 +90,7 @@ export const test = base.extend<{ diagnostics: RuntimeDiagnostics }>({
       httpErrors: [],
       failedRequests: [],
       consoleErrors: [],
+      externalIssues: [],
     }
 
     page.on('pageerror', (error) => {
@@ -92,6 +109,15 @@ export const test = base.extend<{ diagnostics: RuntimeDiagnostics }>({
       const status = response.status()
 
       if (status >= 400) {
+        if (isCloudflareChallengeUrl(url)) {
+          diagnostics.externalIssues.push({
+            kind: 'http-error',
+            url,
+            detail: `${status} ${request.method()} ${resourceType}`,
+          })
+          return
+        }
+
         diagnostics.httpErrors.push({
           url,
           method: request.method(),
@@ -107,6 +133,15 @@ export const test = base.extend<{ diagnostics: RuntimeDiagnostics }>({
       const errorText = request.failure()?.errorText ?? 'unknown'
 
       if (shouldIgnoreFailedRequest(url, resourceType, errorText)) {
+        return
+      }
+
+      if (isCloudflareChallengeUrl(url)) {
+        diagnostics.externalIssues.push({
+          kind: 'request-failed',
+          url,
+          detail: `${request.method()} ${resourceType} (${errorText})`,
+        })
         return
       }
 
@@ -128,6 +163,15 @@ export const test = base.extend<{ diagnostics: RuntimeDiagnostics }>({
         location.url && location.lineNumber !== undefined
           ? `${location.url}:${location.lineNumber}`
           : location.url || null
+
+      if (location.url && isCloudflareChallengeUrl(location.url)) {
+        diagnostics.externalIssues.push({
+          kind: 'console-error',
+          url: location.url,
+          detail: message.text(),
+        })
+        return
+      }
 
       diagnostics.consoleErrors.push({
         type: message.type(),

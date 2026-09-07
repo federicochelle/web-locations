@@ -16,6 +16,18 @@ type ProjectLocationMutation = {
 
 const PROJECT_LOCATION_MUTATION_PATTERN =
   /request_project_locations|request_project_location_images/i
+const E2E_PROJECT_TITLE_PREFIX = 'E2E-PW-'
+const SELECTION_DRAWER_NAME = /Editor de propuesta/i
+const SELECTION_DRAWER_TRIGGER_NAME = /Abrir selección de imágenes/i
+const SELECTION_DRAWER_CLOSE_NAME = /Cerrar drawer de seleccion/i
+
+function getSelectionDrawer(page: Page) {
+  return page.getByRole('dialog', { name: SELECTION_DRAWER_NAME })
+}
+
+function getSelectionDrawerTrigger(page: Page) {
+  return page.getByRole('button', { name: SELECTION_DRAWER_TRIGGER_NAME })
+}
 
 export function trackProjectLocationMutations(page: Page) {
   const mutations: ProjectLocationMutation[] = []
@@ -59,25 +71,27 @@ export function expectNoProjectLocationMutations(
 }
 
 export async function waitForDrawerOpen(page: Page) {
-  await expect(page.locator('#selection-drawer')).toBeVisible()
+  await expect(getSelectionDrawerTrigger(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(getSelectionDrawer(page)).toBeVisible()
 }
 
 export async function waitForDrawerClosed(page: Page) {
-  await expect(page.locator('#selection-drawer')).toHaveCount(0)
+  await expect(getSelectionDrawerTrigger(page)).toHaveAttribute('aria-expanded', 'false')
+  await expect(getSelectionDrawer(page)).toHaveCount(0)
 }
 
 export async function closeDrawer(page: Page) {
-  await page.getByRole('button', { name: /Cerrar drawer de seleccion/i }).click()
+  await page.getByRole('button', { name: SELECTION_DRAWER_CLOSE_NAME }).click()
   await waitForDrawerClosed(page)
 }
 
 export async function openDrawer(page: Page) {
-  await page.getByRole('button', { name: /Abrir selección de imágenes/i }).click()
+  await getSelectionDrawerTrigger(page).click()
   await waitForDrawerOpen(page)
 }
 
 export async function ensureDrawerOpen(page: Page) {
-  const drawer = page.locator('#selection-drawer')
+  const drawer = getSelectionDrawer(page)
 
   if (await drawer.isVisible().catch(() => false)) {
     return
@@ -90,35 +104,56 @@ export async function openRequestsPage(page: Page) {
   await page.goto('/requests')
   await expect(page).toHaveURL(/\/requests$/)
   await expect(page.getByRole('heading', { name: /Mis proyectos/i })).toBeVisible()
-  await expectNoVisibleLoaders(page)
+  await expect(page.getByRole('button', { name: /Borradores \(\d+\)/i })).toBeVisible()
 }
 
 export async function cleanupDraftProjectsByTitles(page: Page, titles: string[]) {
-  if (titles.length === 0) {
-    return
+  if (page.isClosed()) {
+    return 'page-closed' as const
   }
 
-  await openRequestsPage(page)
-
-  const uniqueTitles = [...new Set(titles)]
-
-  await page.getByRole('button', { name: /Borradores \(/i }).click()
-
-  for (const title of uniqueTitles) {
-    const deleteButton = page.getByRole('button', {
-      name: new RegExp(`^Eliminar borrador ${escapeRegExp(title)}$`, 'i'),
-    })
-
-    const isVisible = await deleteButton.isVisible().catch(() => false)
-
-    if (!isVisible) {
-      continue
+  try {
+    if (titles.length === 0) {
+      return 'completed' as const
     }
 
-    await deleteButton.click({ force: true })
-    await expect(page.getByRole('heading', { name: /Eliminar borrador/i })).toBeVisible()
-    await page.getByRole('button', { name: /^Eliminar$/i }).click()
-    await expect(page.getByRole('status')).toContainText(/Borrador eliminado correctamente/i)
+    await openRequestsPage(page)
+
+    const uniqueTitles = [...new Set(titles)]
+
+    for (const title of uniqueTitles) {
+      if (!title.startsWith(E2E_PROJECT_TITLE_PREFIX)) {
+        throw new Error(`El cleanup E2E rechazó un título fuera de alcance: ${title}`)
+      }
+    }
+
+    await page.getByRole('button', { name: /Borradores \(/i }).click()
+
+    for (const title of uniqueTitles) {
+      const deleteButton = page.getByRole('button', {
+        name: new RegExp(`^Eliminar borrador ${escapeRegExp(title)}$`, 'i'),
+      })
+
+      const isVisible = await deleteButton.isVisible().catch(() => false)
+
+      if (!isVisible) {
+        continue
+      }
+
+      await deleteButton.click({ force: true })
+      await expect(page.getByRole('heading', { name: /Eliminar borrador/i })).toBeVisible()
+      await page.getByRole('button', { name: /^Eliminar$/i }).click()
+      await expect(page.getByRole('status')).toContainText(/Borrador eliminado correctamente/i)
+      await expect(deleteButton).toHaveCount(0)
+    }
+
+    return 'completed' as const
+  } catch (error) {
+    if (page.isClosed()) {
+      return 'page-closed' as const
+    }
+
+    throw error
   }
 }
 
@@ -197,8 +232,8 @@ export async function getCurrentLocationCode(page: Page) {
 
 export async function expectSelectedLocationVisible(page: Page, locationCode: string) {
   await expect(
-    page.getByRole('link', {
-      name: new RegExp(`^Ver locacion ${escapeRegExp(locationCode)}$`, 'i'),
+    page.getByRole('button', {
+      name: new RegExp(`^Quitar locacion ${escapeRegExp(locationCode)} de la seleccion$`, 'i'),
     }),
   ).toBeVisible()
 }

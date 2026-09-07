@@ -1,3 +1,5 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
+import { recoverableImport } from '@/version-recovery/browser.ts'
 import {
   Suspense,
   lazy,
@@ -41,7 +43,7 @@ import {
 } from '@/utils/selection-persistence-guard.ts'
 
 const SelectionPdfFlow = lazy(() =>
-  import('@/components/selection/SelectionPdfFlow.tsx').then((module) => ({
+  recoverableImport(() => import('@/components/selection/SelectionPdfFlow.tsx')).then((module) => ({
     default: module.SelectionPdfFlow,
   })),
 )
@@ -344,6 +346,10 @@ export function SelectionDrawer() {
   const [isPreviewVisible, setIsPreviewVisible] = useState(false)
   const footerTransitionTimeoutRef = useRef<number | null>(null)
   const previewTransitionTimeoutRef = useRef<number | null>(null)
+
+  useCriticalState(isDrawerOpen || isCreating || isPdfFlowBusy || Boolean(activeEditingProjectId) ||
+    Boolean(newProjectProduct || newProjectProductionCompany || newProjectProductLogoUrl || newProjectProductionCompanyLogoUrl) ||
+    newProjectProductLogoUploadStatus === 'uploading' || newProjectProductionCompanyLogoUploadStatus === 'uploading')
 
   const groupedSelections = useMemo(
     () => groupImagesByLocation(images),

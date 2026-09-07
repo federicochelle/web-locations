@@ -1,3 +1,4 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
@@ -533,6 +534,8 @@ export function RequestDetailPage() {
   )
   const isMobileCompletionFlow =
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  useCriticalState(true) // Protect editing, autosave, uploads and PDF state until this workspace closes.
+
   const isSubmitting = isSubmittingOfficial
   const hasUnsavedChanges = useMemo(() => {
     if (!project || persistedDraftSnapshot === null) {

@@ -1,5 +1,6 @@
 import {
   expectNoVisibleLoaders,
+  reportTurnstileSmokeStatus,
   waitForSearchPageToSettle,
   waitForTurnstileToSettle,
 } from './support/app'
@@ -63,11 +64,12 @@ test('mobile login renderiza y valida formulario sin credenciales reales', async
 test('mobile postular locación carga y no muestra error inicial de anti-spam', async ({
   page,
   diagnostics,
-}) => {
+}, testInfo) => {
   await page.goto('/postular-locacion')
 
   await expect(page.getByRole('heading', { name: /Postula tu locación/i })).toBeVisible()
-  await waitForTurnstileToSettle(page)
+  const turnstileStatus = await waitForTurnstileToSettle(page, diagnostics)
+  reportTurnstileSmokeStatus(testInfo, turnstileStatus)
   await expect(page.getByText(/No pudimos cargar la verificacion anti-spam/i)).toHaveCount(0)
 
   await page.getByRole('button', { name: /Enviar postulacion/i }).click()

@@ -1,3 +1,4 @@
+import { handleModuleFailure } from '@/version-recovery/browser.ts'
 import * as Sentry from '@sentry/react'
 import { useEffect } from 'react'
 import { Link, useRouteError } from 'react-router-dom'
@@ -35,14 +36,17 @@ export function RouteErrorBoundary() {
       reportedRouteErrors.add(error)
     }
 
-    Sentry.captureException(error, {
-      tags: {
-        boundary: 'route-error-boundary',
-      },
-      extra: {
-        pathname,
-        timestamp,
-      },
+    void handleModuleFailure(error).then(handled => {
+      if (handled) return
+      Sentry.captureException(error, {
+        tags: {
+          boundary: 'route-error-boundary',
+        },
+        extra: {
+          pathname,
+          timestamp,
+        },
+      })
     })
   }, [error, pathname, timestamp])
 

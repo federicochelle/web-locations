@@ -1,4 +1,5 @@
-import { Suspense, lazy } from 'react'
+import { recoverableImport, recovery } from '@/version-recovery/browser.ts'
+import { Suspense, lazy, useEffect } from 'react'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 
 import { AuthLayout } from '@/layouts/AuthLayout.tsx'
@@ -11,95 +12,100 @@ import { PublicOnlyRoute } from '@/routes/PublicOnlyRoute.tsx'
 import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
 
 const LoginPage = lazy(() =>
-  import('@/pages/LoginPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/LoginPage.tsx')).then((module) => ({
     default: module.LoginPage,
   })),
 )
 const RegisterPage = lazy(() =>
-  import('@/pages/RegisterPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/RegisterPage.tsx')).then((module) => ({
     default: module.RegisterPage,
   })),
 )
 const ForgotPasswordPage = lazy(() =>
-  import('@/pages/ForgotPasswordPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/ForgotPasswordPage.tsx')).then((module) => ({
     default: module.ForgotPasswordPage,
   })),
 )
 const ResetPasswordPage = lazy(() =>
-  import('@/pages/ResetPasswordPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/ResetPasswordPage.tsx')).then((module) => ({
     default: module.ResetPasswordPage,
   })),
 )
 const SearchLocationsPage = lazy(() =>
-  import('@/pages/SearchLocationsPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/SearchLocationsPage.tsx')).then((module) => ({
     default: module.SearchLocationsPage,
   })),
 )
 const CategoryLocationsPage = lazy(() =>
-  import('@/pages/CategoryLocationsPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/CategoryLocationsPage.tsx')).then((module) => ({
     default: module.CategoryLocationsPage,
   })),
 )
 const TermsPage = lazy(() =>
-  import('@/pages/TermsPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/TermsPage.tsx')).then((module) => ({
     default: module.TermsPage,
   })),
 )
 const PrivacyPage = lazy(() =>
-  import('@/pages/PrivacyPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/PrivacyPage.tsx')).then((module) => ({
     default: module.PrivacyPage,
   })),
 )
 const AboutPage = lazy(() =>
-  import('@/pages/AboutPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/AboutPage.tsx')).then((module) => ({
     default: module.AboutPage,
   })),
 )
 const LocationDetailPage = lazy(() =>
-  import('@/pages/LocationDetailPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/LocationDetailPage.tsx')).then((module) => ({
     default: module.LocationDetailPage,
   })),
 )
 const LocationSubmissionPage = lazy(() =>
-  import('@/pages/LocationSubmissionPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/LocationSubmissionPage.tsx')).then((module) => ({
     default: module.LocationSubmissionPage,
   })),
 )
 const DashboardPage = lazy(() =>
-  import('@/pages/DashboardPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/DashboardPage.tsx')).then((module) => ({
     default: module.DashboardPage,
   })),
 )
 const ProfilePage = lazy(() =>
-  import('@/pages/ProfilePage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/ProfilePage.tsx')).then((module) => ({
     default: module.ProfilePage,
   })),
 )
 const FavoritesPage = lazy(() =>
-  import('@/pages/FavoritesPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/FavoritesPage.tsx')).then((module) => ({
     default: module.FavoritesPage,
   })),
 )
 const RequestsPage = lazy(() =>
-  import('@/pages/RequestsPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/RequestsPage.tsx')).then((module) => ({
     default: module.RequestsPage,
   })),
 )
 const NewRequestProjectPage = lazy(() =>
-  import('@/pages/NewRequestProjectPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/NewRequestProjectPage.tsx')).then((module) => ({
     default: module.NewRequestProjectPage,
   })),
 )
 const RequestDetailPage = lazy(() =>
-  import('@/pages/RequestDetailPage.tsx').then((module) => ({
+  recoverableImport(() => import('@/pages/RequestDetailPage.tsx')).then((module) => ({
     default: module.RequestDetailPage,
   })),
 )
+function HealthyRoute({ children }: { children: React.ReactNode }) {
+  useEffect(() => { recovery.acknowledgeHealthyRoute() }, [])
+  return children
+}
+
 function withRouteSuspense(
   element: React.ReactNode,
   fallback: React.ReactNode = <RouteLoadingFallback />,
 ) {
-  return <Suspense fallback={fallback}>{element}</Suspense>
+  return <Suspense fallback={fallback}><HealthyRoute>{element}</HealthyRoute></Suspense>
 }
 
 const router = createBrowserRouter([

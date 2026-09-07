@@ -1,3 +1,4 @@
+import { useCriticalState } from '@/version-recovery/useCriticalState.ts'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -281,6 +282,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     () => <SelectionPdfPreview payload={livePreviewPayload} hideCover />,
     [livePreviewPayload],
   )
+
+  useCriticalState(true) // The mounted PDF workspace may contain drafts, uploads or generated files.
 
   const hasSelectedImages = images.length > 0
   const isBusy = isSubmittingProposal || isLoadingModalOpen
