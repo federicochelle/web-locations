@@ -186,6 +186,14 @@ type SyncRequestProjectSelectionOptions = {
   allowEmptySelection?: boolean
 }
 
+type SyncRequestProjectSelectionRow = {
+  request_project_id?: string | null
+  status?: RequestProjectStatus | null
+  location_count?: number | string | null
+  image_count?: number | string | null
+  has_unsubmitted_changes?: boolean | null
+}
+
 const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 
 const REQUEST_PROJECT_SELECT = `
@@ -1281,156 +1289,40 @@ export async function syncRequestProjectSelection(
   images: SelectedLocationImage[],
   { allowEmptySelection = false }: SyncRequestProjectSelectionOptions = {},
 ) {
-  await getCurrentUserId()
-  const project = await getRequestProjectById(projectId)
-
   const groupedLocations = groupSelectionImagesByLocation(images)
-  const selectedLocationIds = groupedLocations.map((location) => location.locationId)
 
-  const { data: existingLocations, error: existingLocationsError } = await supabase
-    .from('request_project_locations')
-    .select('id, location_id')
-    .eq('request_project_id', projectId)
-
-  if (existingLocationsError) {
-    throw new Error(existingLocationsError.message)
-  }
-
-  const existingLocationRows = (existingLocations ?? []) as {
-    id: string
-    location_id: string | null
-  }[]
-
-  if (groupedLocations.length === 0) {
-    if (!allowEmptySelection) {
-      return
-    }
-
-    const existingLocationIds = existingLocationRows
-      .map((row) => row.location_id)
-      .filter((locationId): locationId is string => Boolean(locationId))
-
-    if (existingLocationIds.length === 0) {
-      return
-    }
-
-    const { error: clearLocationsError } = await supabase
-      .from('request_project_locations')
-      .delete()
-      .eq('request_project_id', projectId)
-      .in('location_id', existingLocationIds)
-
-    if (clearLocationsError) {
-      throw new Error(clearLocationsError.message)
-    }
-
-    if (project?.status !== 'draft') {
-      await markRequestProjectAsChanged(projectId)
-    }
-
+  if (groupedLocations.length === 0 && !allowEmptySelection) {
     return
   }
 
-  const locationIdsToRemove = existingLocationRows
-    .map((row) => row.location_id)
-    .filter((locationId): locationId is string => Boolean(locationId))
-    .filter((locationId) => !selectedLocationIds.includes(locationId))
+  const selectionPayload = groupedLocations.map((location) => ({
+    locationId: location.locationId,
+    locationCode: location.locationCode,
+    locationTitle: location.locationTitle,
+    categorySlug: location.categorySlug || null,
+    coverImageUrl: location.images[0]?.imageUrl ?? null,
+    images: location.images.map((image) => ({
+      locationImageId: image.locationImageId ?? null,
+      imageUrl: image.imageUrl,
+    })),
+  }))
 
-  if (locationIdsToRemove.length > 0) {
-    const { error: removeLocationsError } = await supabase
-      .from('request_project_locations')
-      .delete()
-      .eq('request_project_id', projectId)
-      .in('location_id', locationIdsToRemove)
-
-    if (removeLocationsError) {
-      throw new Error(removeLocationsError.message)
-    }
-  }
-
-  const { error: upsertLocationsError } = await supabase
-    .from('request_project_locations')
-    .upsert(
-      groupedLocations.map((location, index) => ({
-        request_project_id: projectId,
-        location_id: location.locationId,
-        sort_order: index,
-        location_code_snapshot: location.locationCode,
-        location_title_snapshot: location.locationTitle,
-        category_slug_snapshot: location.categorySlug || null,
-        cover_image_url_snapshot: location.images[0]?.imageUrl ?? null,
-      })),
-      {
-        onConflict: 'request_project_id,location_id',
-      },
-    )
-
-  if (upsertLocationsError) {
-    throw new Error(upsertLocationsError.message)
-  }
-
-  const { data: syncedLocations, error: syncedLocationsError } = await supabase
-    .from('request_project_locations')
-    .select('id, location_id')
-    .eq('request_project_id', projectId)
-    .in('location_id', selectedLocationIds)
-
-  if (syncedLocationsError) {
-    throw new Error(syncedLocationsError.message)
-  }
-
-  const requestProjectLocationIdByLocationId = new Map<string, string>()
-
-  for (const row of (syncedLocations ?? []) as { id: string; location_id: string | null }[]) {
-    if (!row.location_id) {
-      continue
-    }
-
-    requestProjectLocationIdByLocationId.set(row.location_id, row.id)
-  }
-
-  const requestProjectLocationIds = [...requestProjectLocationIdByLocationId.values()]
-
-  if (requestProjectLocationIds.length > 0) {
-    const { error: deleteImagesError } = await supabase
-      .from('request_project_location_images')
-      .delete()
-      .in('request_project_location_id', requestProjectLocationIds)
-
-    if (deleteImagesError) {
-      throw new Error(deleteImagesError.message)
-    }
-  }
-
-  const nextProjectImages = groupedLocations.flatMap((location) => {
-    const requestProjectLocationId = requestProjectLocationIdByLocationId.get(location.locationId)
-
-    if (!requestProjectLocationId) {
-      return []
-    }
-
-    return location.images.map((image, index) => ({
-      request_project_location_id: requestProjectLocationId,
-      location_image_id: image.locationImageId ?? null,
-      sort_order: index,
-      image_url_snapshot: image.imageUrl,
-    }))
+  const { data, error } = await supabase.rpc('sync_request_project_selection', {
+    p_request_project_id: projectId,
+    p_selection: selectionPayload,
+    p_allow_empty_selection: allowEmptySelection,
   })
 
-  if (nextProjectImages.length === 0) {
-    return
+  if (error) {
+    throw new Error(error.message)
   }
 
-  const { error: insertImagesError } = await supabase
-    .from('request_project_location_images')
-    .insert(nextProjectImages)
+  const result = (Array.isArray(data) ? data[0] : data) as
+    | SyncRequestProjectSelectionRow
+    | null
 
-  if (insertImagesError) {
-    throw new Error(insertImagesError.message)
-  }
-
-  if (project?.status !== 'draft') {
-    await markRequestProjectAsChanged(projectId)
+  if (!result?.request_project_id) {
+    throw new Error('No pudimos guardar la seleccion del proyecto.')
   }
 }
 
