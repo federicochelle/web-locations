@@ -194,6 +194,18 @@ type SyncRequestProjectSelectionRow = {
   has_unsubmitted_changes?: boolean | null
 }
 
+type SyncRequestProjectSelectionPayload = {
+  locationId: string
+  locationCode: string
+  locationTitle: string
+  categorySlug: string | null
+  coverImageUrl: string | null
+  images: {
+    locationImageId: string | null
+    imageUrl: string
+  }[]
+}
+
 const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 
 const REQUEST_PROJECT_SELECT = `
@@ -1284,6 +1296,34 @@ function groupSelectionImagesByLocation(images: SelectedLocationImage[]) {
   return [...groupedImages.values()]
 }
 
+async function syncRequestProjectSelectionPayload(
+  projectId: string,
+  selectionPayload: SyncRequestProjectSelectionPayload[],
+  allowEmptySelection: boolean,
+) {
+  if (selectionPayload.length === 0 && !allowEmptySelection) {
+    return
+  }
+
+  const { data, error } = await supabase.rpc('sync_request_project_selection', {
+    p_request_project_id: projectId,
+    p_selection: selectionPayload,
+    p_allow_empty_selection: allowEmptySelection,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const result = (Array.isArray(data) ? data[0] : data) as
+    | SyncRequestProjectSelectionRow
+    | null
+
+  if (!result?.request_project_id) {
+    throw new Error('No pudimos guardar la seleccion del proyecto.')
+  }
+}
+
 export async function syncRequestProjectSelection(
   projectId: string,
   images: SelectedLocationImage[],
@@ -1307,23 +1347,51 @@ export async function syncRequestProjectSelection(
     })),
   }))
 
-  const { data, error } = await supabase.rpc('sync_request_project_selection', {
-    p_request_project_id: projectId,
-    p_selection: selectionPayload,
-    p_allow_empty_selection: allowEmptySelection,
-  })
+  await syncRequestProjectSelectionPayload(projectId, selectionPayload, allowEmptySelection)
+}
 
-  if (error) {
-    throw new Error(error.message)
-  }
+export async function syncRequestProjectLocations(
+  projectId: string,
+  locations: RequestProjectLocation[],
+  { allowEmptySelection = false }: SyncRequestProjectSelectionOptions = {},
+) {
+  const selectionPayload = [...locations]
+    .sort((left, right) => {
+      const leftSortOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
+      const rightSortOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER
 
-  const result = (Array.isArray(data) ? data[0] : data) as
-    | SyncRequestProjectSelectionRow
-    | null
+      if (leftSortOrder !== rightSortOrder) {
+        return leftSortOrder - rightSortOrder
+      }
 
-  if (!result?.request_project_id) {
-    throw new Error('No pudimos guardar la seleccion del proyecto.')
-  }
+      return left.createdAt.localeCompare(right.createdAt)
+    })
+    .map((location) => {
+      const sortedImages = [...location.selectedImages].sort((left, right) => {
+        const leftSortOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
+        const rightSortOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER
+
+        if (leftSortOrder !== rightSortOrder) {
+          return leftSortOrder - rightSortOrder
+        }
+
+        return left.createdAt.localeCompare(right.createdAt)
+      })
+
+      return {
+        locationId: location.location.id,
+        locationCode: location.location.locationCode,
+        locationTitle: location.location.title,
+        categorySlug: location.location.categorySlug,
+        coverImageUrl: location.location.coverImageUrl ?? sortedImages[0]?.imageUrl ?? null,
+        images: sortedImages.map((image) => ({
+          locationImageId: image.locationImageId,
+          imageUrl: image.imageUrl,
+        })),
+      }
+    })
+
+  await syncRequestProjectSelectionPayload(projectId, selectionPayload, allowEmptySelection)
 }
 
 export async function syncRequestProjectPdfPayloadSnapshot(
