@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '@/hooks/useAuth.ts'
 import { getFavorites } from '@/services/favorites.service.ts'
@@ -9,6 +9,7 @@ import {
   getRequestProjectErrorMessage,
   getRequestProjectLocations,
   removeLocationFromRequestProject,
+  syncRequestProjectLocations,
   syncRequestProjectSelection,
   updateRequestProject,
 } from '@/services/request-projects.service.ts'
@@ -82,6 +83,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [persistedLocationsSnapshot, setPersistedLocationsSnapshot] = useState<string>('[]')
+  const isMutatingLocationsRef = useRef(false)
 
   const hasPendingLocationChanges = useMemo(
     () => createLocationsSnapshot(locations) !== persistedLocationsSnapshot,
@@ -282,9 +284,14 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         return 0
       }
 
+      if (isMutatingLocationsRef.current) {
+        return 0
+      }
+
       let addedCount = 0
 
       try {
+        isMutatingLocationsRef.current = true
         setIsMutatingLocations(true)
         setError(null)
 
@@ -304,44 +311,61 @@ export function useRequestProjectDetail(projectId: string | undefined) {
             )
             .filter((favorite): favorite is PublicLocationCard => Boolean(favorite))
 
-          addedCount = nextFavorites.length
+          if (nextFavorites.length === 0) {
+            return 0
+          }
 
-          setLocations((currentLocations) => {
-            const locationIdsInState = new Set(
-              currentLocations.map((location) => location.location.id),
-            )
-            const nextLocations = [...currentLocations]
-            const now = new Date().toISOString()
+          const locationIdsInState = new Set(locations.map((location) => location.location.id))
+          const nextLocations = [...locations]
+          const now = new Date().toISOString()
 
-            for (const favorite of nextFavorites) {
-              if (locationIdsInState.has(favorite.id)) {
-                continue
-              }
-
-              locationIdsInState.add(favorite.id)
-              nextLocations.push({
-                id: `editable-version:${projectId}:${favorite.id}`,
-                notes: null,
-                sortOrder: nextLocations.length,
-                createdAt: now,
-                selectedImages: [],
-                location: {
-                  id: favorite.id,
-                  slug: favorite.slug,
-                  title: favorite.title,
-                  locationCode: favorite.locationCode,
-                  categorySlug: favorite.categorySlug,
-                  categoryName: favorite.categoryName,
-                  departmentName: favorite.departmentName,
-                  zoneName: favorite.zoneName,
-                  coverImageUrl: favorite.coverImageUrl,
-                  coverImageAlt: favorite.coverImageAlt,
-                },
-              })
+          for (const favorite of nextFavorites) {
+            if (locationIdsInState.has(favorite.id)) {
+              continue
             }
 
-            return nextLocations
+            locationIdsInState.add(favorite.id)
+            nextLocations.push({
+              id: `editable-version:${projectId}:${favorite.id}`,
+              notes: null,
+              sortOrder: nextLocations.length,
+              createdAt: now,
+              selectedImages: [],
+              location: {
+                id: favorite.id,
+                slug: favorite.slug,
+                title: favorite.title,
+                locationCode: favorite.locationCode,
+                categorySlug: favorite.categorySlug,
+                categoryName: favorite.categoryName,
+                departmentName: favorite.departmentName,
+                zoneName: favorite.zoneName,
+                coverImageUrl: favorite.coverImageUrl,
+                coverImageAlt: favorite.coverImageAlt,
+              },
+            })
+          }
+
+          addedCount = nextLocations.length - locations.length
+
+          if (addedCount === 0) {
+            return 0
+          }
+
+          await syncRequestProjectLocations(projectId, nextLocations, {
+            allowEmptySelection: true,
           })
+
+          setLocations(nextLocations)
+          setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
+          setProject((currentProject) =>
+            currentProject && currentProject.status !== 'draft'
+              ? {
+                  ...currentProject,
+                  hasUnsubmittedChanges: true,
+                }
+              : currentProject,
+          )
 
           return addedCount
         }
@@ -358,8 +382,9 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         return addedCount
       } catch (addError) {
         setError(getRequestProjectErrorMessage(addError))
-        return addedCount
+        return 0
       } finally {
+        isMutatingLocationsRef.current = false
         setIsMutatingLocations(false)
       }
     },
@@ -380,7 +405,13 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         return false
       }
 
+      if (isMutatingLocationsRef.current) {
+        return false
+      }
+
       try {
+        isMutatingLocationsRef.current = true
+        setIsMutatingLocations(true)
         setRemovingLocationIds((currentIds) => [...currentIds, locationId])
         setError(null)
 
@@ -391,13 +422,30 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         await ensureVersioningBaseline()
 
         if (project?.status !== 'draft') {
-          setLocations((currentLocations) =>
-            currentLocations
-              .filter((location) => location.location.id !== locationId)
-              .map((location, index) => ({
-                ...location,
-                sortOrder: index,
-              })),
+          const nextLocations = locations
+            .filter((location) => location.location.id !== locationId)
+            .map((location, index) => ({
+              ...location,
+              sortOrder: index,
+            }))
+
+          if (nextLocations.length === locations.length) {
+            return false
+          }
+
+          await syncRequestProjectLocations(projectId, nextLocations, {
+            allowEmptySelection: true,
+          })
+
+          setLocations(nextLocations)
+          setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
+          setProject((currentProject) =>
+            currentProject && currentProject.status !== 'draft'
+              ? {
+                  ...currentProject,
+                  hasUnsubmittedChanges: true,
+                }
+              : currentProject,
           )
           return true
         }
@@ -409,17 +457,30 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setError(getRequestProjectErrorMessage(removeError))
         return false
       } finally {
+        isMutatingLocationsRef.current = false
+        setIsMutatingLocations(false)
         setRemovingLocationIds((currentIds) =>
           currentIds.filter((currentId) => currentId !== locationId),
         )
       }
     },
-    [ensureVersioningBaseline, project?.status, projectId, refreshLocations, refreshProject],
+    [
+      ensureVersioningBaseline,
+      locations,
+      project?.status,
+      projectId,
+      refreshLocations,
+      refreshProject,
+    ],
   )
 
   const removeSelectedImage = useCallback(
     async (locationId: string, imageId: string) => {
       if (!projectId) {
+        return false
+      }
+
+      if (isMutatingLocationsRef.current) {
         return false
       }
 
@@ -444,6 +505,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       const nextSelectionImages = buildSelectionImagesFromLocations(nextLocations)
 
       try {
+        isMutatingLocationsRef.current = true
         setIsMutatingLocations(true)
         setError(null)
 
@@ -454,10 +516,19 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         await ensureVersioningBaseline()
 
         if (project?.status !== 'draft') {
-          setLocations(nextLocations)
-          await syncRequestProjectSelection(projectId, nextSelectionImages, {
+          await syncRequestProjectLocations(projectId, nextLocations, {
             allowEmptySelection: true,
           })
+          setLocations(nextLocations)
+          setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
+          setProject((currentProject) =>
+            currentProject && currentProject.status !== 'draft'
+              ? {
+                  ...currentProject,
+                  hasUnsubmittedChanges: true,
+                }
+              : currentProject,
+          )
           return true
         }
 
@@ -471,6 +542,7 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setError(getRequestProjectErrorMessage(removeError))
         return false
       } finally {
+        isMutatingLocationsRef.current = false
         setIsMutatingLocations(false)
       }
     },
