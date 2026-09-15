@@ -27,7 +27,7 @@ export function Header() {
               <img
                 src={logoUrl}
                 alt="Film Locations Uruguay"
-                className="h-14 w-auto object-contain sm:h-16"
+                className="h-12 w-auto object-contain sm:h-14"
               />
             </NavLink>
           </div>
