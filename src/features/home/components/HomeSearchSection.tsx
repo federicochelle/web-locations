@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { HeroBackgroundMosaic } from '@/features/home/components/HeroBackgroundMosaic.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { getPublicDepartments } from '@/services/departments.service.ts'
 import type { Department } from '@/types/location.ts'
 
@@ -19,7 +20,6 @@ export function HomeSearchSection() {
     async function loadDepartments() {
       try {
         const nextDepartments = await getPublicDepartments()
-        console.log('[hero-departments]', nextDepartments)
 
         if (!isMounted) {
           return
@@ -27,11 +27,14 @@ export function HomeSearchSection() {
 
         setDepartments(nextDepartments)
       } catch (error) {
-        console.error('[hero-departments-error]', error)
         if (!isMounted) {
           return
         }
 
+        reportOperationalError(error, {
+          action: 'home.departments.load',
+          table: 'departments',
+        })
         setDepartments([])
       }
     }

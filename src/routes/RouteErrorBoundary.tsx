@@ -1,5 +1,5 @@
 import { handleModuleFailure } from '@/version-recovery/browser.ts'
-import * as Sentry from '@sentry/react'
+import { reportOperationalError, setSentryRouteContext } from '@/sentry-observability.ts'
 import { useEffect } from 'react'
 import { Link, useRouteError } from 'react-router-dom'
 
@@ -38,11 +38,12 @@ export function RouteErrorBoundary() {
 
     void handleModuleFailure(error).then(handled => {
       if (handled) return
-      Sentry.captureException(error, {
-        tags: {
-          boundary: 'route-error-boundary',
-        },
+      setSentryRouteContext(pathname)
+      reportOperationalError(error, {
+        action: 'route.error_boundary',
+        status: 'render-error',
         extra: {
+          boundary: 'route-error-boundary',
           pathname,
           timestamp,
         },

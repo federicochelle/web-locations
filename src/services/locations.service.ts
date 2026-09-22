@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import type {
   PublicLocationCard,
   PublicLocationDetail,
@@ -197,6 +198,14 @@ export async function enrichLocationsWithCategorySlugs(
     .in('name', categoryNames)
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'locations.enrich_categories',
+      table: 'categories',
+      errorCode: error.code,
+      extra: {
+        categoryCount: categoryNames.length,
+      },
+    })
     throw new Error(error.message)
   }
 
@@ -250,6 +259,20 @@ async function getLocationsFromRpc({
   })
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'locations.search_public_locations_v2',
+      rpc: 'search_public_locations_v2',
+      errorCode: error.code,
+      extra: {
+        categorySlug,
+        departmentSlug,
+        hasQuery: Boolean(query),
+        featureCount: featureSlugs.length,
+        tagCount: tagSlugs.length,
+        limit,
+        offset,
+      },
+    })
     throw new Error(error.message)
   }
 
@@ -298,6 +321,14 @@ export async function getLocations(
         }
       }
 
+      reportOperationalError(categoryError, {
+        action: 'locations.category_lookup',
+        table: 'categories',
+        errorCode: categoryError.code,
+        extra: {
+          categorySlug,
+        },
+      })
       throw new Error(categoryError.message)
     }
 
@@ -374,6 +405,15 @@ export async function getLocationByLocationCode(publicSlug: string) {
 
   if (error) {
     if (error.code !== 'PGRST116') {
+      reportOperationalError(error, {
+        action: 'locations.detail_by_code',
+        table: 'locations',
+        errorCode: error.code,
+        extra: {
+          publicSlug,
+          lookup: 'location_code',
+        },
+      })
       throw new Error(error.message)
     }
 
@@ -415,6 +455,15 @@ export async function getLocationByLocationCode(publicSlug: string) {
         return null
       }
 
+      reportOperationalError(fallback.error, {
+        action: 'locations.detail_by_slug',
+        table: 'locations',
+        errorCode: fallback.error.code,
+        extra: {
+          publicSlug,
+          lookup: 'slug',
+        },
+      })
       throw new Error(fallback.error.message)
     }
 

@@ -7,6 +7,15 @@ const MAX_SELECTED_IMAGES = 80
 export type ImageSelectionCache = {
   globalImages: SelectedLocationImage[]
   projectSelections: Record<string, SelectedLocationImage[]>
+  projectSelectionState: Record<string, ProjectSelectionState>
+}
+
+export type ProjectSelectionEmptyIntent = 'explicit-clear' | 'unknown-empty' | null
+
+export type ProjectSelectionState = {
+  dirty: boolean
+  version: number
+  emptyIntent: ProjectSelectionEmptyIntent
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -18,7 +27,7 @@ function isNullableNumber(value: unknown): value is number | null {
 }
 
 function isOptionalNullableString(value: unknown) {
-  return value === undefined || value === null || isNonEmptyString(value)
+  return value === undefined || value === null || typeof value === 'string'
 }
 
 function isSelectedLocationImage(value: unknown): value is SelectedLocationImage {
@@ -36,7 +45,7 @@ function isSelectedLocationImage(value: unknown): value is SelectedLocationImage
     isNonEmptyString(candidate.locationId) &&
     isNonEmptyString(candidate.locationCode) &&
     isNonEmptyString(candidate.locationTitle) &&
-    isNonEmptyString(candidate.categorySlug) &&
+    typeof candidate.categorySlug === 'string' &&
     isNonEmptyString(candidate.selectedAt)
   )
 }
@@ -73,16 +82,64 @@ function sanitizeProjectSelections(
       continue
     }
 
-    const validImages = images.filter(isSelectedLocationImage)
-
-    if (validImages.length === 0) {
-      continue
-    }
-
-    nextSelections[projectId] = dedupeImages(validImages)
+    nextSelections[projectId] = dedupeImages(images.filter(isSelectedLocationImage))
   }
 
   return nextSelections
+}
+
+function isProjectSelectionState(value: unknown): value is ProjectSelectionState {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return typeof value.dirty === 'boolean' && typeof value.version === 'number'
+}
+
+function sanitizeProjectSelectionEmptyIntent(
+  value: unknown,
+  imageCount: number,
+): ProjectSelectionEmptyIntent {
+  if (imageCount > 0) {
+    return null
+  }
+
+  return value === 'explicit-clear' ? 'explicit-clear' : 'unknown-empty'
+}
+
+function sanitizeProjectSelectionState(
+  value: unknown,
+  projectSelections: Record<string, SelectedLocationImage[]>,
+): Record<string, ProjectSelectionState> {
+  const nextState: Record<string, ProjectSelectionState> = {}
+  const stateRecord = isRecord(value) ? value : {}
+
+  for (const projectId of Object.keys(projectSelections)) {
+    const storedState = stateRecord[projectId]
+
+    if (isProjectSelectionState(storedState)) {
+      nextState[projectId] = {
+        dirty: storedState.dirty,
+        version: Number.isFinite(storedState.version) ? storedState.version : 0,
+        emptyIntent: sanitizeProjectSelectionEmptyIntent(
+          storedState.emptyIntent,
+          projectSelections[projectId]?.length ?? 0,
+        ),
+      }
+      continue
+    }
+
+    nextState[projectId] = {
+      dirty: true,
+      version: 0,
+      emptyIntent: sanitizeProjectSelectionEmptyIntent(
+        null,
+        projectSelections[projectId]?.length ?? 0,
+      ),
+    }
+  }
+
+  return nextState
 }
 
 export function restoreImageSelectionCache(): ImageSelectionCache {
@@ -90,6 +147,7 @@ export function restoreImageSelectionCache(): ImageSelectionCache {
     return {
       globalImages: [],
       projectSelections: {},
+      projectSelectionState: {},
     }
   }
 
@@ -100,6 +158,7 @@ export function restoreImageSelectionCache(): ImageSelectionCache {
       return {
         globalImages: [],
         projectSelections: {},
+        projectSelectionState: {},
       }
     }
 
@@ -111,6 +170,7 @@ export function restoreImageSelectionCache(): ImageSelectionCache {
       return {
         globalImages: dedupeImages(validImages),
         projectSelections: {},
+        projectSelectionState: {},
       }
     }
 
@@ -118,6 +178,7 @@ export function restoreImageSelectionCache(): ImageSelectionCache {
       return {
         globalImages: [],
         projectSelections: {},
+        projectSelectionState: {},
       }
     }
 
@@ -125,14 +186,21 @@ export function restoreImageSelectionCache(): ImageSelectionCache {
       ? dedupeImages(parsedValue.globalImages.filter(isSelectedLocationImage))
       : []
 
+    const projectSelections = sanitizeProjectSelections(parsedValue.projectSelections)
+
     return {
       globalImages,
-      projectSelections: sanitizeProjectSelections(parsedValue.projectSelections),
+      projectSelections,
+      projectSelectionState: sanitizeProjectSelectionState(
+        parsedValue.projectSelectionState,
+        projectSelections,
+      ),
     }
   } catch {
     return {
       globalImages: [],
       projectSelections: {},
+      projectSelectionState: {},
     }
   }
 }
@@ -144,14 +212,23 @@ export function persistImageSelectionCache(cache: ImageSelectionCache) {
 
   const nextGlobalImages = dedupeImages(cache.globalImages)
   const nextProjectSelections = sanitizeProjectSelections(cache.projectSelections)
-
-  window.localStorage.setItem(
-    IMAGE_SELECTION_STORAGE_KEY,
-    JSON.stringify({
-      globalImages: nextGlobalImages,
-      projectSelections: nextProjectSelections,
-    }),
+  const nextProjectSelectionState = sanitizeProjectSelectionState(
+    cache.projectSelectionState,
+    nextProjectSelections,
   )
+
+  try {
+    window.localStorage.setItem(
+      IMAGE_SELECTION_STORAGE_KEY,
+      JSON.stringify({
+        globalImages: nextGlobalImages,
+        projectSelections: nextProjectSelections,
+        projectSelectionState: nextProjectSelectionState,
+      }),
+    )
+  } catch {
+    // Local selection persistence is a best-effort backup.
+  }
 }
 
 export function clearImageSelectionStorage() {
@@ -159,5 +236,9 @@ export function clearImageSelectionStorage() {
     return
   }
 
-  window.localStorage.removeItem(IMAGE_SELECTION_STORAGE_KEY)
+  try {
+    window.localStorage.removeItem(IMAGE_SELECTION_STORAGE_KEY)
+  } catch {
+    // Local selection persistence is a best-effort backup.
+  }
 }

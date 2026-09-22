@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { supabase } from '@/lib/supabase.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import {
   enrichLocationsWithCategorySlugs,
   mapSearchPublicLocationsRow,
@@ -73,6 +74,11 @@ async function searchSupabaseLocationsV3(params: {
   })
 
   if (rpcError) {
+    reportOperationalError(rpcError, {
+      action: 'search.rpc.v3',
+      rpc: 'search_public_locations_v3',
+      errorCode: rpcError.code,
+    })
     throw new Error(rpcError.message)
   }
 
@@ -99,6 +105,11 @@ async function searchSupabaseLocationsV3Related(params: {
   })
 
   if (rpcError) {
+    reportOperationalError(rpcError, {
+      action: 'search.rpc.v3_related',
+      rpc: 'search_public_locations_v3_related',
+      errorCode: rpcError.code,
+    })
     throw new Error(rpcError.message)
   }
 

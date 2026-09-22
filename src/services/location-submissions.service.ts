@@ -1,4 +1,10 @@
 import { supabase } from '@/lib/supabase.ts'
+import {
+  createCorrelationId,
+  getSupabaseErrorContext,
+  reportOperationalError,
+  SENTRY_CORRELATION_ID_HEADER,
+} from '@/sentry-observability.ts'
 
 export type CreateLocationSubmissionInput = {
   ownerName: string
@@ -77,7 +83,11 @@ export async function getLocationSubmissionErrorMessage(error: unknown) {
 export async function createLocationSubmission(
   input: CreateLocationSubmissionInput,
 ) {
+  const correlationId = createCorrelationId('submission')
   const { data, error } = await supabase.functions.invoke('create-location-submission', {
+    headers: {
+      [SENTRY_CORRELATION_ID_HEADER]: correlationId,
+    },
     body: {
       owner_name: input.ownerName.trim(),
       owner_email: input.ownerEmail.trim(),
@@ -89,6 +99,12 @@ export async function createLocationSubmission(
   })
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'location_submission.create',
+      edgeFunction: 'create-location-submission',
+      correlationId,
+      ...getSupabaseErrorContext(error),
+    })
     throw error
   }
 
@@ -97,6 +113,11 @@ export async function createLocationSubmission(
   const submissionToken = row?.submissionToken?.trim()
 
   if (!submissionId || !submissionToken) {
+    reportOperationalError('Location submission returned an invalid payload.', {
+      action: 'location_submission.create.invalid_payload',
+      edgeFunction: 'create-location-submission',
+      correlationId,
+    })
     throw new Error('No pudimos confirmar la postulacion creada.')
   }
 

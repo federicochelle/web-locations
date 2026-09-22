@@ -5,7 +5,7 @@ export function PrivacyPage() {
   usePageSeo({
     title: 'Política de Privacidad',
     description:
-      'Consultá cómo Film Locations Uruguay recopila, utiliza y protege los datos personales y la información vinculada a la plataforma.',
+      'Consultá cómo Sitio Locaciones recopila, utiliza y protege los datos personales y la información vinculada a la plataforma.',
     canonicalPath: '/privacidad',
   })
 
@@ -13,13 +13,13 @@ export function PrivacyPage() {
     <LegalPageLayout title="Política de Privacidad">
       <div className="space-y-2">
         <p className="text-lg font-semibold text-brand-300">
-          Política de Privacidad de Film Locations UY
+          Política de Privacidad de Sitio Locaciones
         </p>
         <p className="text-brand-100/64">Última actualización: agosto de 2026</p>
       </div>
 
       <p>
-        En Film Locations UY cuidamos la privacidad de nuestros usuarios. Esta Política de Privacidad explica qué información recopilamos, para qué la utilizamos y qué derechos tienen los usuarios sobre sus datos.
+        En Sitio Locaciones cuidamos la privacidad de nuestros usuarios. Esta Política de Privacidad explica qué información recopilamos, para qué la utilizamos y qué derechos tienen los usuarios sobre sus datos.
       </p>
 
       <section className="space-y-3">
@@ -55,7 +55,7 @@ export function PrivacyPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-brand-300">3. Datos relacionados con locaciones</h2>
         <p>
-          Film Locations UY puede gestionar información relacionada con locaciones privadas y sus propietarios, responsables o personas de contacto con la finalidad de administrar el catálogo y gestionar solicitudes.
+          Sitio Locaciones puede gestionar información relacionada con locaciones privadas y sus propietarios, responsables o personas de contacto con la finalidad de administrar el catálogo y gestionar solicitudes.
         </p>
         <p>
           Los datos privados de contacto de propietarios o responsables no serán publicados ni puestos a disposición de los usuarios de forma general, salvo que corresponda y exista autorización para ello.
@@ -76,7 +76,7 @@ export function PrivacyPage() {
         <p>
           Estos proveedores podrán procesar determinada información únicamente en la medida necesaria para prestar sus servicios y estarán sujetos a sus propias políticas y obligaciones de privacidad.
         </p>
-        <p>Film Locations UY no vende ni comercializa los datos personales de sus usuarios.</p>
+        <p>Sitio Locaciones no vende ni comercializa los datos personales de sus usuarios.</p>
       </section>
 
       <section className="space-y-3">
@@ -92,7 +92,7 @@ export function PrivacyPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-brand-300">6. Seguridad y conservación de los datos</h2>
         <p>
-          Film Locations UY adopta medidas razonables destinadas a proteger la información personal y evitar accesos, modificaciones, divulgaciones o usos no autorizados.
+          Sitio Locaciones adopta medidas razonables destinadas a proteger la información personal y evitar accesos, modificaciones, divulgaciones o usos no autorizados.
         </p>
         <p>
           Los datos podrán conservarse durante el tiempo necesario para prestar el servicio, gestionar solicitudes, mantener registros necesarios y cumplir con las obligaciones que correspondan.
@@ -105,24 +105,24 @@ export function PrivacyPage() {
           Los usuarios podrán solicitar el acceso, actualización, rectificación o eliminación de sus datos personales cuando corresponda.
         </p>
         <p>
-          Para realizar una solicitud relacionada con sus datos personales podrán comunicarse con Film Locations UY mediante los datos de contacto indicados al final de esta Política.
+          Para realizar una solicitud relacionada con sus datos personales podrán comunicarse con Sitio Locaciones mediante los datos de contacto indicados al final de esta Política.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-brand-300">8. Servicios de terceros</h2>
         <p>
-          Algunas funcionalidades de Film Locations UY dependen de servicios proporcionados por terceros. Estos servicios pueden tratar determinada información conforme a sus propias políticas de privacidad.
+          Algunas funcionalidades de Sitio Locaciones dependen de servicios proporcionados por terceros. Estos servicios pueden tratar determinada información conforme a sus propias políticas de privacidad.
         </p>
         <p>
-          Film Locations UY procura utilizar proveedores adecuados para el funcionamiento y seguridad de la plataforma, pero no controla las políticas o prácticas independientes de dichos proveedores.
+          Sitio Locaciones procura utilizar proveedores adecuados para el funcionamiento y seguridad de la plataforma, pero no controla las políticas o prácticas independientes de dichos proveedores.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-brand-300">9. Cambios en esta Política</h2>
         <p>
-          Film Locations UY podrá actualizar esta Política de Privacidad cuando existan cambios en la plataforma, sus servicios o las prácticas relacionadas con el tratamiento de información.
+          Sitio Locaciones podrá actualizar esta Política de Privacidad cuando existan cambios en la plataforma, sus servicios o las prácticas relacionadas con el tratamiento de información.
         </p>
         <p>
           La versión vigente será la última publicada en la plataforma. Cuando corresponda, los usuarios podrán ser informados sobre modificaciones relevantes.
@@ -135,7 +135,7 @@ export function PrivacyPage() {
           Para consultas, solicitudes o asuntos relacionados con esta Política de Privacidad o con el tratamiento de datos personales, podés comunicarte con:
         </p>
         <p>
-          Film Locations UY
+          Sitio Locaciones
           <br />
           Correo electrónico: locationsfilm51@gmail.com
         </p>

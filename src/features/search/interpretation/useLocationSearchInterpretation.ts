@@ -4,6 +4,7 @@ import {
   getSearchInterpretationFallbackReason,
   interpretLocationSearchQuery,
 } from '@/features/search/interpretation/search-interpretation.service.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import type {
   SearchInterpretationFallbackReason,
   SearchInterpretationSnapshot,
@@ -146,11 +147,22 @@ export function useLocationSearchInterpretation(
 
             return nextSnapshot
           } catch (error) {
+            const fallbackReason = getSearchInterpretationFallbackReason(error)
+            reportOperationalError(error, {
+              action: 'search.interpretation.fallback',
+              status: fallbackReason,
+              edgeFunction: 'search-query-analysis',
+              extra: {
+                queryLength: normalizedQuery.length,
+                requestKeyLength: requestKey.length,
+                fallbackReason,
+              },
+            })
             return buildFallbackSnapshot(
               normalizedQuery,
               true,
               Math.round(performance.now() - startedAt),
-              getSearchInterpretationFallbackReason(error),
+              fallbackReason,
             )
           } finally {
             searchInterpretationInFlight.delete(requestKey)

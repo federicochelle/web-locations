@@ -45,7 +45,7 @@ export function AuthStatusModal({
         >
           <img
             src={logoUrl}
-            alt="Film Locations UY"
+            alt="Sitio Locaciones"
             className="mb-5 h-auto w-24 sm:w-28"
           />
           <h2

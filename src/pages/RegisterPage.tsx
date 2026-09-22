@@ -5,7 +5,7 @@ import { usePageSeo } from '@/hooks/usePageSeo.ts'
 export function RegisterPage() {
   usePageSeo({
     title: 'Crear cuenta',
-    description: 'Creá tu cuenta para acceder a Film Locations Uruguay.',
+    description: 'Creá tu cuenta para acceder a Sitio Locaciones.',
     canonicalPath: '/register',
     robots: 'noindex,nofollow',
   })

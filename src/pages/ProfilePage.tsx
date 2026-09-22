@@ -71,7 +71,7 @@ function SignOutIcon() {
 export function ProfilePage() {
   usePageSeo({
     title: 'Mi perfil',
-    description: 'Perfil privado de Film Locations Uruguay.',
+    description: 'Perfil privado de Sitio Locaciones.',
     canonicalPath: '/profile',
     robots: 'noindex,nofollow',
   })

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { reportOperationalError } from '@/sentry-observability.ts'
 
 type SubmissionTurnstileProps = {
   siteKey: string
@@ -111,6 +112,10 @@ export function SubmissionTurnstile({
           },
           'error-callback': () => {
             onTokenChange(null)
+            reportOperationalError('Turnstile validation callback failed.', {
+              action: 'turnstile.widget_error',
+              status: 'widget_error',
+            })
             setLoadError('No pudimos validar la verificacion anti-spam. Intenta nuevamente.')
           },
         })
@@ -121,6 +126,10 @@ export function SubmissionTurnstile({
         }
 
         onTokenChange(null)
+        reportOperationalError(error, {
+          action: 'turnstile.load_script',
+          status: 'script_error',
+        })
         setLoadError(error instanceof Error ? error.message : 'No pudimos cargar la verificacion anti-spam.')
       })
 

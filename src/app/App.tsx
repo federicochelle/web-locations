@@ -1,4 +1,5 @@
 import { RecoveryNotice } from '@/version-recovery/RecoveryNotice.tsx'
+import { SelectionDebugPanel } from '@/components/selection/SelectionDebugPanel.tsx'
 import { AuthProvider } from '@/providers/AuthProvider.tsx'
 import { ImageSelectionProvider } from '@/providers/ImageSelectionProvider.tsx'
 import { RequestProjectsProvider } from '@/providers/RequestProjectsProvider.tsx'
@@ -12,6 +13,7 @@ export function App() {
         <RequestProjectsProvider>
           <ImageSelectionProvider>
             <AppRouter />
+            <SelectionDebugPanel />
           </ImageSelectionProvider>
         </RequestProjectsProvider>
       </AuthProvider>

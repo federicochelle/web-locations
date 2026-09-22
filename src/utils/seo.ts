@@ -1,10 +1,14 @@
-export const SITE_NAME = 'Film Locations Uruguay'
+export const SITE_NAME = 'Sitio Locaciones'
 export const SITE_LOCALE = 'es_UY'
 export const DEFAULT_THEME_COLOR = '#0b0908'
-export const DEFAULT_OG_IMAGE_PATH = '/favicon.svg'
+export const DEFAULT_OG_IMAGE_PATH = '/opengraph.jpeg'
+export const DEFAULT_OG_IMAGE_WIDTH = 1842
+export const DEFAULT_OG_IMAGE_HEIGHT = 854
+export const DEFAULT_OG_IMAGE_ALT =
+  'Vista de locaciones destacadas en Sitio Locaciones'
 export const DEFAULT_PAGE_TITLE = SITE_NAME
 export const DEFAULT_PAGE_DESCRIPTION =
-  'Explorá locaciones para producciones audiovisuales en Uruguay. Descubrí espacios únicos para cine, fotografía, publicidad y proyectos creativos.'
+  'Explorá locaciones profesionales para producciones audiovisuales, fotografía, publicidad y proyectos creativos.'
 
 export function getPublicSiteOrigin() {
   const configuredOrigin = import.meta.env.VITE_PUBLIC_SITE_URL?.trim()

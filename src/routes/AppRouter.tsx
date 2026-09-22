@@ -1,6 +1,6 @@
 import { recoverableImport, recovery } from '@/version-recovery/browser.ts'
 import { Suspense, lazy, useEffect } from 'react'
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router-dom'
 
 import { AuthLayout } from '@/layouts/AuthLayout.tsx'
 import { PublicLayout } from '@/layouts/PublicLayout.tsx'
@@ -10,6 +10,7 @@ import { ProtectedRoute } from '@/routes/ProtectedRoute.tsx'
 import { RouteErrorBoundary } from '@/routes/RouteErrorBoundary.tsx'
 import { PublicOnlyRoute } from '@/routes/PublicOnlyRoute.tsx'
 import { RouteLoadingFallback } from '@/routes/RouteLoadingFallback.tsx'
+import { setSentryRouteContext } from '@/sentry-observability.ts'
 
 const LoginPage = lazy(() =>
   recoverableImport(() => import('@/pages/LoginPage.tsx')).then((module) => ({
@@ -101,6 +102,16 @@ function HealthyRoute({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function SentryRouteContext() {
+  const location = useLocation()
+
+  useEffect(() => {
+    setSentryRouteContext(location.pathname)
+  }, [location.pathname])
+
+  return <Outlet />
+}
+
 function withRouteSuspense(
   element: React.ReactNode,
   fallback: React.ReactNode = <RouteLoadingFallback />,
@@ -112,6 +123,7 @@ const router = createBrowserRouter([
   {
     path: '/',
     errorElement: <RouteErrorBoundary />,
+    element: <SentryRouteContext />,
     children: [
       {
         element: <AuthLayout />,

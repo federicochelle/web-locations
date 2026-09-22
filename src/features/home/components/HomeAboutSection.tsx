@@ -40,7 +40,7 @@ export function HomeAboutSection() {
                   comparar y organizar espacios con más velocidad.
                 </p>
                 <p className="text-base leading-7 font-medium text-white/90 sm:text-lg">
-                  Film Locations Uruguay reduce la fricción entre buscar referencias,
+                  Sitio Locaciones reduce la fricción entre buscar referencias,
                   guardar opciones y convertir una selección en un proyecto real.
                 </p>
               </div>

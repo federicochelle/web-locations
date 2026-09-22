@@ -9,6 +9,9 @@ import type {
   UpdateRequestProjectValues,
 } from '@/providers/RequestProjectsContext.ts'
 import {
+  reportOperationalError,
+} from '@/sentry-observability.ts'
+import {
   createRequestProject,
   deleteRequestProject,
   getMyRequestProjects,
@@ -59,6 +62,11 @@ export function RequestProjectsProvider({
       setProjects(nextProjects)
     } catch (loadError) {
       if (accessRef.current !== owner || projectsRequestId.current !== requestId) return
+      reportOperationalError(loadError, {
+        action: 'request_projects.list',
+        userId: owner,
+        table: 'request_projects',
+      })
       setError(getRequestProjectErrorMessage(loadError))
       setProjects([])
     } finally {
@@ -151,6 +159,11 @@ export function RequestProjectsProvider({
       return nextProject
     } catch (createError) {
       if (accessRef.current !== owner) return null
+      reportOperationalError(createError, {
+        action: 'request_projects.create',
+        userId: owner,
+        table: 'request_projects',
+      })
       setError(getRequestProjectErrorMessage(createError))
       return null
     } finally {
@@ -205,6 +218,13 @@ export function RequestProjectsProvider({
       return nextProject
     } catch (updateError) {
       if (accessRef.current !== owner) return null
+      reportOperationalError(updateError, {
+        action: 'request_projects.update',
+        userId: owner,
+        requestProjectId: projectId,
+        projectId,
+        table: 'request_projects',
+      })
       setError(getRequestProjectErrorMessage(updateError))
       return null
     }
@@ -225,6 +245,13 @@ export function RequestProjectsProvider({
       return true
     } catch (deleteError) {
       if (accessRef.current !== owner) return false
+      reportOperationalError(deleteError, {
+        action: 'request_projects.delete',
+        userId: owner,
+        requestProjectId: projectId,
+        projectId,
+        table: 'request_projects',
+      })
       setError(getRequestProjectErrorMessage(deleteError))
       return false
     } finally {

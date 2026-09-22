@@ -22,23 +22,19 @@ import { AppModal } from '@/components/ui/AppModal.tsx'
 import { SELECTION_DRAWER_TRIGGER_ID } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import {
   uploadRequestProjectProductLogo,
   uploadRequestProjectProductionCompanyLogo,
 } from '@/services/request-project-production-company-logos.service.ts'
-import { syncRequestProjectSelection } from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import {
   OPEN_SELECTION_PROJECT_EVENT,
-  persistSelectionActiveContext,
-  restoreSelectionActiveContext,
 } from '@/utils/selection-active-context-storage.ts'
-import { fetchProjectSelectionImages } from '@/utils/selection-project-images.ts'
+import { appendSelectionDebugEvent } from '@/utils/selection-debug-log.ts'
 import {
   beginSelectionProjectTransition,
-  canPersistSelectionForProject,
   clearSelectionProjectPersistenceGuard,
-  isSelectionProjectTransitioning,
   markSelectionProjectStable,
 } from '@/utils/selection-persistence-guard.ts'
 
@@ -216,17 +212,6 @@ function AutosaveErrorIcon() {
   )
 }
 
-function createSelectionSnapshot(selectionImages: SelectedLocationImage[]) {
-  return JSON.stringify(
-    selectionImages.map((image) => ({
-      key: image.key,
-      locationId: image.locationId,
-      locationImageId: image.locationImageId ?? null,
-      sortOrder: image.sortOrder,
-    })),
-  )
-}
-
 function ProposalPreviewIcon() {
   return (
     <svg
@@ -265,16 +250,25 @@ function BackArrowIcon() {
 
 export function SelectionDrawer() {
   const {
-    activeProjectId: selectionProjectId,
+    activeProjectId,
     images,
+    status: selectionStatus,
+    error: selectionError,
     isDrawerOpen,
+    isHydratingActiveProjectSelection,
+    isProjectSelectionPendingResolution,
+    openDrawer,
     closeDrawer,
     clearPendingSelectionIntent,
+    getProjectSelection,
+    getProjectSelectionDebugState,
     removeImage,
     clearSelection,
     pendingSelectionImages,
     replaceSelection,
-    setActiveProjectContext,
+    selectProject,
+    loadProjectSelection,
+    flushSelection,
   } = useImageSelection()
   const {
     activeEditingProjectId,
@@ -292,13 +286,7 @@ export function SelectionDrawer() {
   const [isRendered, setIsRendered] = useState(isDrawerOpen)
   const [isVisible, setIsVisible] = useState(isDrawerOpen)
   const [isPdfFlowDetached, setIsPdfFlowDetached] = useState(false)
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  const [isLoadingProjectContent, setIsLoadingProjectContent] = useState(false)
-  const [isHydratingPersistedContext, setIsHydratingPersistedContext] = useState(() => {
-    const restoredContext = restoreSelectionActiveContext()
-    return restoredContext?.mode === 'project'
-  })
-  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
+  const [localProjectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [newProjectProduct, setNewProjectProduct] = useState('')
   const [newProjectProductLogoUrl, setNewProjectProductLogoUrl] = useState<string | null>(null)
@@ -319,19 +307,22 @@ export function SelectionDrawer() {
   const [pendingProjectIdAfterExit, setPendingProjectIdAfterExit] = useState<string | null | undefined>(undefined)
   const [projectAutosaveIndicator, setProjectAutosaveIndicator] =
     useState<DrawerProjectAutosaveIndicatorState>('hidden')
-  const autosaveTimeoutRef = useRef<number | null>(null)
-  const autosaveExecutionTokenRef = useRef<symbol | null>(null)
-  const autosavePromiseRef = useRef<Promise<boolean> | null>(null)
-  const autosaveRequestVersionRef = useRef(0)
-  const lastQueuedSnapshotRef = useRef<string | null>(null)
-  const lastPersistedSnapshotRef = useRef<string | null>(null)
+  const isLoadingProjectContent = selectionStatus === 'loading'
+  const projectLoadError =
+    localProjectLoadError ??
+    (selectionStatus === 'error' ? selectionError : null)
+  const imagesRef = useRef(images)
   const hasHydratedActiveProjectSelectionRef = useRef(false)
   const isProjectTransitioningRef = useRef(false)
+  const isLoadingProjectContentRef = useRef(isLoadingProjectContent)
+  const isHydratingActiveProjectSelectionRef = useRef(isHydratingActiveProjectSelection)
+  const isProjectSelectionPendingResolutionRef = useRef(
+    isProjectSelectionPendingResolution,
+  )
   const activeProjectIdRef = useRef<string | null>(null)
-  const hydrationRequestIdRef = useRef(0)
-  const activeHydrationProjectIdRef = useRef<string | null>(null)
+  const getProjectSelectionRef = useRef(getProjectSelection)
+  const getProjectSelectionDebugStateRef = useRef(getProjectSelectionDebugState)
   const isMountedRef = useRef(true)
-  const persistedContextRef = useRef(restoreSelectionActiveContext())
   const projectFormFlushRef = useRef<(() => Promise<boolean>) | null>(null)
   const prefersReducedMotionRef = useRef(false)
   const viewTransitionTimeoutRef = useRef<number | null>(null)
@@ -364,7 +355,10 @@ export function SelectionDrawer() {
     [activeEditingProjectId, projects],
   )
   const currentSelectionContentState = useMemo<SelectionContentState>(() => {
-    if (isLoadingProjectContent || isHydratingPersistedContext) {
+    if (
+      isLoadingProjectContent ||
+      isProjectSelectionPendingResolution
+    ) {
       return {
         kind: 'loading',
       }
@@ -396,20 +390,111 @@ export function SelectionDrawer() {
     activeProject?.status,
     activeProjectId,
     groupedSelections,
-    isHydratingPersistedContext,
+    isProjectSelectionPendingResolution,
     isLoadingProjectContent,
   ])
   const currentSelectionContentStateRef = useRef<SelectionContentState>(
     currentSelectionContentState,
   )
 
+  const logDrawerDebugEvent = useCallback((
+    event: string,
+    {
+      projectId = activeProjectIdRef.current,
+      source = 'drawer',
+      details,
+    }: {
+      projectId?: string | null
+      source?: string
+      details?: Record<string, unknown>
+    } = {},
+  ) => {
+    const projectState = projectId
+      ? getProjectSelectionDebugStateRef.current(projectId)
+      : null
+
+    appendSelectionDebugEvent({
+      event,
+      activeProjectId: projectId,
+      imagesCount: imagesRef.current.length,
+      projectSelectionCount: projectId
+        ? getProjectSelectionRef.current(projectId)?.length ?? null
+        : null,
+      dirty: projectState?.dirty ?? null,
+      version: projectState?.version ?? null,
+      isHydratingActiveProjectSelection: isHydratingActiveProjectSelectionRef.current,
+      isProjectSelectionPendingResolution:
+        isProjectSelectionPendingResolutionRef.current,
+      source,
+      details: {
+        activeDrawerProjectId: activeProjectIdRef.current,
+        isLoadingProjectContent: isLoadingProjectContentRef.current,
+        hasHydratedActiveProjectSelection: hasHydratedActiveProjectSelectionRef.current,
+        ...details,
+      },
+    })
+  }, [])
+
+  useEffect(() => {
+    imagesRef.current = images
+  }, [images])
+
+  const hasLoggedDrawerMountRef = useRef(false)
+
+  useEffect(() => {
+    if (hasLoggedDrawerMountRef.current) {
+      return
+    }
+
+    hasLoggedDrawerMountRef.current = true
+    logDrawerDebugEvent('drawer_mount')
+  }, [logDrawerDebugEvent])
+
   useEffect(() => {
     activeProjectIdRef.current = activeProjectId
   }, [activeProjectId])
 
   useEffect(() => {
+    isLoadingProjectContentRef.current = isLoadingProjectContent
+  }, [isLoadingProjectContent])
+
+  useEffect(() => {
+    isHydratingActiveProjectSelectionRef.current = isHydratingActiveProjectSelection
+  }, [isHydratingActiveProjectSelection])
+
+  useEffect(() => {
+    isProjectSelectionPendingResolutionRef.current =
+      isProjectSelectionPendingResolution
+  }, [isProjectSelectionPendingResolution])
+
+  useEffect(() => {
+    getProjectSelectionRef.current = getProjectSelection
+  }, [getProjectSelection])
+
+  useEffect(() => {
+    getProjectSelectionDebugStateRef.current = getProjectSelectionDebugState
+  }, [getProjectSelectionDebugState])
+
+  useEffect(() => {
     currentSelectionContentStateRef.current = currentSelectionContentState
   }, [currentSelectionContentState])
+
+  useEffect(() => {
+    if (
+      !activeProjectId ||
+      isProjectSelectionPendingResolution ||
+      selectionStatus !== 'ready'
+    ) {
+      return
+    }
+
+    if (hasHydratedActiveProjectSelectionRef.current) {
+      return
+    }
+
+    hasHydratedActiveProjectSelectionRef.current = true
+    markSelectionProjectStable(activeProjectId)
+  }, [activeProjectId, isProjectSelectionPendingResolution, selectionStatus])
 
   useEffect(() => {
     if (activeView === 'pdf-flow' && !isPdfFlowDetached) {
@@ -435,11 +520,6 @@ export function SelectionDrawer() {
   }, [])
 
   const resetSelectionFlow = useCallback(() => {
-    if (autosaveTimeoutRef.current !== null) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-    }
-
     hasHydratedActiveProjectSelectionRef.current = false
     if (!activeProjectIdRef.current) {
       clearSelection()
@@ -450,158 +530,17 @@ export function SelectionDrawer() {
     setEmbeddedPdfFooter(null)
     setProjectLoadError(null)
     setDraftNotice(null)
-    lastQueuedSnapshotRef.current = null
-    lastPersistedSnapshotRef.current = null
   }, [clearSelection])
-
-  const cancelPendingAutosave = useCallback(() => {
-    if (autosaveTimeoutRef.current !== null) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-    }
-
-    autosaveRequestVersionRef.current += 1
-  }, [])
-
-  const fetchProjectSelection = useCallback(async (projectId: string) => {
-    return fetchProjectSelectionImages(projectId)
-  }, [])
-
-  const applyProjectSelection = useCallback((
-    projectId: string,
-    nextSelection: SelectedLocationImage[],
-    persistedSelection: SelectedLocationImage[] = nextSelection,
-  ) => {
-    const selectionSnapshot = createSelectionSnapshot(nextSelection)
-    const persistedSelectionSnapshot = createSelectionSnapshot(persistedSelection)
-    lastQueuedSnapshotRef.current = selectionSnapshot
-    lastPersistedSnapshotRef.current = persistedSelectionSnapshot
-    replaceSelection(nextSelection, { projectId })
-  }, [replaceSelection])
-
-  const runSelectionAutosave = useCallback((
-    projectId: string,
-    selectionImages: SelectedLocationImage[],
-    requestVersion: number,
-    showError = false,
-  ) => {
-    const selectionSnapshot = createSelectionSnapshot(selectionImages)
-    const autosaveExecutionToken = Symbol('selection-autosave')
-    const autosavePromise = (async () => {
-      try {
-        await syncRequestProjectSelection(projectId, selectionImages, {
-          allowEmptySelection: false,
-        })
-        await refreshProjects()
-
-        const isLatestRequest =
-          autosaveRequestVersionRef.current === requestVersion &&
-          activeProjectIdRef.current === projectId
-
-        if (!isLatestRequest) {
-          return false
-        }
-
-        lastPersistedSnapshotRef.current = selectionSnapshot
-        return true
-      } catch (error) {
-        const isLatestRequest =
-          autosaveRequestVersionRef.current === requestVersion &&
-          activeProjectIdRef.current === projectId
-
-        if (isLatestRequest) {
-          lastQueuedSnapshotRef.current = lastPersistedSnapshotRef.current
-
-          if (showError) {
-            setProjectLoadError(
-              error instanceof Error
-                ? error.message
-                : 'No pudimos guardar la seleccion actual del proyecto.',
-            )
-          }
-        }
-
-        return false
-      } finally {
-        if (autosaveExecutionTokenRef.current === autosaveExecutionToken) {
-          autosaveExecutionTokenRef.current = null
-          autosavePromiseRef.current = null
-        }
-      }
-    })()
-
-    autosaveExecutionTokenRef.current = autosaveExecutionToken
-    autosavePromiseRef.current = autosavePromise
-    return autosavePromise
-  }, [refreshProjects])
-
-  const flushSelectionAutosaveBeforeProjectChange = useCallback(async () => {
-    if (!activeProjectIdRef.current) {
-      return true
-    }
-
-    if (!hasHydratedActiveProjectSelectionRef.current) {
-      return true
-    }
-
-    const currentSelectionSnapshot = createSelectionSnapshot(images)
-    const hasUnsavedSelection =
-      currentSelectionSnapshot !== lastPersistedSnapshotRef.current
-
-    if (!hasUnsavedSelection) {
-      return true
-    }
-
-    if (autosaveTimeoutRef.current !== null) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-      setProjectLoadError(null)
-
-      const requestVersion = autosaveRequestVersionRef.current + 1
-      autosaveRequestVersionRef.current = requestVersion
-
-      return runSelectionAutosave(
-        activeProjectIdRef.current,
-        images,
-        requestVersion,
-        true,
-      )
-    }
-
-    if (autosavePromiseRef.current) {
-      const didPersistCurrentSelection = await autosavePromiseRef.current
-
-      if (didPersistCurrentSelection) {
-        return true
-      }
-    }
-
-    setProjectLoadError(null)
-
-    const requestVersion = autosaveRequestVersionRef.current + 1
-    autosaveRequestVersionRef.current = requestVersion
-
-    return runSelectionAutosave(
-      activeProjectIdRef.current,
-      images,
-      requestVersion,
-      true,
-    )
-  }, [images, runSelectionAutosave])
 
   function forceCloseDrawerWithCleanup() {
     isProjectTransitioningRef.current = false
     hasHydratedActiveProjectSelectionRef.current = false
-    cancelPendingAutosave()
     clearSelectionProjectPersistenceGuard()
-    hydrationRequestIdRef.current += 1
-    activeHydrationProjectIdRef.current = null
     resetSelectionFlow()
-    setActiveProjectId(null)
-    setIsLoadingProjectContent(false)
-    setIsHydratingPersistedContext(false)
-    persistSelectionActiveContext({ mode: 'new' })
-    persistedContextRef.current = { mode: 'new' }
+    selectProject(null, {
+      hydrate: false,
+      persist: true,
+    })
     setIsVisible(false)
     setIsRendered(false)
     closeDrawer()
@@ -621,9 +560,10 @@ export function SelectionDrawer() {
     }
 
     resetSelectionFlow()
-    setActiveProjectId(null)
-    persistSelectionActiveContext({ mode: 'new' })
-    persistedContextRef.current = { mode: 'new' }
+    selectProject(null, {
+      hydrate: false,
+      persist: true,
+    })
   }, [
     activeProject,
     activeProjectId,
@@ -632,6 +572,7 @@ export function SelectionDrawer() {
     isLoading,
     isPdfFlowDetached,
     resetSelectionFlow,
+    selectProject,
   ])
 
   useEffect(() => {
@@ -654,12 +595,10 @@ export function SelectionDrawer() {
     }
 
     resetSelectionFlow()
-    setActiveProjectId(null)
-    setActiveProjectContext(null, {
+    selectProject(null, {
       hydrate: false,
       persist: true,
     })
-    persistedContextRef.current = { mode: 'new' }
   }, [
     activeProject,
     activeProjectId,
@@ -668,7 +607,7 @@ export function SelectionDrawer() {
     isLoading,
     resetSelectionFlow,
     selectableProjects,
-    setActiveProjectContext,
+    selectProject,
   ])
 
   useEffect(() => {
@@ -698,12 +637,6 @@ export function SelectionDrawer() {
 
     return () => {
       isMountedRef.current = false
-      hydrationRequestIdRef.current += 1
-      activeHydrationProjectIdRef.current = null
-
-      if (autosaveTimeoutRef.current !== null) {
-        window.clearTimeout(autosaveTimeoutRef.current)
-      }
 
       if (viewTransitionTimeoutRef.current !== null) {
         window.clearTimeout(viewTransitionTimeoutRef.current)
@@ -724,114 +657,6 @@ export function SelectionDrawer() {
   }, [])
 
   useEffect(() => {
-    const persistedContext = persistedContextRef.current
-
-    if (!isHydratingPersistedContext || persistedContext?.mode !== 'project') {
-      return
-    }
-
-    if (!hasLoadedOnce || isLoading) {
-      return
-    }
-
-    const persistedProject = projects.find(
-      (project) => project.id === persistedContext.projectId,
-    )
-
-    if (!persistedProject) {
-      resetSelectionFlow()
-      setActiveProjectId(null)
-      persistSelectionActiveContext({ mode: 'new' })
-      persistedContextRef.current = { mode: 'new' }
-      activeHydrationProjectIdRef.current = null
-      setIsLoadingProjectContent(false)
-      setIsHydratingPersistedContext(false)
-      return
-    }
-
-    const persistedProjectId = persistedProject.id
-
-    if (activeHydrationProjectIdRef.current === persistedProjectId) {
-      return
-    }
-
-    const requestId = hydrationRequestIdRef.current + 1
-    hydrationRequestIdRef.current = requestId
-    activeHydrationProjectIdRef.current = persistedProjectId
-
-    async function restorePersistedProjectSelection() {
-      try {
-        isProjectTransitioningRef.current = true
-        hasHydratedActiveProjectSelectionRef.current = false
-        beginSelectionProjectTransition(persistedProjectId)
-        cancelPendingAutosave()
-        setIsLoadingProjectContent(true)
-        setProjectLoadError(null)
-        resetSelectionFlow()
-        setActiveProjectId(persistedProjectId)
-        const nextSelection = await fetchProjectSelection(persistedProjectId)
-
-        if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
-          return
-        }
-
-        const nextSelectionWithPending =
-          pendingSelectionImages.length > 0
-            ? mergeSelectionImages(nextSelection, pendingSelectionImages)
-            : nextSelection
-
-        applyProjectSelection(
-          persistedProjectId,
-          nextSelectionWithPending,
-          nextSelection,
-        )
-        if (pendingSelectionImages.length > 0) {
-          clearPendingSelectionIntent()
-        }
-        hasHydratedActiveProjectSelectionRef.current = true
-        markSelectionProjectStable(persistedProjectId)
-      } catch (error) {
-        if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
-          return
-        }
-
-        resetSelectionFlow()
-        setActiveProjectId(null)
-        persistSelectionActiveContext({ mode: 'new' })
-        persistedContextRef.current = { mode: 'new' }
-        setProjectLoadError(
-          error instanceof Error
-            ? error.message
-            : 'No pudimos cargar el proyecto seleccionado.',
-        )
-      } finally {
-        const isCurrentHydration =
-          isMountedRef.current && hydrationRequestIdRef.current === requestId
-
-        if (isCurrentHydration) {
-          isProjectTransitioningRef.current = false
-          activeHydrationProjectIdRef.current = null
-          setIsLoadingProjectContent(false)
-          setIsHydratingPersistedContext(false)
-        }
-      }
-    }
-
-    void restorePersistedProjectSelection()
-  }, [
-    applyProjectSelection,
-    cancelPendingAutosave,
-    clearPendingSelectionIntent,
-    fetchProjectSelection,
-    hasLoadedOnce,
-    isHydratingPersistedContext,
-    isLoading,
-    pendingSelectionImages,
-    projects,
-    resetSelectionFlow,
-  ])
-
-  useEffect(() => {
     function handleOpenSelectionProject(event: Event) {
       const customEvent = event as CustomEvent<{ projectId?: string }>
       const projectId = customEvent.detail?.projectId?.trim()
@@ -840,67 +665,21 @@ export function SelectionDrawer() {
         return
       }
 
-      const requestId = hydrationRequestIdRef.current + 1
-      hydrationRequestIdRef.current = requestId
-      activeHydrationProjectIdRef.current = projectId
-
       void (async () => {
-        try {
-          if (activeProjectIdRef.current) {
-            await flushSelectionAutosaveBeforeProjectChange()
-          }
+        openDrawer()
+        hasHydratedActiveProjectSelectionRef.current = false
+        beginSelectionProjectTransition(projectId)
+        setProjectLoadError(null)
+        resetSelectionFlow()
+        selectProject(projectId, {
+          hydrate: true,
+          persist: true,
+        })
+        const loadedSelection = await loadProjectSelection(projectId)
 
-          isProjectTransitioningRef.current = true
-          hasHydratedActiveProjectSelectionRef.current = false
-          beginSelectionProjectTransition(projectId)
-          cancelPendingAutosave()
-          setIsLoadingProjectContent(true)
-          setIsHydratingPersistedContext(false)
-          setProjectLoadError(null)
-          resetSelectionFlow()
-          setActiveProjectId(projectId)
-          const nextSelection = await fetchProjectSelection(projectId)
-
-          if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
-            return
-          }
-
-          const nextSelectionWithPending =
-            pendingSelectionImages.length > 0
-              ? mergeSelectionImages(nextSelection, pendingSelectionImages)
-              : nextSelection
-
-          applyProjectSelection(projectId, nextSelectionWithPending, nextSelection)
-          if (pendingSelectionImages.length > 0) {
-            clearPendingSelectionIntent()
-          }
+        if (loadedSelection) {
           hasHydratedActiveProjectSelectionRef.current = true
           markSelectionProjectStable(projectId)
-          persistSelectionActiveContext({ mode: 'project', projectId })
-          persistedContextRef.current = { mode: 'project', projectId }
-        } catch (error) {
-          if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
-            return
-          }
-
-          resetSelectionFlow()
-          setActiveProjectId(null)
-          persistSelectionActiveContext({ mode: 'new' })
-          persistedContextRef.current = { mode: 'new' }
-          setProjectLoadError(
-            error instanceof Error
-              ? error.message
-              : 'No pudimos cargar el proyecto seleccionado.',
-          )
-        } finally {
-          const isCurrentProjectLoad =
-            isMountedRef.current && hydrationRequestIdRef.current === requestId
-
-          if (isCurrentProjectLoad) {
-            isProjectTransitioningRef.current = false
-            activeHydrationProjectIdRef.current = null
-            setIsLoadingProjectContent(false)
-          }
         }
       })()
     }
@@ -917,69 +696,11 @@ export function SelectionDrawer() {
       )
     }
   }, [
-    applyProjectSelection,
-    cancelPendingAutosave,
-    clearPendingSelectionIntent,
-    fetchProjectSelection,
-    flushSelectionAutosaveBeforeProjectChange,
-    pendingSelectionImages,
+    loadProjectSelection,
+    openDrawer,
     resetSelectionFlow,
+    selectProject,
   ])
-
-  useEffect(() => {
-    if (
-      !activeProjectId ||
-      !hasHydratedActiveProjectSelectionRef.current ||
-      isLoadingProjectContent ||
-      isProjectTransitioningRef.current ||
-      isSelectionProjectTransitioning() ||
-      !canPersistSelectionForProject(activeProjectId)
-    ) {
-      return
-    }
-
-    const selectionSnapshot = createSelectionSnapshot(images)
-
-    if (lastQueuedSnapshotRef.current === selectionSnapshot) {
-      return
-    }
-
-    lastQueuedSnapshotRef.current = selectionSnapshot
-    setDraftNotice(null)
-
-    if (autosaveTimeoutRef.current !== null) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-    }
-
-    const requestVersion = autosaveRequestVersionRef.current + 1
-    autosaveRequestVersionRef.current = requestVersion
-    const projectIdAtSchedule = activeProjectId
-    const imagesAtSchedule = images
-
-    autosaveTimeoutRef.current = window.setTimeout(() => {
-      autosaveTimeoutRef.current = null
-
-      if (
-        isProjectTransitioningRef.current ||
-        isSelectionProjectTransitioning() ||
-        !canPersistSelectionForProject(projectIdAtSchedule) ||
-        activeProjectIdRef.current !== projectIdAtSchedule ||
-        autosaveRequestVersionRef.current !== requestVersion
-      ) {
-        return
-      }
-
-      void runSelectionAutosave(projectIdAtSchedule, imagesAtSchedule, requestVersion)
-    }, 600)
-  }, [activeProjectId, images, isLoadingProjectContent, runSelectionAutosave])
-
-  useEffect(() => {
-    if (selectionProjectId === activeProjectId) {
-      return
-    }
-
-    setActiveProjectId(selectionProjectId)
-  }, [activeProjectId, selectionProjectId])
 
   useEffect(() => {
     if (!isRendered) {
@@ -1088,6 +809,13 @@ export function SelectionDrawer() {
       return
     }
 
+    if (nextView === 'pdf-flow' && isProjectSelectionPendingResolution) {
+      setProjectLoadError(
+        'Estamos recuperando la seleccion del proyecto. Intenta nuevamente en unos segundos.',
+      )
+      return
+    }
+
     if (viewTransitionTimeoutRef.current !== null) {
       window.clearTimeout(viewTransitionTimeoutRef.current)
       viewTransitionTimeoutRef.current = null
@@ -1144,40 +872,17 @@ export function SelectionDrawer() {
   }
 
   async function handleRemoveLocation(locationId: string) {
-    const activeProjectIdToClear = activeProjectId
     const isRemovingLastLocation =
-      Boolean(activeProjectIdToClear) &&
+      Boolean(activeProjectId) &&
       groupedSelections.length === 1 &&
       groupedSelections[0]?.locationId === locationId
 
     if (isRemovingLastLocation) {
-      if (!activeProjectIdToClear) {
-        return
-      }
-
       if (
         !window.confirm(
           'Esta accion quitara todas las locaciones del proyecto. ¿Quieres continuar?',
         )
       ) {
-        return
-      }
-
-      try {
-        setProjectLoadError(null)
-        await syncRequestProjectSelection(activeProjectIdToClear, [], {
-          allowEmptySelection: true,
-        })
-        await refreshProjects()
-        const emptySelectionSnapshot = createSelectionSnapshot([])
-        lastQueuedSnapshotRef.current = emptySelectionSnapshot
-        lastPersistedSnapshotRef.current = emptySelectionSnapshot
-      } catch (error) {
-        setProjectLoadError(
-          error instanceof Error
-            ? error.message
-            : 'No pudimos quitar las locaciones del proyecto.',
-        )
         return
       }
     }
@@ -1223,12 +928,15 @@ export function SelectionDrawer() {
         },
         'forward',
       )
-      setIsLoadingProjectContent(true)
-      const didPersistPendingSelection = await flushSelectionAutosaveBeforeProjectChange()
-
-      if (!didPersistPendingSelection) {
+      try {
+        await flushSelection(activeProjectId)
+      } catch (error) {
         setSelectionContentTransition(null)
-        setIsLoadingProjectContent(false)
+        setProjectLoadError(
+          error instanceof Error
+            ? error.message
+            : 'No pudimos guardar la seleccion actual del proyecto.',
+        )
         return
       }
     }
@@ -1242,83 +950,61 @@ export function SelectionDrawer() {
       )
       isProjectTransitioningRef.current = false
       hasHydratedActiveProjectSelectionRef.current = false
-      cancelPendingAutosave()
       clearSelectionProjectPersistenceGuard()
-      hydrationRequestIdRef.current += 1
-      activeHydrationProjectIdRef.current = null
       resetSelectionFlow()
-      setActiveProjectId(null)
-      setIsLoadingProjectContent(false)
-      setIsHydratingPersistedContext(false)
-      persistSelectionActiveContext({ mode: 'new' })
-      persistedContextRef.current = { mode: 'new' }
+      selectProject(null, {
+        hydrate: false,
+        persist: true,
+      })
       return
     }
 
-    const requestId = hydrationRequestIdRef.current + 1
-    hydrationRequestIdRef.current = requestId
-    activeHydrationProjectIdRef.current = projectId
+    if (!activeProjectId) {
+      startSelectionContentTransition(
+        {
+          kind: 'loading',
+        },
+        'forward',
+      )
+    }
 
     try {
-      if (!activeProjectId) {
-        startSelectionContentTransition(
-          {
-            kind: 'loading',
-          },
-          'forward',
-        )
-      }
-
       isProjectTransitioningRef.current = true
       hasHydratedActiveProjectSelectionRef.current = false
       beginSelectionProjectTransition(projectId)
-      cancelPendingAutosave()
-      setIsLoadingProjectContent(true)
-      setIsHydratingPersistedContext(false)
       resetSelectionFlow()
-      setActiveProjectId(projectId)
-      const nextSelection = await fetchProjectSelection(projectId)
+      setProjectLoadError(null)
+      selectProject(projectId, {
+        hydrate: true,
+        persist: true,
+      })
+      const loadedSelection = await loadProjectSelection(projectId)
 
-      if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
+      if (!loadedSelection) {
         return
       }
 
-      const nextSelectionWithPending =
-        pendingSelectionImages.length > 0
-          ? mergeSelectionImages(nextSelection, pendingSelectionImages)
-          : nextSelection
-
-      applyProjectSelection(projectId, nextSelectionWithPending, nextSelection)
-      if (pendingSelectionImages.length > 0) {
-        clearPendingSelectionIntent()
-      }
       hasHydratedActiveProjectSelectionRef.current = true
       markSelectionProjectStable(projectId)
-      persistSelectionActiveContext({ mode: 'project', projectId })
-      persistedContextRef.current = { mode: 'project', projectId }
     } catch (error) {
-      if (!isMountedRef.current || hydrationRequestIdRef.current !== requestId) {
-        return
-      }
-
+      reportOperationalError(error, {
+        action: 'selection_drawer.active_project.load',
+        projectId,
+        requestProjectId: projectId,
+        table: 'request_project_locations',
+      })
       resetSelectionFlow()
-      setActiveProjectId(null)
-      persistSelectionActiveContext({ mode: 'new' })
-      persistedContextRef.current = { mode: 'new' }
+      selectProject(null, {
+        hydrate: false,
+        persist: true,
+      })
       setProjectLoadError(
         error instanceof Error
           ? error.message
           : 'No pudimos cargar el proyecto seleccionado.',
       )
     } finally {
-      const isCurrentProjectLoad =
-        isMountedRef.current && hydrationRequestIdRef.current === requestId
-
-      if (isCurrentProjectLoad) {
-        isProjectTransitioningRef.current = false
-        activeHydrationProjectIdRef.current = null
-        setIsLoadingProjectContent(false)
-      }
+      isProjectTransitioningRef.current = false
     }
   }
 
@@ -1349,6 +1035,10 @@ export function SelectionDrawer() {
       setNewProjectProductionCompanyLogoUrl(uploadResult.publicUrl)
       setNewProjectProductionCompanyLogoUploadStatus('idle')
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'selection_drawer.new_project.production_company_logo.upload',
+        table: 'request-project-assets',
+      })
       setNewProjectProductionCompanyLogoUploadStatus('error')
       setNewProjectProductionCompanyLogoUploadError(
         error instanceof Error ? error.message : 'No pudimos subir el logo.',
@@ -1367,6 +1057,10 @@ export function SelectionDrawer() {
       setNewProjectProductLogoUrl(uploadResult.publicUrl)
       setNewProjectProductLogoUploadStatus('idle')
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'selection_drawer.new_project.product_logo.upload',
+        table: 'request-project-assets',
+      })
       setNewProjectProductLogoUploadStatus('error')
       setNewProjectProductLogoUploadError(
         error instanceof Error ? error.message : 'No pudimos subir el logo.',
@@ -1405,23 +1099,18 @@ export function SelectionDrawer() {
       return
     }
 
-    const selectionSnapshot = createSelectionSnapshot(imagesToAssociate)
     const hasSelectionToAssociate = imagesToAssociate.length > 0
 
     replaceSelection(imagesToAssociate, { projectId: createdProject.id })
     clearSelection({ projectId: null })
     clearPendingSelectionIntent()
-    setActiveProjectId(createdProject.id)
-    setActiveProjectContext(createdProject.id, {
+    selectProject(createdProject.id, {
       hydrate: false,
       persist: true,
     })
-    persistedContextRef.current = { mode: 'project', projectId: createdProject.id }
     isProjectTransitioningRef.current = false
     hasHydratedActiveProjectSelectionRef.current = true
     markSelectionProjectStable(createdProject.id)
-    setIsHydratingPersistedContext(false)
-    setIsLoadingProjectContent(false)
     setDraftNotice(null)
     setNewProjectProduct('')
     setNewProjectProductLogoUrl(null)
@@ -1433,21 +1122,21 @@ export function SelectionDrawer() {
     setNewProjectProductionCompanyLogoUploadError(null)
 
     if (!hasSelectionToAssociate) {
-      lastQueuedSnapshotRef.current = selectionSnapshot
-      lastPersistedSnapshotRef.current = selectionSnapshot
       return
     }
 
     try {
-      await syncRequestProjectSelection(createdProject.id, imagesToAssociate, {
-        allowEmptySelection: false,
-      })
+      await flushSelection(createdProject.id)
       await refreshProjects()
-      lastQueuedSnapshotRef.current = selectionSnapshot
-      lastPersistedSnapshotRef.current = selectionSnapshot
     } catch (error) {
-      lastQueuedSnapshotRef.current = null
-      lastPersistedSnapshotRef.current = null
+      reportOperationalError(error, {
+        action: 'selection_drawer.create_project.flush_selection',
+        projectId: createdProject.id,
+        requestProjectId: createdProject.id,
+        extra: {
+          imageCount: imagesToAssociate.length,
+        },
+      })
       setNewProjectError(
         error instanceof Error
           ? error.message
@@ -1524,7 +1213,7 @@ export function SelectionDrawer() {
   }
 
   function renderSelectionViewFooter() {
-    if (images.length === 0) {
+    if (isProjectSelectionPendingResolution || images.length === 0) {
       return null
     }
 
@@ -1769,7 +1458,9 @@ export function SelectionDrawer() {
       return embeddedPdfFooter ? 'pdf-actions' : 'empty'
     }
 
-    return images.length > 0 ? 'selection-continue' : 'empty'
+    return !isProjectSelectionPendingResolution && images.length > 0
+      ? 'selection-continue'
+      : 'empty'
   }
 
   function renderFooterStateContent(state: DrawerFooterState) {

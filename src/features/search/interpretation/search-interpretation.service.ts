@@ -1,4 +1,10 @@
 import { supabase } from '@/lib/supabase.ts'
+import {
+  createCorrelationId,
+  getSupabaseErrorContext,
+  reportOperationalError,
+  SENTRY_CORRELATION_ID_HEADER,
+} from '@/sentry-observability.ts'
 
 import type {
   SearchInterpretation,
@@ -64,6 +70,7 @@ function parseFunctionError(error: unknown, fallback: string) {
 export async function interpretLocationSearchQuery(
   query: string,
 ): Promise<SearchInterpretation> {
+  const correlationId = createCorrelationId('search-ai')
   let timeoutId: number | null = null
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = window.setTimeout(() => {
@@ -73,12 +80,24 @@ export async function interpretLocationSearchQuery(
 
   const requestPromise = (async () => {
     const { data, error } = await supabase.functions.invoke('search-query-analysis', {
+      headers: {
+        [SENTRY_CORRELATION_ID_HEADER]: correlationId,
+      },
       body: {
         query,
       },
     })
 
     if (error) {
+      reportOperationalError(error, {
+        action: 'search.interpretation.edge_error',
+        edgeFunction: 'search-query-analysis',
+        correlationId,
+        ...getSupabaseErrorContext(error),
+        extra: {
+          queryLength: query.length,
+        },
+      })
       throw new SearchInterpretationError(
         parseFunctionError(error, 'No pudimos interpretar la busqueda.'),
         'http-error',
@@ -111,6 +130,14 @@ export async function interpretLocationSearchQuery(
     }
 
     const response = data as { error?: string } | null
+    reportOperationalError(response?.error || 'Search interpretation returned an invalid payload.', {
+      action: 'search.interpretation.invalid_payload',
+      edgeFunction: 'search-query-analysis',
+      correlationId,
+      extra: {
+        queryLength: query.length,
+      },
+    })
     throw new SearchInterpretationError(
       response?.error || 'No pudimos interpretar la busqueda.',
       'invalid-payload',

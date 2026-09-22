@@ -6,7 +6,7 @@ import logoUrl from '../../logo.webp'
 export function NotFoundPage() {
   usePageSeo({
     title: '404',
-    description: 'Página no encontrada en Film Locations Uruguay.',
+    description: 'Página no encontrada en Sitio Locaciones.',
     canonicalPath: '/404',
     robots: 'noindex,nofollow',
   })
@@ -23,12 +23,12 @@ export function NotFoundPage() {
         <div className="w-full max-w-[460px]">
           <Link
             to="/"
-            aria-label="Ir al inicio de Film Locations Uruguay"
+            aria-label="Ir al inicio de Sitio Locaciones"
             className="inline-flex rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
           >
             <img
               src={logoUrl}
-              alt="Film Locations Uruguay"
+              alt="Sitio Locaciones"
               className="h-32 w-auto object-contain sm:h-36"
             />
           </Link>

@@ -10,13 +10,13 @@ import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import {
   uploadRequestProjectProductLogo,
   uploadRequestProjectProductionCompanyLogo,
 } from '@/services/request-project-production-company-logos.service.ts'
 import {
   submitRequestProjectWithOfficialPdf,
-  syncRequestProjectSelection,
 } from '@/services/request-projects.service.ts'
 import type { RequestProject } from '@/types/request-project.ts'
 import type {
@@ -206,7 +206,13 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     onEmbeddedFooterChange,
   } = props
   const navigate = useNavigate()
-  const { images } = useImageSelection()
+  const {
+    images,
+    isProjectSelectionPendingResolution,
+    flushSelection,
+    lockSelectionMutations,
+    unlockSelectionMutations,
+  } = useImageSelection()
   const {
     activeEditingProjectId,
     registerProjectEditingExitHandler,
@@ -285,7 +291,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
   useCriticalState(true) // The mounted PDF workspace may contain drafts, uploads or generated files.
 
-  const hasSelectedImages = images.length > 0
+  const hasSelectedImages = !isProjectSelectionPendingResolution && images.length > 0
   const isBusy = isSubmittingProposal || isLoadingModalOpen
   const isMobileCompletionFlow =
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
@@ -758,10 +764,6 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         throw new Error('Estamos terminando de cargar la seleccion del proyecto. Intenta nuevamente en unos segundos.')
       }
 
-      await syncRequestProjectSelection(projectId, images, {
-        allowEmptySelection: false,
-      })
-
       await onProjectsRefresh()
       setDraftNotice('Borrador actualizado.')
 
@@ -769,6 +771,14 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         projectId,
       }
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'selection_pdf_flow.persist_draft',
+        projectId,
+        requestProjectId: projectId,
+        extra: {
+          autosaveEnabled: isProjectAutosaveEnabled,
+        },
+      })
       setExportError(
         error instanceof Error ? error.message : 'No pudimos guardar el borrador.',
       )
@@ -795,6 +805,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       }))
       setProductionCompanyLogoUploadStatus('idle')
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'selection_pdf_flow.production_company_logo.upload',
+        projectId: activeProjectId,
+        requestProjectId: activeProjectId,
+        table: 'request-project-assets',
+      })
       setProductionCompanyLogoUploadStatus('error')
       setProductionCompanyLogoUploadError(
         error instanceof Error ? error.message : 'No pudimos subir el logo.',
@@ -819,6 +835,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       }))
       setProductLogoUploadStatus('idle')
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'selection_pdf_flow.product_logo.upload',
+        projectId: activeProjectId,
+        requestProjectId: activeProjectId,
+        table: 'request-project-assets',
+      })
       setProductLogoUploadStatus('error')
       setProductLogoUploadError(
         error instanceof Error ? error.message : 'No pudimos subir el logo.',
@@ -836,17 +858,46 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
     setFailedImages([])
     setProgress(null)
 
-    if (!validateProposalSubmission() || !hasSelectedImages) {
+    if (!validateProposalSubmission()) {
+      return
+    }
+
+    if (isProjectSelectionPendingResolution) {
+      setExportError(
+        'Estamos recuperando la seleccion del proyecto. Intenta nuevamente en unos segundos.',
+      )
       return
     }
 
     setIsSubmittingProposal(true)
+    lockSelectionMutations()
     setProgress({
       stage: 'saving-project',
       percent: 0,
     })
 
+    let finalImageCount = images.length
+    let finalPayload: ReturnType<typeof buildSelectionPdfPayloadFromImages> | null = null
+
     try {
+      if (!activeProjectId) {
+        throw new Error('Debes crear o seleccionar un proyecto antes de continuar.')
+      }
+
+      const confirmedSelection = await flushSelection(activeProjectId)
+
+      if (confirmedSelection.images.length === 0) {
+        throw new Error(
+          'No pudimos confirmar la seleccion actual. Espera unos segundos e intenta nuevamente.',
+        )
+      }
+
+      finalPayload = buildSelectionPdfPayloadFromImages(
+        protectedFormValues,
+        confirmedSelection.images,
+      )
+      finalImageCount = finalPayload.totalImages
+
       const draftResult = await persistProposalDraft()
 
       if (!draftResult) {
@@ -864,7 +915,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
 
       const submissionResult = await submitRequestProjectWithOfficialPdf({
         projectId: draftResult.projectId,
-        payload: livePreviewPayload,
+        payload: finalPayload,
         onProgress: (nextProgress) => {
           setProgress(nextProgress)
         },
@@ -894,6 +945,17 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         )
       }
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'selection_pdf_flow.submit_proposal',
+        projectId: activeProjectId,
+        requestProjectId: activeProjectId,
+        rpc: 'finalize_request_project_submission_versioned',
+        extra: {
+          imageCount: images.length,
+          totalImages: finalImageCount,
+          projectSavedBeforeError,
+        },
+      })
       setIsLoadingModalOpen(false)
       setExportError(
         error instanceof Error ? error.message : 'No pudimos completar la propuesta.',
@@ -901,6 +963,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
       setStep('error')
     } finally {
       setIsSubmittingProposal(false)
+      unlockSelectionMutations()
     }
   }
 
@@ -919,7 +982,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   function handleContactByWhatsApp() {
     const projectName = values.product.trim() || activeProject?.title?.trim() || 'mi proyecto'
     const message =
-      `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Film Locations Uruguay.`
+      `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Sitio Locaciones.`
 
     window.open(buildWhatsAppUrl(message), '_blank', 'noopener,noreferrer')
   }
@@ -1092,7 +1155,12 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
           onClick={() => {
             void submitProposalRef.current()
           }}
-          disabled={!hasSelectedImages || isBusy || isProjectLocked}
+          disabled={
+            isProjectSelectionPendingResolution ||
+            !hasSelectedImages ||
+            isBusy ||
+            isProjectLocked
+          }
           className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-5 text-sm font-medium text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-14px_32px_rgba(0,0,0,0.22),0_12px_26px_rgba(0,0,0,0.16)] transition hover:border-white/80 hover:bg-white/18 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.26),inset_0_-14px_32px_rgba(0,0,0,0.18),0_14px_28px_rgba(0,0,0,0.18)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
         >
           <SubmitProposalIcon />
@@ -1100,7 +1168,13 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         </button>
       </div>
     ),
-    [hasSelectedImages, isBusy, isProjectLocked, isSentProject],
+    [
+      hasSelectedImages,
+      isBusy,
+      isProjectLocked,
+      isProjectSelectionPendingResolution,
+      isSentProject,
+    ],
   )
 
   useEffect(() => {

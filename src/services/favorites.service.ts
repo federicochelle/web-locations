@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { mapPublicLocationCard } from '@/utils/location-public.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
@@ -128,6 +129,13 @@ export async function addFavorite(userId: string, locationId: string) {
       return
     }
 
+    reportOperationalError(error, {
+      action: 'favorites.add',
+      table: 'favorites',
+      userId,
+      locationId,
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 }
@@ -140,6 +148,13 @@ export async function removeFavorite(userId: string, locationId: string) {
     .eq('location_id', locationId)
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'favorites.remove',
+      table: 'favorites',
+      userId,
+      locationId,
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 }
@@ -153,6 +168,13 @@ export async function isFavorite(userId: string, locationId: string) {
     .maybeSingle()
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'favorites.check',
+      table: 'favorites',
+      userId,
+      locationId,
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 
@@ -191,6 +213,12 @@ export async function getFavorites(userId: string): Promise<PublicLocationCard[]
     .order('created_at', { ascending: false })
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'favorites.list',
+      table: 'favorites',
+      userId,
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 

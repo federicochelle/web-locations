@@ -4,13 +4,13 @@ import { expect, expectNoUnexpectedRuntimeIssues, test } from './support/test'
 test('home carga y soporta reload directo', async ({ page, diagnostics }) => {
   await page.goto('/')
 
-  await expect(page).toHaveTitle(/Film Locations Uruguay/i)
+  await expect(page).toHaveTitle(/Sitio Locaciones/i)
   await expect(
     page.getByRole('heading', {
       name: /Encontrá la locación perfecta para tu próximo proyecto/i,
     }),
   ).toBeVisible()
-  await expect(page.getByRole('link', { name: /Film Locations Uruguay/i })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Sitio Locaciones/i })).toBeVisible()
   await expect(page.getByRole('link', { name: /Ingresar/i })).toBeVisible()
 
   await page.reload()

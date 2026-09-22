@@ -1,5 +1,6 @@
 import { recoverableImport } from '@/version-recovery/browser.ts'
 import { supabase } from '@/lib/supabase.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { getSession, getSessionUser } from '@/services/auth.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type {
@@ -638,6 +639,13 @@ async function getLatestRequestProjectSnapshotPayload(projectId: string) {
     .maybeSingle()
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.snapshot.load_latest',
+      projectId,
+      requestProjectId: projectId,
+      table: 'request_project_versions',
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 
@@ -704,6 +712,13 @@ async function getRequestProjectLocationRows(projectId: string) {
     .order('created_at', { ascending: true })
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.locations.load',
+      projectId,
+      requestProjectId: projectId,
+      table: 'request_project_locations',
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 
@@ -750,6 +765,14 @@ async function getLocationCatalogRows(locationIds: string[]) {
     .in('id', normalizedLocationIds)
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.catalog_locations.load',
+      table: 'locations',
+      errorCode: error.code,
+      extra: {
+        locationCount: normalizedLocationIds.length,
+      },
+    })
     throw new Error(error.message)
   }
 
@@ -1029,6 +1052,16 @@ export async function submitRequestProjectWithOfficialPdf({
   })
 
   if (exportResult.failedImages.length > 0) {
+    reportOperationalError('Request project PDF generation had failed images.', {
+      action: 'request_projects.pdf.failed_images',
+      projectId,
+      requestProjectId: projectId,
+      status: 'failed_images',
+      extra: {
+        failedImageCount: exportResult.failedImages.length,
+        totalImages: exportResult.totalImages,
+      },
+    })
     throw new Error(
       'No pudimos generar el PDF completo porque una o mas imagenes fallaron. Revisa la seleccion e intenta nuevamente.',
     )
@@ -1108,6 +1141,16 @@ export async function downloadOfficialRequestProjectPdf(project: RequestProject)
     .download(officialPdf.path)
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.official_pdf.download',
+      projectId: project.id,
+      requestProjectId: project.id,
+      table: officialPdf.bucket,
+      errorCode: error.name,
+      extra: {
+        path: officialPdf.path,
+      },
+    })
     throw new Error(error.message)
   }
 
@@ -1128,6 +1171,13 @@ async function markRequestProjectAsChanged(projectId: string) {
     .single()
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.mark_changed',
+      projectId,
+      requestProjectId: projectId,
+      table: 'request_projects',
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 
@@ -1241,6 +1291,14 @@ export async function addLocationToRequestProject(
       return 'exists'
     }
 
+    reportOperationalError(error, {
+      action: 'request_projects.add_location',
+      projectId,
+      requestProjectId: projectId,
+      locationId,
+      table: 'request_project_locations',
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 
@@ -1413,6 +1471,16 @@ export async function syncRequestProjectPdfPayloadSnapshot(
     .in('location_id', locationIds)
 
   if (projectLocationsError) {
+    reportOperationalError(projectLocationsError, {
+      action: 'request_projects.pdf_snapshot.locations_lookup',
+      projectId,
+      requestProjectId: projectId,
+      table: 'request_project_locations',
+      errorCode: projectLocationsError.code,
+      extra: {
+        locationCount: locationIds.length,
+      },
+    })
     throw new Error(projectLocationsError.message)
   }
 
@@ -1435,6 +1503,16 @@ export async function syncRequestProjectPdfPayloadSnapshot(
       .in('request_project_location_id', requestProjectLocationIds)
 
     if (deleteImagesError) {
+      reportOperationalError(deleteImagesError, {
+        action: 'request_projects.pdf_snapshot.delete_images',
+        projectId,
+        requestProjectId: projectId,
+        table: 'request_project_location_images',
+        errorCode: deleteImagesError.code,
+        extra: {
+          requestProjectLocationCount: requestProjectLocationIds.length,
+        },
+      })
       throw new Error(deleteImagesError.message)
     }
   }
@@ -1463,6 +1541,16 @@ export async function syncRequestProjectPdfPayloadSnapshot(
     .insert(snapshotRows)
 
   if (insertSnapshotRowsError) {
+    reportOperationalError(insertSnapshotRowsError, {
+      action: 'request_projects.pdf_snapshot.insert_images',
+      projectId,
+      requestProjectId: projectId,
+      table: 'request_project_location_images',
+      errorCode: insertSnapshotRowsError.code,
+      extra: {
+        snapshotRowCount: snapshotRows.length,
+      },
+    })
     throw new Error(insertSnapshotRowsError.message)
   }
 }
@@ -1479,6 +1567,14 @@ export async function removeLocationFromRequestProject(
     .eq('location_id', locationId)
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.remove_location',
+      projectId,
+      requestProjectId: projectId,
+      locationId,
+      table: 'request_project_locations',
+      errorCode: error.code,
+    })
     throw new Error(error.message)
   }
 

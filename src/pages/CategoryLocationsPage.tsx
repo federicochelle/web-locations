@@ -10,6 +10,7 @@ import {
   CATEGORY_LOCATIONS_PAGE_SIZE,
   getLocations,
 } from '@/services/locations.service.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import type { Department, PublicLocationCard } from '@/types/location.ts'
 
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
@@ -96,7 +97,7 @@ export function CategoryLocationsPage() {
       ? activeHeadingParts.join(' · ')
       : 'Categoría',
     description: activeCategoryName
-      ? `Explorá locaciones de ${activeCategoryName} en Film Locations Uruguay.`
+      ? `Explorá locaciones de ${activeCategoryName} en Sitio Locaciones.`
       : `Explorá locaciones publicadas en la categoría ${fallbackCategoryName}.`,
     canonicalPath: slug ? `/categorias/${slug}` : '/busqueda',
   })
@@ -175,7 +176,13 @@ export function CategoryLocationsPage() {
           return
         }
 
-        console.error('[category-departments-error]', loadError)
+        reportOperationalError(loadError, {
+          action: 'category.departments.load',
+          table: 'departments',
+          extra: {
+            categorySlug: slug,
+          },
+        })
         setAvailableDepartments([])
       } finally {
         if (isMounted) {
@@ -240,6 +247,16 @@ export function CategoryLocationsPage() {
         setLocations([])
         setActiveCategoryName(null)
         setTotalPages(0)
+        reportOperationalError(loadError, {
+          action: 'category.locations.load',
+          table: 'locations',
+          extra: {
+            categorySlug: slug,
+            departmentSlug: normalizedDepartmentSlug,
+            hasSearch: trimmedSearchQuery.length > 0,
+            featureCount: normalizedFeatureSlugs.length,
+          },
+        })
         setError(
           loadError instanceof Error
             ? loadError.message

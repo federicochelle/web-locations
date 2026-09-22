@@ -23,7 +23,7 @@ test('mobile navegación principal permite ir de inicio a login y volver', async
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('heading', { name: /Iniciar sesión/i })).toBeVisible()
 
-  await page.getByLabel(/Ir al inicio de Film Locations Uruguay/i).click()
+  await page.getByLabel(/Ir al inicio de Sitio Locaciones/i).click()
   await expect(page).toHaveURL(/\/$/)
   await expectNoVisibleLoaders(page)
   await expectNoUnexpectedRuntimeIssues(page, diagnostics)

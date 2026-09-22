@@ -1,7 +1,10 @@
 import { useEffect } from 'react'
 
 import {
+  DEFAULT_OG_IMAGE_ALT,
+  DEFAULT_OG_IMAGE_HEIGHT,
   DEFAULT_OG_IMAGE_PATH,
+  DEFAULT_OG_IMAGE_WIDTH,
   DEFAULT_PAGE_DESCRIPTION,
   DEFAULT_PAGE_TITLE,
   SITE_LOCALE,
@@ -18,6 +21,9 @@ type PageSeoOptions = {
   ogTitle?: string
   ogDescription?: string | null
   ogImagePath?: string
+  ogImageAlt?: string
+  ogImageWidth?: number
+  ogImageHeight?: number
   ogType?: 'website' | 'article'
   twitterCard?: 'summary' | 'summary_large_image'
 }
@@ -84,8 +90,11 @@ export function usePageSeo({
   ogTitle,
   ogDescription,
   ogImagePath = DEFAULT_OG_IMAGE_PATH,
+  ogImageAlt = DEFAULT_OG_IMAGE_ALT,
+  ogImageWidth = DEFAULT_OG_IMAGE_WIDTH,
+  ogImageHeight = DEFAULT_OG_IMAGE_HEIGHT,
   ogType = 'website',
-  twitterCard = 'summary',
+  twitterCard = 'summary_large_image',
 }: PageSeoOptions) {
   useEffect(() => {
     const normalizedTitle = title?.trim() ?? ''
@@ -120,8 +129,14 @@ export function usePageSeo({
 
     if (resolvedOgImage) {
       upsertMetaByProperty('og:image', resolvedOgImage)
+      upsertMetaByProperty('og:image:width', String(ogImageWidth))
+      upsertMetaByProperty('og:image:height', String(ogImageHeight))
+      upsertMetaByProperty('og:image:alt', ogImageAlt)
     } else {
       removeMetaByProperty('og:image')
+      removeMetaByProperty('og:image:width')
+      removeMetaByProperty('og:image:height')
+      removeMetaByProperty('og:image:alt')
     }
 
     upsertMetaByName('twitter:card', twitterCard)
@@ -130,14 +145,19 @@ export function usePageSeo({
 
     if (resolvedOgImage) {
       upsertMetaByName('twitter:image', resolvedOgImage)
+      upsertMetaByName('twitter:image:alt', ogImageAlt)
     } else {
       removeMetaByName('twitter:image')
+      removeMetaByName('twitter:image:alt')
     }
   }, [
     canonicalPath,
     description,
     ogDescription,
+    ogImageAlt,
+    ogImageHeight,
     ogImagePath,
+    ogImageWidth,
     ogTitle,
     ogType,
     robots,

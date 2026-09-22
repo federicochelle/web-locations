@@ -6,7 +6,7 @@ import { usePageSeo } from '@/hooks/usePageSeo.ts'
 export function FavoritesPage() {
   usePageSeo({
     title: 'Favoritos',
-    description: 'Favoritos privados de Film Locations Uruguay.',
+    description: 'Favoritos privados de Sitio Locaciones.',
     canonicalPath: '/favorites',
     robots: 'noindex,nofollow',
   })

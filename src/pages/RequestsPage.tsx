@@ -166,7 +166,7 @@ function ProjectsSection({
 export function RequestsPage() {
   usePageSeo({
     title: 'Mis proyectos',
-    description: 'Proyectos privados de Film Locations Uruguay.',
+    description: 'Proyectos privados de Sitio Locaciones.',
     canonicalPath: '/requests',
     robots: 'noindex,nofollow',
   })

@@ -15,8 +15,6 @@ export function PublicLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated, loading, canUsePrivateFeatures } = useAuth()
-  const isNotFoundRoute = location.pathname === '/404'
-  const shouldShowHeaderOnMobile = isNotFoundRoute
 
   useEffect(() => {
     if (loading || !isAuthenticated) {
@@ -44,7 +42,7 @@ export function PublicLayout() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(10,8,7,0.7),rgba(10,8,7,0.56)_24%,rgba(10,8,7,0.62)_72%,rgba(10,8,7,0.76))]" />
       </div>
       <ScrollManager />
-      <div className={shouldShowHeaderOnMobile ? 'relative z-20' : 'relative z-20 hidden md:block'}>
+      <div className="relative z-20 hidden md:block">
         <Header />
       </div>
       <main className="relative z-10 flex-1 overflow-hidden bg-transparent">
