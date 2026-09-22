@@ -128,7 +128,7 @@ export function AboutPage() {
   usePageSeo({
     title: 'Nosotros',
     description:
-      'Conocé Film Locations Uruguay y nuestra propuesta para conectar locaciones con producciones audiovisuales, fotográficas y creativas.',
+      'Conocé Sitio Locaciones y nuestra propuesta para conectar locaciones con producciones audiovisuales, fotográficas y creativas.',
     canonicalPath: '/nosotros',
   })
 
@@ -139,10 +139,10 @@ export function AboutPage() {
           headingLevel="h1"
           title="Locaciones que cuentan historias"
           imageSrc={aboutImageOneUrl}
-          imageAlt="Locación destacada de Film Locations"
+          imageAlt="Locación destacada de Sitio Locaciones"
           revealDelayMs={0}
           body={[
-            'En Film Locations conectamos espacios únicos con producciones audiovisuales.',
+            'En Sitio Locaciones conectamos espacios únicos con producciones audiovisuales.',
             'Trabajamos para facilitar la búsqueda de locaciones en Uruguay, reuniendo casas, edificios, espacios industriales, paisajes, comercios y lugares singulares dentro de una plataforma pensada para productoras, fotógrafos, agencias y equipos creativos.',
             'Nuestro objetivo es hacer que encontrar el lugar indicado para cada proyecto sea más simple, rápido y ordenado.',
           ]}
@@ -171,7 +171,7 @@ export function AboutPage() {
           imageClassName="h-full max-h-full w-auto max-w-full object-contain"
           revealDelayMs={180}
           body={[
-            'Film Locations trabaja junto a Golden Pi, empresa vinculada al sector inmobiliario, combinando experiencia en propiedades y conocimiento del mercado con las necesidades específicas del mundo audiovisual.',
+            'Sitio Locaciones trabaja junto a Golden Pi, empresa vinculada al sector inmobiliario, combinando experiencia en propiedades y conocimiento del mercado con las necesidades específicas del mundo audiovisual.',
             'Esta colaboración amplía nuestra red de espacios y nos permite descubrir nuevas oportunidades, acercando propiedades y locaciones con potencial para producciones, campañas, fotografía y proyectos creativos.',
           ]}
         />

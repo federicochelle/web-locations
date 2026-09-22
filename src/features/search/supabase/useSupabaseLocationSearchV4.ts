@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { supabase } from '@/lib/supabase.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import {
   enrichLocationsWithCategorySlugs,
   mapSearchPublicLocationsRow,
@@ -81,6 +82,19 @@ async function searchSupabaseLocationsV4Rpc(
   })
 
   if (rpcError) {
+    reportOperationalError(rpcError, {
+      action: 'search.rpc.v4',
+      rpc: rpcName,
+      errorCode: rpcError.code,
+      status: rpcError.code,
+      extra: {
+        categoryCount: params.categorySlugs.length,
+        featureCount: params.featureSlugs.length,
+        tagCount: params.tagSlugs.length,
+        hasCoreQuery: params.coreQuery.length > 0,
+        hasDepartment: params.departmentSlug.length > 0,
+      },
+    })
     throw new Error(rpcError.message)
   }
 
@@ -241,6 +255,16 @@ export function useSupabaseLocationSearchV4(
           return
         }
 
+        reportOperationalError(searchError, {
+          action: 'search.v4.fallback_to_v3',
+          rpc: 'search_public_locations_v4',
+          status: 'fallback_to_v3',
+          extra: {
+            requestKeyLength: requestKey.length,
+            hasCoreQuery: normalizedParams.coreQuery.length > 0,
+          },
+        })
+
         try {
           const legacyHits = await searchSupabaseLocationCardsV3({
             coreQuery: normalizedParams.coreQuery,
@@ -264,6 +288,16 @@ export function useSupabaseLocationSearchV4(
           if (isCancelled || latestRequestKeyRef.current !== requestKey) {
             return
           }
+
+          reportOperationalError(legacyError, {
+            action: 'search.v3.fallback_failed',
+            rpc: 'search_public_locations_v3',
+            status: 'fallback_failed',
+            extra: {
+              requestKeyLength: requestKey.length,
+              hasCoreQuery: normalizedParams.coreQuery.length > 0,
+            },
+          })
 
           setHits([])
           setTotalHits(0)

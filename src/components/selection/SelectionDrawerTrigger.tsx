@@ -11,18 +11,23 @@ const MOBILE_TRIGGER_GAP_PX = 12
 
 export function SelectionDrawerTrigger() {
   const location = useLocation()
-  const { activeProjectId, images, isDrawerOpen, toggleDrawer } = useImageSelection()
+  const {
+    activeProjectId,
+    images,
+    isDrawerOpen,
+    isProjectSelectionPendingResolution,
+    toggleDrawer,
+  } = useImageSelection()
   const { projects } = useRequestProjects()
   const isProjectDetailRoute = /^\/requests\/[^/]+$/u.test(location.pathname)
   const hasImages = images.length > 0
+  const hasVisibleSelectionState = hasImages || isProjectSelectionPendingResolution
   const isCreatingProject = activeProjectId === null
   const activeProjectName =
     activeProjectId !== null
       ? projects.find((project) => project.id === activeProjectId)?.title ?? null
       : null
-  const hasMobileBottomNavigation =
-    !/^\/admin(?:\/.*)?$/u.test(location.pathname) &&
-    location.pathname !== '/404'
+  const hasMobileBottomNavigation = !/^\/admin(?:\/.*)?$/u.test(location.pathname)
   const mobileBottomOffset = hasMobileBottomNavigation
     ? `calc(env(safe-area-inset-bottom) + ${MOBILE_BOTTOM_NAV_HEIGHT_PX + MOBILE_TRIGGER_GAP_PX}px)`
     : 'calc(env(safe-area-inset-bottom) + 1rem)'
@@ -42,9 +47,13 @@ export function SelectionDrawerTrigger() {
       onClick={toggleDrawer}
       aria-expanded={isDrawerOpen}
       aria-controls="selection-drawer"
-      aria-label="Abrir selección de imágenes"
+      aria-label={
+        isProjectSelectionPendingResolution
+          ? 'Abrir selección de imágenes. Recuperando selección.'
+          : 'Abrir selección de imágenes'
+      }
       className={`fixed bottom-[var(--selection-trigger-bottom)] z-30 inline-flex min-h-16 min-w-16 items-center justify-center overflow-visible rounded-full border shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] md:bottom-[calc(env(safe-area-inset-bottom)+1rem)] ${
-        hasImages
+        hasVisibleSelectionState
           ? 'border-brand-300/60 bg-brand-300 text-brand-950 hover:bg-brand-100'
           : 'border-white/10 bg-[#14110f]/88 text-brand-100 hover:bg-[#201712]'
       }`}
@@ -53,13 +62,15 @@ export function SelectionDrawerTrigger() {
       {isCreatingProject ? null : (
         <span
           className={`pointer-events-none absolute -bottom-2 -left-12 z-20 inline-flex max-w-28 items-center justify-center rounded-full border px-3 py-1.5 text-center text-xs font-semibold leading-none shadow-[0_10px_22px_rgba(0,0,0,0.18)] lg:-bottom-2 lg:-left-12 lg:max-w-28 ${
-            hasImages
+            hasVisibleSelectionState
               ? 'border-brand-300/35 bg-brand-100 text-brand-950'
               : 'border-white/10 bg-white/10 text-brand-100 backdrop-blur-md'
           }`}
         >
           <span className="block w-full overflow-hidden text-ellipsis whitespace-nowrap">
-            {activeProjectName ?? 'Selección'}
+            {isProjectSelectionPendingResolution
+              ? 'Recuperando...'
+              : activeProjectName ?? 'Selección'}
           </span>
         </span>
       )}
@@ -82,12 +93,12 @@ export function SelectionDrawerTrigger() {
       </div>
       <span
         className={`absolute -right-2 -top-2 z-20 inline-flex min-w-8 items-center justify-center rounded-full border px-2.5 py-1.5 text-sm font-semibold shadow-[0_10px_22px_rgba(0,0,0,0.18)] ${
-          hasImages
+          hasVisibleSelectionState
             ? 'border-brand-300/35 bg-brand-100 text-brand-950'
             : 'border-white/10 bg-white/10 text-brand-100 backdrop-blur-md'
         }`}
       >
-        {images.length}
+        {isProjectSelectionPendingResolution ? '...' : images.length}
       </span>
     </button>
   )

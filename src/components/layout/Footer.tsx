@@ -5,7 +5,7 @@ import logoUrl from '../../../logo.webp'
 import { buildWhatsAppUrl } from '@/utils/whatsapp.ts'
 
 const INSTAGRAM_URL =
-  'https://www.instagram.com/film_locations_uy?igsh=MWV3anpiNGpxaDdiZA=='
+  'https://www.instagram.com/sitio_locaciones?stkn=MXg2OXVoMTVjN2FhdQ=='
 
 function InstagramIcon() {
   return (
@@ -55,7 +55,7 @@ export function Footer() {
           <div className="flex justify-center lg:justify-start">
             <img
               src={logoUrl}
-              alt="Film Locations Uruguay"
+              alt="Sitio Locaciones"
               className="h-28 w-auto object-contain sm:h-32 lg:h-36"
             />
           </div>
@@ -73,7 +73,7 @@ export function Footer() {
 
       <div className="border-t border-white/10 bg-[#14110f]">
         <div className="page-shell flex flex-col gap-3 py-4 text-center text-xs text-white/50 sm:py-5 md:text-sm lg:flex-row lg:items-center lg:justify-between lg:text-left">
-          <p>© 2026 Film Locations Uruguay. Todos los derechos reservados.</p>
+          <p>© 2026 Sitio Locaciones. Todos los derechos reservados.</p>
 
           <div className="flex items-center justify-center gap-3 lg:justify-end">
             <Link

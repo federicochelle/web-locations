@@ -24,7 +24,7 @@ function getCriticalImageCount(totalImages: number) {
 
 export function HomePage() {
   usePageSeo({
-    title: 'Film Locations Uruguay',
+    title: 'Sitio Locaciones',
     description:
       'Explorá locaciones para producciones audiovisuales en Uruguay y encontrá espacios únicos para cine, fotografía, publicidad y proyectos creativos.',
     canonicalPath: '/',

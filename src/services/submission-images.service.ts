@@ -1,4 +1,10 @@
 import { supabase } from '@/lib/supabase.ts'
+import {
+  createCorrelationId,
+  getSupabaseErrorContext,
+  reportOperationalError,
+  SENTRY_CORRELATION_ID_HEADER,
+} from '@/sentry-observability.ts'
 
 export const MAX_SUBMISSION_IMAGES = 8
 export const MAX_SUBMISSION_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
@@ -118,7 +124,11 @@ export async function requestSubmissionImageUpload(
   context: SubmissionImageUploadContext,
   file: File,
 ) {
+  const correlationId = createCorrelationId('submission-image')
   const { data, error } = await supabase.functions.invoke('submission-image-upload', {
+    headers: {
+      [SENTRY_CORRELATION_ID_HEADER]: correlationId,
+    },
     body: {
       action: 'prepare',
       submission_id: context.submissionId,
@@ -130,6 +140,16 @@ export async function requestSubmissionImageUpload(
   })
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'submission_image.prepare',
+      edgeFunction: 'submission-image-upload',
+      correlationId,
+      ...getSupabaseErrorContext(error),
+      extra: {
+        fileType: file.type,
+        fileSize: file.size,
+      },
+    })
     throw new Error(
       await parseFunctionError(error, 'No pudimos preparar la subida de la imagen.'),
     )
@@ -140,6 +160,11 @@ export async function requestSubmissionImageUpload(
   }
 
   const result = data as { error?: string } | null
+  reportOperationalError(result?.error || 'Submission image prepare returned an invalid payload.', {
+    action: 'submission_image.prepare.invalid_payload',
+    edgeFunction: 'submission-image-upload',
+    correlationId,
+  })
   throw new Error(result?.error || 'No pudimos preparar la subida de la imagen.')
 }
 
@@ -157,6 +182,15 @@ export async function uploadSubmissionImageToStorage(
     .uploadToSignedUrl(path, token, file)
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'submission_image.storage_upload',
+      table: bucket,
+      extra: {
+        path,
+        fileType: file.type,
+        fileSize: file.size,
+      },
+    })
     throw new Error(error.message || 'No pudimos subir la imagen.')
   }
 
@@ -169,7 +203,11 @@ export async function finalizeSubmissionImage(
   storagePath: string,
   sortOrder: number,
 ) {
+  const correlationId = createCorrelationId('submission-image')
   const { data, error } = await supabase.functions.invoke('submission-image-upload', {
+    headers: {
+      [SENTRY_CORRELATION_ID_HEADER]: correlationId,
+    },
     body: {
       action: 'finalize',
       submission_id: context.submissionId,
@@ -181,6 +219,17 @@ export async function finalizeSubmissionImage(
   })
 
   if (error) {
+    reportOperationalError(error, {
+      action: 'submission_image.finalize',
+      edgeFunction: 'submission-image-upload',
+      correlationId,
+      ...getSupabaseErrorContext(error),
+      extra: {
+        storageBucket,
+        storagePath,
+        sortOrder,
+      },
+    })
     throw new Error(await parseFunctionError(error, 'No pudimos guardar la imagen.'))
   }
 
@@ -189,5 +238,15 @@ export async function finalizeSubmissionImage(
   }
 
   const result = data as { error?: string } | null
+  reportOperationalError(result?.error || 'Submission image finalize returned an invalid payload.', {
+    action: 'submission_image.finalize.invalid_payload',
+    edgeFunction: 'submission-image-upload',
+    correlationId,
+    extra: {
+      storageBucket,
+      storagePath,
+      sortOrder,
+    },
+  })
   throw new Error(result?.error || 'No pudimos guardar la imagen.')
 }

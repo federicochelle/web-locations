@@ -100,7 +100,7 @@ function getRecoveryUrlContext(searchParams: URLSearchParams): RecoveryUrlContex
 export function ResetPasswordPage() {
   usePageSeo({
     title: 'Restablecer contraseña',
-    description: 'Actualización de contraseña en Film Locations Uruguay.',
+    description: 'Actualización de contraseña en Sitio Locaciones.',
     canonicalPath: '/reset-password',
     robots: 'noindex,nofollow',
   })

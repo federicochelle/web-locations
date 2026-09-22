@@ -51,7 +51,7 @@ function isRateLimitedResetError(error: unknown) {
 export function ForgotPasswordPage() {
   usePageSeo({
     title: 'Recuperar contraseña',
-    description: 'Recuperación de acceso a Film Locations Uruguay.',
+    description: 'Recuperación de acceso a Sitio Locaciones.',
     canonicalPath: '/forgot-password',
     robots: 'noindex,nofollow',
   })

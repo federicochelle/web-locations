@@ -9,6 +9,7 @@ import {
   useSupabaseLocationSearchV4,
 } from '@/features/search/supabase/useSupabaseLocationSearchV4.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
@@ -122,6 +123,13 @@ export function SearchLocationsPage() {
           return
         }
 
+        reportOperationalError(resolveError, {
+          action: 'search.department.resolve',
+          table: 'departments',
+          extra: {
+            departmentSlug: normalizedDepartmentSlug,
+          },
+        })
         setDepartmentResolutionError(
           resolveError instanceof Error
             ? resolveError.message
@@ -241,8 +249,8 @@ export function SearchLocationsPage() {
       ? `Búsqueda: ${trimmedSearchQuery}`
       : 'Búsqueda de locaciones',
     description: trimmedSearchQuery
-      ? `Explorá resultados para "${trimmedSearchQuery}" en Film Locations Uruguay.`
-      : 'Explorá locaciones publicadas en Film Locations Uruguay.',
+      ? `Explorá resultados para "${trimmedSearchQuery}" en Sitio Locaciones.`
+      : 'Explorá locaciones publicadas en Sitio Locaciones.',
     canonicalPath: '/busqueda',
   })
 
@@ -341,6 +349,17 @@ export function SearchLocationsPage() {
           return
         }
 
+        reportOperationalError(loadError, {
+          action: 'search.legacy.load',
+          rpc: 'search_public_locations_v2',
+          extra: {
+            categorySlug: normalizedCategorySlug,
+            departmentSlug: normalizedDepartmentSlug,
+            hasSearch: Boolean(trimmedSearchQuery),
+            featureCount: normalizedFeatureSlugs.length,
+            page: initialPage,
+          },
+        })
         setLegacyLocations([])
         setLegacyTotalCount(0)
         setLegacyTotalPages(0)

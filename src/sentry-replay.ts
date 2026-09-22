@@ -3,7 +3,7 @@ export type ReplayEnvelope = Parameters<ReturnType<typeof makeFetchTransport>['s
 
 export function createPrivateReplay() {
   return replayIntegration({
-    maskAllText: true,
+    maskAllText: false,
     maskAllInputs: true,
     blockAllMedia: true,
     unmask: [],

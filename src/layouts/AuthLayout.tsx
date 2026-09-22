@@ -27,12 +27,12 @@ export function AuthLayout() {
         <div className="mx-auto flex w-full max-w-[1720px] flex-1 flex-col items-center justify-center gap-3 py-6 sm:gap-5 sm:py-4">
           <Link
             to="/"
-            aria-label="Ir al inicio de Film Locations Uruguay"
+            aria-label="Ir al inicio de Sitio Locaciones"
             className="inline-flex rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f]"
           >
             <img
               src={logoUrl}
-              alt="Film Locations Uruguay"
+              alt="Sitio Locaciones"
               className="h-32 w-auto object-contain sm:h-36"
             />
           </Link>

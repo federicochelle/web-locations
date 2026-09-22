@@ -10,7 +10,7 @@ import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 export function NewRequestProjectPage() {
   usePageSeo({
     title: 'Nuevo proyecto',
-    description: 'Creación privada de proyectos en Film Locations Uruguay.',
+    description: 'Creación privada de proyectos en Sitio Locaciones.',
     canonicalPath: '/requests/new',
     robots: 'noindex,nofollow',
   })

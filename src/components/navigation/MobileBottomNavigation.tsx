@@ -103,7 +103,7 @@ const mobileNavigationItems: MobileNavigationItem[] = [
   },
 ]
 
-const hiddenNavigationPatterns = ['/admin/*', '/404']
+const hiddenNavigationPatterns = ['/admin/*']
 
 export function MobileBottomNavigation() {
   const location = useLocation()

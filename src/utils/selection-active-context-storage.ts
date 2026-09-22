@@ -50,10 +50,15 @@ export function persistSelectionActiveContext(context: SelectionActiveContext) {
     return
   }
 
-  window.localStorage.setItem(
-    SELECTION_ACTIVE_CONTEXT_STORAGE_KEY,
-    JSON.stringify(context),
-  )
+  try {
+    window.localStorage.setItem(
+      SELECTION_ACTIVE_CONTEXT_STORAGE_KEY,
+      JSON.stringify(context),
+    )
+  } catch {
+    // Active context persistence is best-effort; runtime events still matter.
+  }
+
   window.dispatchEvent(
     new CustomEvent<{ context: SelectionActiveContext }>(
       SELECTION_ACTIVE_CONTEXT_CHANGE_EVENT,
@@ -71,7 +76,11 @@ export function clearSelectionActiveContext() {
     return
   }
 
-  window.localStorage.removeItem(SELECTION_ACTIVE_CONTEXT_STORAGE_KEY)
+  try {
+    window.localStorage.removeItem(SELECTION_ACTIVE_CONTEXT_STORAGE_KEY)
+  } catch {
+    // Active context persistence is best-effort.
+  }
 }
 
 export function openSelectionProjectContext(projectId: string) {

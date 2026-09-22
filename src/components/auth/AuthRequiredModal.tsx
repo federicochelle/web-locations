@@ -94,7 +94,7 @@ export function AuthRequiredModal({
           <div className="flex min-h-[12rem] items-center justify-center border-b border-white/10 px-6 py-8 md:min-h-[22rem] md:w-[42%] md:border-b-0 md:border-r md:px-8">
             <img
               src={logoUrl}
-              alt="Film Locations Uruguay"
+              alt="Sitio Locaciones"
               className="h-36 w-auto max-w-full object-contain sm:h-40 md:h-48"
             />
           </div>

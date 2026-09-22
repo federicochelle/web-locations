@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import * as Sentry from '@sentry/react'
 
 import { AuthContext } from '@/providers/AuthContext.ts'
 import type { AuthContextValue, ProfileState } from '@/providers/AuthContext.ts'
@@ -23,6 +22,10 @@ import type {
   UserProfile,
   UserSubscription,
 } from '@/types/auth.ts'
+import {
+  configureSentryUser,
+  reportOperationalError,
+} from '@/sentry-observability.ts'
 
 type AuthProviderProps = {
   children: ReactNode
@@ -46,14 +49,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const key = `${userId}:${state}`
     if (reported.current.has(key)) return
     reported.current.add(key)
-    const context = {
-      user: { id: userId },
-      tags: { auth_state: state, route: window.location.pathname },
-    }
     if (state === 'missing') {
-      Sentry.captureMessage('authenticated_user_without_profile', { ...context, level: 'warning' })
+      reportOperationalError('authenticated_user_without_profile', {
+        action: 'auth.profile.missing',
+        userId,
+        status: 'missing',
+      })
     } else {
-      Sentry.captureException(error, context)
+      reportOperationalError(error, {
+        action: `auth.${state}`,
+        userId,
+        status: state,
+      })
     }
   }, [])
 
@@ -79,7 +86,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     currentSession.current = nextSession
     setSession(nextSession)
     setUser(nextUser)
-    Sentry.setUser(nextUser ? { id: nextUser.id } : null)
+    configureSentryUser(nextUser ? { id: nextUser.id, email: nextUser.email } : null)
     setProfile(null)
     setSubscription(null)
     setPlan(null)
@@ -107,6 +114,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     reported.current.delete(`${nextUser.id}:missing`)
     reported.current.delete(`${nextUser.id}:profile_error`)
+    configureSentryUser({
+      id: nextUser.id,
+      email: nextUser.email,
+      name: nextProfile.fullName,
+    })
     if (nextProfile.status !== 'active') return
 
     // Secondary failures never remove a successfully loaded profile.
@@ -115,6 +127,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const enrichedProfile = await getProfileProductionCompany(nextProfile)
       if (latestRequestId.current !== requestId) return
       setProfile(enrichedProfile)
+      configureSentryUser({
+        id: nextUser.id,
+        email: nextUser.email,
+        name: enrichedProfile.fullName,
+      })
       reported.current.delete(`${nextUser.id}:company_error`)
     } catch (error) {
       if (latestRequestId.current === requestId) report(nextUser.id, 'company_error', error)
@@ -163,7 +180,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }).catch((error: unknown) => {
       if (!isActive || latestRequestId.current !== initialRequestId) return
-      Sentry.captureException(error, { tags: { auth_state: 'session_error' } })
+      reportOperationalError(error, {
+        action: 'auth.session_error',
+        status: 'session_error',
+      })
       void hydrateFromSession(null)
     })
 

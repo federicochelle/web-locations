@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '@/hooks/useAuth.ts'
 import { getFavorites } from '@/services/favorites.service.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import {
   addLocationToRequestProject,
   ensureInitialRequestProjectVersion,
@@ -131,6 +132,12 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       setLocations(nextLocations)
       setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
     } catch (loadError) {
+      reportOperationalError(loadError, {
+        action: 'request_project_detail.locations.load',
+        projectId,
+        requestProjectId: projectId,
+        table: 'request_project_locations',
+      })
       setError(getRequestProjectErrorMessage(loadError))
       setLocations([])
       setPersistedLocationsSnapshot('[]')
@@ -159,6 +166,13 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       setAvailableFavorites(nextFavorites)
       return nextFavorites
     } catch (loadError) {
+      reportOperationalError(loadError, {
+        action: 'request_project_detail.available_favorites.load',
+        userId: user.id,
+        projectId,
+        requestProjectId: projectId,
+        table: 'favorites',
+      })
       setError(getRequestProjectErrorMessage(loadError))
       setFavoriteCount(0)
       setAvailableFavorites([])
@@ -195,6 +209,12 @@ export function useRequestProjectDetail(projectId: string | undefined) {
       setLocations(nextLocations)
       setPersistedLocationsSnapshot(createLocationsSnapshot(nextLocations))
     } catch (loadError) {
+      reportOperationalError(loadError, {
+        action: 'request_project_detail.load',
+        projectId,
+        requestProjectId: projectId,
+        table: 'request_projects',
+      })
       setError(getRequestProjectErrorMessage(loadError))
       setProject(null)
       setLocations([])
@@ -243,6 +263,12 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         setProject(nextProject)
         return nextProject
       } catch (saveError) {
+        reportOperationalError(saveError, {
+          action: 'request_project_detail.save',
+          projectId,
+          requestProjectId: projectId,
+          table: 'request_projects',
+        })
         if (!options.suppressErrorState) {
           setError(getRequestProjectErrorMessage(saveError))
         }
@@ -269,6 +295,13 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         await Promise.all([refreshProject(), refreshLocations()])
         return true
       } catch (addError) {
+        reportOperationalError(addError, {
+          action: 'request_project_detail.add_location',
+          projectId,
+          requestProjectId: projectId,
+          locationId,
+          table: 'request_project_locations',
+        })
         setError(getRequestProjectErrorMessage(addError))
         return false
       } finally {
@@ -381,6 +414,15 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         await Promise.all([refreshProject(), refreshLocations()])
         return addedCount
       } catch (addError) {
+        reportOperationalError(addError, {
+          action: 'request_project_detail.add_locations',
+          projectId,
+          requestProjectId: projectId,
+          table: 'request_project_locations',
+          extra: {
+            locationCount: locationIds.length,
+          },
+        })
         setError(getRequestProjectErrorMessage(addError))
         return 0
       } finally {
@@ -454,6 +496,13 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         await Promise.all([refreshProject(), refreshLocations()])
         return true
       } catch (removeError) {
+        reportOperationalError(removeError, {
+          action: 'request_project_detail.remove_location',
+          projectId,
+          requestProjectId: projectId,
+          locationId,
+          table: 'request_project_locations',
+        })
         setError(getRequestProjectErrorMessage(removeError))
         return false
       } finally {
@@ -539,6 +588,15 @@ export function useRequestProjectDetail(projectId: string | undefined) {
         return true
       } catch (removeError) {
         setLocations(previousLocations)
+        reportOperationalError(removeError, {
+          action: 'request_project_detail.remove_selected_image',
+          projectId,
+          requestProjectId: projectId,
+          locationId,
+          extra: {
+            imageId,
+          },
+        })
         setError(getRequestProjectErrorMessage(removeError))
         return false
       } finally {

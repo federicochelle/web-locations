@@ -5,7 +5,7 @@ export function TermsPage() {
   usePageSeo({
     title: 'Términos y Condiciones',
     description:
-      'Leé los términos y condiciones de uso de Film Locations Uruguay para la búsqueda, selección y gestión de locaciones.',
+      'Leé los términos y condiciones de uso de Sitio Locaciones para la búsqueda, selección y gestión de locaciones.',
     canonicalPath: '/terminos',
   })
 
@@ -13,13 +13,13 @@ export function TermsPage() {
     <LegalPageLayout title="Términos y Condiciones">
       <div className="space-y-2">
         <p className="text-lg font-semibold text-brand-300">
-          Términos y Condiciones de Uso — Film Locations UY
+          Términos y Condiciones de Uso — Sitio Locaciones
         </p>
         <p className="text-brand-100/64">Última actualización: agosto de 2026</p>
       </div>
 
       <p>
-        Bienvenido a Film Locations UY, una plataforma destinada a facilitar la búsqueda, selección y gestión de locaciones para producciones audiovisuales, fotográficas, publicitarias y actividades relacionadas.
+        Bienvenido a Sitio Locaciones, una plataforma destinada a facilitar la búsqueda, selección y gestión de locaciones para producciones audiovisuales, fotográficas, publicitarias y actividades relacionadas.
       </p>
 
       <section className="space-y-3">
@@ -33,7 +33,7 @@ export function TermsPage() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-brand-300">2. La Plataforma</h2>
         <p>
-          Film Locations UY ofrece un servicio de búsqueda, selección y gestión de locaciones, facilitando la conexión entre personas o empresas interesadas en utilizar una locación y sus propietarios, responsables, administradores u organismos competentes, según corresponda.
+          Sitio Locaciones ofrece un servicio de búsqueda, selección y gestión de locaciones, facilitando la conexión entre personas o empresas interesadas en utilizar una locación y sus propietarios, responsables, administradores u organismos competentes, según corresponda.
         </p>
         <p>
           La Plataforma actúa como intermediaria y no es propietaria de las locaciones incluidas en su catálogo.
@@ -222,7 +222,7 @@ export function TermsPage() {
           Por consultas relacionadas con estos Términos y Condiciones o con el funcionamiento de la Plataforma, los usuarios podrán comunicarse a:
         </p>
         <p>
-          Film Locations UY
+          Sitio Locaciones
           <br />
           Correo electrónico: locationsfilm51@gmail.com
           <br />

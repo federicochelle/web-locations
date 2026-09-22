@@ -9,6 +9,7 @@ import {
   type SubmissionImageUploadContext,
   uploadSubmissionImageToStorage,
 } from '@/services/submission-images.service.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { prepareSubmissionImageForUpload } from '@/utils/submission-image-processing.ts'
 
 type SubmissionImageStatus = 'pending' | 'uploading' | 'uploaded' | 'error'
@@ -203,6 +204,15 @@ export function useSubmissionImages() {
             )
           } catch (error) {
             failedCount += 1
+            reportOperationalError(error, {
+              action: 'submission_image.upload_item',
+              status: 'failed',
+              extra: {
+                fileType: item.file.type,
+                fileSize: item.file.size,
+                sortOrder: item.sortOrder,
+              },
+            })
 
             setItems((currentItems) =>
               currentItems.map((currentItem) =>

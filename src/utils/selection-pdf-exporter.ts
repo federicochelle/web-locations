@@ -18,7 +18,7 @@ const PDF_IMAGE_PREPARATION_CONCURRENCY = 4
 const PDF_BACKGROUND = [8, 8, 8] as const
 const PDF_TEXT_GOLD = [215, 192, 162] as const
 const PDF_BLOB_URL_REVOKE_DELAY_MS = 60_000
-const PDF_SHARE_TEXT = 'PDF de seleccion generado por Film Locations Uruguay.'
+const PDF_SHARE_TEXT = 'PDF de seleccion generado por Sitio Locaciones.'
 function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
   doc.setTextColor(color[0], color[1], color[2])
 }
@@ -513,7 +513,7 @@ export async function createSelectionPdf(
       format: 'PNG',
     })
   } catch {
-    // Keep building the PDF without the Film Locations logo if it cannot be prepared.
+    // Keep building the PDF without the Sitio Locaciones logo if it cannot be prepared.
   }
 
   if (payload.project.productionCompanyLogoUrl) {

@@ -14,6 +14,7 @@ import {
   createLocationSubmission,
   getLocationSubmissionErrorMessage,
 } from '@/services/location-submissions.service.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { isValidEmail } from '@/utils/auth-validation.ts'
 
 type LocationSubmissionValues = {
@@ -102,7 +103,7 @@ export function LocationSubmissionPage() {
   usePageSeo({
     title: 'Postular locación',
     description:
-      'Postulá tu locación en Film Locations Uruguay para que pueda ser considerada en producciones audiovisuales, fotográficas y publicitarias.',
+      'Postulá tu locación en Sitio Locaciones para que pueda ser considerada en producciones audiovisuales, fotográficas y publicitarias.',
     canonicalPath: '/postular-locacion',
   })
 
@@ -232,6 +233,14 @@ export function LocationSubmissionPage() {
           : { type: 'success' },
       )
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'location_submission.submit',
+        status: 'failed',
+        extra: {
+          imageCount: submissionImages.length,
+          hadTurnstileToken: Boolean(turnstileToken),
+        },
+      })
       setSubmissionResult({
         type: 'error',
         message: await getLocationSubmissionErrorMessage(error),

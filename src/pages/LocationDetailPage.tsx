@@ -11,6 +11,7 @@ import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { getLocationByLocationCode } from '@/services/locations.service.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
 import { getCloudflareCardImageUrl } from '@/utils/cloudflare-images.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
@@ -161,7 +162,14 @@ export function LocationDetailPage() {
   const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
   const { isAuthenticated, loading: authLoading } = useAuth()
   const { favoriteIds, pendingIds, toggleFavorite } = useFavorites()
-  const { activeProjectId, images, addImage, removeImage, isSelected } = useImageSelection()
+  const {
+    activeProjectId,
+    images,
+    isProjectSelectionPendingResolution,
+    addImage,
+    removeImage,
+    isSelected,
+  } = useImageSelection()
   const criticalInlineImageCount = getCriticalImageCount(location?.images.length ?? 0)
   let lastRevealableImageIndex = -1
 
@@ -172,8 +180,8 @@ export function LocationDetailPage() {
   const locationDescription =
     location?.description?.trim() ||
     (location
-      ? `Explorá la locación ${formatLocationCode(location.locationCode)} en Film Locations Uruguay.`
-      : 'Explorá una locación publicada en Film Locations Uruguay.')
+      ? `Explorá la locación ${formatLocationCode(location.locationCode)} en Sitio Locaciones.`
+      : 'Explorá una locación publicada en Sitio Locaciones.')
   const canonicalPath = location
     ? buildPublicLocationPath({
         categorySlug: location.categorySlug,
@@ -188,7 +196,6 @@ export function LocationDetailPage() {
     title: location?.locationCode ?? 'Detalle de locación',
     description: locationDescription,
     canonicalPath,
-    ogImagePath: location?.images[0]?.url ?? undefined,
   })
 
   useEffect(() => {
@@ -253,6 +260,11 @@ export function LocationDetailPage() {
           return
         }
 
+        reportOperationalError(loadError, {
+          action: 'locations.detail.load',
+          locationId: locationIdentifier,
+          table: 'locations',
+        })
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -334,7 +346,7 @@ export function LocationDetailPage() {
   }
 
   function toggleImageSelection(image: PublicLocationDetail['images'][number]) {
-    if (!location) {
+    if (!location || isProjectSelectionPendingResolution) {
       return
     }
 
@@ -488,7 +500,8 @@ export function LocationDetailPage() {
                     locationImageId: image.id,
                     imageUrl: image.url,
                   })
-                  const imageIsSelected = isSelected(imageSelectionKey)
+                  const imageIsSelected =
+                    !isProjectSelectionPendingResolution && isSelected(imageSelectionKey)
 
                   return (
                     <button
@@ -512,24 +525,33 @@ export function LocationDetailPage() {
                           type="button"
                           aria-pressed={imageIsSelected}
                           aria-label={
-                            imageIsSelected
-                              ? `Quitar imagen ${index + 1} de la seleccion`
-                              : `Seleccionar imagen ${index + 1}`
+                            isProjectSelectionPendingResolution
+                              ? `Recuperando seleccion antes de cambiar imagen ${index + 1}`
+                              : imageIsSelected
+                                ? `Quitar imagen ${index + 1} de la seleccion`
+                                : `Seleccionar imagen ${index + 1}`
                           }
+                          disabled={isProjectSelectionPendingResolution}
                           onClick={(event) => {
                             handleImageSelection(event, image)
                           }}
                           className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
-                            imageIsSelected
+                            isProjectSelectionPendingResolution
+                              ? 'border-white/15 bg-black/60 text-white opacity-70'
+                              : imageIsSelected
                               ? 'border-brand-300 bg-brand-300 text-brand-950'
                               : 'border-white/15 bg-black/60 text-white hover:bg-black/76 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
                           }`}
                         >
                           <span aria-hidden="true" className="mr-2 text-base leading-none">
-                            {imageIsSelected ? '✓' : '+'}
+                            {isProjectSelectionPendingResolution
+                              ? '...'
+                              : imageIsSelected ? '✓' : '+'}
                           </span>
                           <span>
-                            {imageIsSelected ? 'Seleccionada' : 'Seleccionar'}
+                            {isProjectSelectionPendingResolution
+                              ? 'Recuperando'
+                              : imageIsSelected ? 'Seleccionada' : 'Seleccionar'}
                           </span>
                         </button>
                       </div>
@@ -594,6 +616,7 @@ export function LocationDetailPage() {
           })
           const willOpenPendingSelectionDrawer =
             activeProjectId === null &&
+            !isProjectSelectionPendingResolution &&
             !isSelected(selectionKey) &&
             images.length < MAX_SELECTED_IMAGES
 

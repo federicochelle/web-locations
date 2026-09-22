@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import { getSession, getSessionUser } from '@/services/auth.service.ts'
 
 export const REQUEST_PROJECT_PRODUCTION_COMPANY_LOGOS_BUCKET =
@@ -96,6 +97,19 @@ async function uploadRequestProjectLogo({
     })
 
   if (error) {
+    reportOperationalError(error, {
+      action: `request_projects.logo.${assetKind}.upload`,
+      userId,
+      projectId,
+      requestProjectId: projectId,
+      table: REQUEST_PROJECT_PRODUCTION_COMPANY_LOGOS_BUCKET,
+      errorCode: error.name,
+      extra: {
+        path,
+        fileType: file.type,
+        fileSize: file.size,
+      },
+    })
     throw new Error(error.message || 'No pudimos subir el logo.')
   }
 
@@ -106,6 +120,16 @@ async function uploadRequestProjectLogo({
     .getPublicUrl(path)
 
   if (!publicUrl.trim()) {
+    reportOperationalError('Storage returned an empty public logo URL.', {
+      action: `request_projects.logo.${assetKind}.public_url`,
+      userId,
+      projectId,
+      requestProjectId: projectId,
+      table: REQUEST_PROJECT_PRODUCTION_COMPANY_LOGOS_BUCKET,
+      extra: {
+        path,
+      },
+    })
     throw new Error('No pudimos obtener la URL publica del logo.')
   }
 

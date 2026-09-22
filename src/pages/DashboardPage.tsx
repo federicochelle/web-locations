@@ -18,7 +18,7 @@ function formatSubscriptionDate(value: string | null) {
 export function DashboardPage() {
   usePageSeo({
     title: 'Panel del visitante',
-    description: 'Panel privado de Film Locations Uruguay.',
+    description: 'Panel privado de Sitio Locaciones.',
     canonicalPath: '/dashboard',
     robots: 'noindex,nofollow',
   })

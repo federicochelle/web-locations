@@ -16,6 +16,7 @@ import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
+import { reportOperationalError } from '@/sentry-observability.ts'
 import {
   uploadRequestProjectProductLogo,
   uploadRequestProjectProductionCompanyLogo,
@@ -375,7 +376,7 @@ export function RequestDetailPage() {
 
   usePageSeo({
     title: project?.title ?? 'Detalle de proyecto',
-    description: 'Detalle privado de proyecto en Film Locations Uruguay.',
+    description: 'Detalle privado de proyecto en Sitio Locaciones.',
     canonicalPath: id ? `/requests/${id}` : '/requests',
     robots: 'noindex,nofollow',
   })
@@ -905,6 +906,16 @@ export function RequestDetailPage() {
         )
       }
     } catch (submitError) {
+      reportOperationalError(submitError, {
+        action: 'request_detail.submit_project',
+        projectId: project.id,
+        requestProjectId: project.id,
+        rpc: 'finalize_request_project_submission_versioned',
+        extra: {
+          totalImages: currentPdfPayload.totalImages,
+          isDraft,
+        },
+      })
       setIsLoadingModalOpen(false)
       setValidationError(
         submitError instanceof Error
@@ -935,6 +946,12 @@ export function RequestDetailPage() {
       }))
       setProductionCompanyLogoUploadStatus('idle')
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'request_detail.production_company_logo.upload',
+        projectId: project?.id,
+        requestProjectId: project?.id,
+        table: 'request-project-assets',
+      })
       setProductionCompanyLogoUploadStatus('error')
       setProductionCompanyLogoUploadError(
         error instanceof Error ? error.message : 'No pudimos subir el logo.',
@@ -959,6 +976,12 @@ export function RequestDetailPage() {
       }))
       setProductLogoUploadStatus('idle')
     } catch (error) {
+      reportOperationalError(error, {
+        action: 'request_detail.product_logo.upload',
+        projectId: project?.id,
+        requestProjectId: project?.id,
+        table: 'request-project-assets',
+      })
       setProductLogoUploadStatus('error')
       setProductLogoUploadError(
         error instanceof Error ? error.message : 'No pudimos subir el logo.',
@@ -975,6 +998,12 @@ export function RequestDetailPage() {
       const downloadResult = await downloadOfficialRequestProjectPdf(project)
       downloadSelectionPdf(downloadResult.blob, downloadResult.fileName)
     } catch (downloadError) {
+      reportOperationalError(downloadError, {
+        action: 'request_detail.official_pdf.download',
+        projectId: project.id,
+        requestProjectId: project.id,
+        table: project.officialPdf.bucket,
+      })
       setValidationError(
         downloadError instanceof Error
           ? downloadError.message
@@ -990,7 +1019,7 @@ export function RequestDetailPage() {
   function handleContactByWhatsApp() {
     const projectName = values.product.trim() || project?.title?.trim() || 'mi proyecto'
     const message =
-      `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Film Locations Uruguay.`
+      `Hola, me contacto por el proyecto "${projectName}" que acabo de enviar desde Sitio Locaciones.`
 
     window.open(buildWhatsAppUrl(message), '_blank', 'noopener,noreferrer')
   }

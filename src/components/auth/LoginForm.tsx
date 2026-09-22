@@ -27,7 +27,7 @@ type LoginStatusModalState =
 
 const EMAIL_CONFIRMED_MODAL = {
   title: 'Correo confirmado',
-  message: 'Tu correo fue confirmado correctamente. Ya podés iniciar sesión en Film Locations UY.',
+  message: 'Tu correo fue confirmado correctamente. Ya podés iniciar sesión en Sitio Locaciones.',
   primaryLabel: 'Continuar',
 } satisfies NonNullable<LoginStatusModalState>
 
