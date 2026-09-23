@@ -1,5 +1,11 @@
-const CLOUDFLARE_FLEXIBLE_CARD_VARIANT = 'w=640,fit=scale-down,metadata=none'
+const CLOUDFLARE_FLEXIBLE_CARD_WIDTHS = [320, 480, 640] as const
+const CLOUDFLARE_FLEXIBLE_CARD_QUALITY = 80
+const CLOUDFLARE_FLEXIBLE_CARD_VARIANT = getCloudflareCardVariant(640)
 const CLOUDFLARE_FLEXIBLE_LIGHTBOX_VARIANT = 'w=1600,fit=scale-down,metadata=none'
+
+function getCloudflareCardVariant(width: number) {
+  return `w=${width},fit=scale-down,metadata=none,f=auto,q=${CLOUDFLARE_FLEXIBLE_CARD_QUALITY}`
+}
 
 function isCloudflareImagesPath(pathname: string) {
   const segments = pathname.split('/').filter(Boolean)
@@ -48,6 +54,16 @@ function getCloudflareFlexibleImageUrl(
 
 export function getCloudflareCardImageUrl(imageUrl: string | null | undefined) {
   return getCloudflareFlexibleImageUrl(imageUrl, CLOUDFLARE_FLEXIBLE_CARD_VARIANT)
+}
+
+export function getCloudflareCardImageSrcSet(imageUrl: string | null | undefined) {
+  const variants = CLOUDFLARE_FLEXIBLE_CARD_WIDTHS.map((width) => {
+    const variantUrl = getCloudflareFlexibleImageUrl(imageUrl, getCloudflareCardVariant(width))
+
+    return variantUrl ? `${variantUrl} ${width}w` : null
+  }).filter((variant): variant is string => Boolean(variant))
+
+  return variants.length > 0 ? variants.join(', ') : null
 }
 
 export function getCloudflareLightboxImageUrl(imageUrl: string | null | undefined) {

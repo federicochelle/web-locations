@@ -28,7 +28,7 @@ export async function waitForSearchPageToSettle(page: Page) {
   const errorHeading = page.getByRole('heading', {
     name: /No se pudieron cargar los resultados/i,
   })
-  const emptyState = page.getByText(/No encontramos resultados para/i)
+  const emptyState = page.getByText(/No encontramos resultados/i)
   const resultLinks = page.locator('a[href^="/categorias/"]')
 
   await expect(page.getByRole('heading', { name: /Resultados de búsqueda/i })).toBeVisible()
@@ -59,7 +59,7 @@ export async function waitForSearchPageToSettle(page: Page) {
 }
 
 export async function getSearchOutcome(page: Page) {
-  const emptyState = page.getByText(/No encontramos resultados para/i)
+  const emptyState = page.getByText(/No encontramos resultados/i)
   const resultLinks = page.locator('a[href^="/categorias/"]')
 
   if (await emptyState.isVisible().catch(() => false)) {

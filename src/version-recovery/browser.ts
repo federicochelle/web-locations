@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/react'
+import { captureEvent, flush } from '@sentry/react'
 import { assetFromFailure, errorMessage, isChunkCandidate } from './classify.ts'
 import type { Failure, RecoverySource } from './classify.ts'
 import { createRecoveryController } from './controller.ts'
@@ -10,8 +10,8 @@ export const recovery = createRecoveryController({
   storage: () => window.sessionStorage,
   dirty: hasUnsavedCriticalState,
   route: () => window.location.pathname,
-  report: report => { Sentry.captureEvent({ message: 'Application module could not be loaded', level: 'warning', ...report }) },
-  flush: () => Sentry.flush(700),
+  report: report => { captureEvent({ message: 'Application module could not be loaded', level: 'warning', ...report }) },
+  flush: () => flush(700),
   reload: () => window.location.reload(),
 })
 

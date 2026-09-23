@@ -71,6 +71,16 @@ export type SearchPublicLocationsRow = {
   total_count?: number | null
 }
 
+type PublicLocationsByCategoryRow = {
+  id: string
+  location_code?: string | null
+  category_slug?: string | null
+  department_name?: string | null
+  cover_image_url?: string | null
+  cover_image_alt?: string | null
+  total_count?: number | string | null
+}
+
 export type ActiveCategory = {
   name: string
   slug: string
@@ -155,6 +165,33 @@ export function mapSearchPublicLocationsRow(
   })
 }
 
+function mapPublicLocationsByCategoryRow(
+  row: PublicLocationsByCategoryRow,
+): PublicLocationCard {
+  return mapPublicLocationCard({
+    id: row.id,
+    locationCode: row.location_code ?? row.id,
+    categorySlug: row.category_slug ?? null,
+    departmentName: row.department_name ?? null,
+    coverImageUrl: row.cover_image_url ?? null,
+    coverImageAlt: row.cover_image_alt ?? 'Imagen de locacion',
+    features: [],
+  })
+}
+
+function parseTotalCount(value: number | string | null | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsedValue = Number.parseInt(value, 10)
+    return Number.isFinite(parsedValue) ? parsedValue : 0
+  }
+
+  return 0
+}
+
 function normalizeFeatureSlugs(featureSlugs?: string[]) {
   return [...new Set(
     (featureSlugs ?? [])
@@ -231,7 +268,48 @@ export async function enrichLocationsWithCategorySlugs(
   }))
 }
 
-async function getLocationsFromRpc({
+async function getLocationsByCategoryFromRpc({
+  categorySlug,
+  departmentSlug,
+  limit,
+  offset,
+}: {
+  categorySlug: string
+  departmentSlug: string | null
+  limit: number
+  offset: number
+}): Promise<GetLocationsFromRpcResult> {
+  const { data, error } = await supabase.rpc('get_public_locations_by_category', {
+    p_category_slug: categorySlug,
+    p_department_slug: departmentSlug,
+    p_limit: limit,
+    p_offset: offset,
+  })
+
+  if (error) {
+    reportOperationalError(error, {
+      action: 'locations.get_public_locations_by_category',
+      rpc: 'get_public_locations_by_category',
+      errorCode: error.code,
+      extra: {
+        categorySlug,
+        departmentSlug,
+        limit,
+        offset,
+      },
+    })
+    throw new Error(error.message)
+  }
+
+  const rows = (data ?? []) as PublicLocationsByCategoryRow[]
+
+  return {
+    locations: rows.map((row) => mapPublicLocationsByCategoryRow(row)),
+    totalCount: parseTotalCount(rows[0]?.total_count),
+  }
+}
+
+async function getLocationsFromLegacyRpc({
   categorySlug,
   departmentSlug,
   limit,
@@ -339,15 +417,38 @@ export async function getLocations(
     }
   }
 
-  const rpcResult = await getLocationsFromRpc({
-    categorySlug,
-    departmentSlug,
-    limit: pageSize,
-    offset,
-    query: normalizedSearch || null,
-    featureSlugs: normalizedFeatureSlugs,
-    tagSlugs: [],
-  })
+  let rpcResult: GetLocationsFromRpcResult
+
+  if (categorySlug && !normalizedSearch) {
+    try {
+      rpcResult = await getLocationsByCategoryFromRpc({
+        categorySlug,
+        departmentSlug,
+        limit: pageSize,
+        offset,
+      })
+    } catch {
+      rpcResult = await getLocationsFromLegacyRpc({
+        categorySlug,
+        departmentSlug,
+        limit: pageSize,
+        offset,
+        query: null,
+        featureSlugs: [],
+        tagSlugs: [],
+      })
+    }
+  } else {
+    rpcResult = await getLocationsFromLegacyRpc({
+      categorySlug,
+      departmentSlug,
+      limit: pageSize,
+      offset,
+      query: normalizedSearch || null,
+      featureSlugs: normalizedFeatureSlugs,
+      tagSlugs: [],
+    })
+  }
 
   return {
     locations: rpcResult.locations,

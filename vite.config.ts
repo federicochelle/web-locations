@@ -5,6 +5,38 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 import { resolveBuildRelease } from './scripts/build-release.ts'
 
+const homeMosaicLcpResponsiveVariants = [
+  'WhatsApp Image 2026-07-27 at 9.08.38 PM (2)-480w.webp',
+  'WhatsApp Image 2026-07-27 at 9.08.38 PM (2)-768w.webp',
+  'WhatsApp Image 2026-07-27 at 9.08.38 PM (2)-960w.webp',
+] as const
+
+function appHomeMosaicLcpPreload() {
+  return {
+    name: 'app-home-mosaic-lcp-preload',
+    enforce: 'post' as const,
+    transformIndexHtml(html: string, context: { bundle?: Record<string, { type: string, fileName: string }> }) {
+      if (!context.bundle) {
+        return html
+      }
+
+      return homeMosaicLcpResponsiveVariants.reduce((updatedHtml, variant) => {
+        const sourcePath = `/src/assets/home-mosaic/responsive/${variant}`
+        const variantPrefix = `assets/${variant.replace(/\.webp$/, '-')}`
+        const asset = Object.values(context.bundle ?? {}).find(
+          (bundleItem) => bundleItem.type === 'asset' && bundleItem.fileName.startsWith(variantPrefix),
+        )
+
+        if (!asset) {
+          return updatedHtml
+        }
+
+        return updatedHtml.replaceAll(sourcePath, encodeURI(`/${asset.fileName}`))
+      }, html)
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const release = resolveBuildRelease(__dirname, loadEnv(mode, __dirname, 'VITE_'), mode)
@@ -17,7 +49,7 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: mode === 'production',
     },
-    plugins: [react(), tailwindcss(), {
+    plugins: [react(), tailwindcss(), appHomeMosaicLcpPreload(), {
       name: 'app-build-release',
       generateBundle() {
         this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ release }) })

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import * as Sentry from '@sentry/react'
+import { getCurrentScope } from '@sentry/react'
 
 import { processSentryBeforeSend } from '../src/sentry-before-send.ts'
 import {
@@ -103,7 +103,7 @@ test('sets and clears Sentry user identity without PII beyond allowed fields', (
 
   configureSentryUser({ id: 'user-1', email: 'user@example.com', name: 'User Name' })
   configureSentryUser(null)
-  assert.deepEqual(Sentry.getCurrentScope().getUser(), {})
+  assert.deepEqual(getCurrentScope().getUser(), {})
 })
 
 test('generates correlation IDs and extracts Supabase response context', () => {
