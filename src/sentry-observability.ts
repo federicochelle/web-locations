@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/react'
+import { captureException, setContext, setTag, setUser, withScope } from '@sentry/react'
 
 import { APP_RELEASE } from './version-recovery/release.ts'
 import { sanitizeForSentry } from './sentry-sanitize.ts'
@@ -157,14 +157,14 @@ export function configureSentryUser(user: SentryUserInput | null) {
     const sentryUser = buildSentryUserPayload(user)
     const authenticated = Boolean(sentryUser)
 
-    Sentry.setTag('authenticated', authenticated ? 'true' : 'false')
+    setTag('authenticated', authenticated ? 'true' : 'false')
 
     if (!sentryUser) {
-      Sentry.setUser(null)
+      setUser(null)
       return
     }
 
-    Sentry.setUser(sentryUser)
+    setUser(sentryUser)
   } catch {
     // Observability must never break application behavior.
   }
@@ -172,11 +172,11 @@ export function configureSentryUser(user: SentryUserInput | null) {
 
 export function setSentryRouteContext(pathname = getCurrentRoutePathname()) {
   try {
-    Sentry.setTag('app', 'public-web')
-    Sentry.setTag('route', pathname)
-    Sentry.setTag('release', APP_RELEASE)
-    Sentry.setTag('environment', getSentryEnvironment())
-    Sentry.setContext('app', {
+    setTag('app', 'public-web')
+    setTag('route', pathname)
+    setTag('release', APP_RELEASE)
+    setTag('environment', getSentryEnvironment())
+    setContext('app', {
       name: 'public-web',
       release: APP_RELEASE,
       environment: getSentryEnvironment(),
@@ -192,7 +192,7 @@ export function reportOperationalError(error: unknown, context: OperationalConte
     const normalizedError = normalizeError(error)
     const { safeContext, tags } = buildOperationalErrorContext(error, context)
 
-    Sentry.withScope((scope) => {
+    withScope((scope) => {
       scope.setLevel('error')
 
       for (const [key, value] of Object.entries(tags)) {
@@ -200,7 +200,7 @@ export function reportOperationalError(error: unknown, context: OperationalConte
       }
 
       scope.setContext('operation', safeContext)
-      Sentry.captureException(normalizedError)
+      captureException(normalizedError)
     })
   } catch {
     // Observability must never break application behavior.

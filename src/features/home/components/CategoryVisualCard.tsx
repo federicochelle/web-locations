@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { HomeCategoryCard } from '@/features/home/mocks/home.mock.ts'
-import { getCloudflareCardImageUrl } from '@/utils/cloudflare-images.ts'
+import {
+  getCloudflareCardImageSrcSet,
+  getCloudflareCardImageUrl,
+} from '@/utils/cloudflare-images.ts'
+
+const CATEGORY_CARD_IMAGE_SIZES = [
+  '(min-width: 1536px) 418px',
+  '(min-width: 1280px) calc((100vw - 128px) / 4)',
+  '(min-width: 1024px) calc((100vw - 96px) / 2)',
+  '(min-width: 640px) calc((100vw - 64px) / 2)',
+  'calc(100vw - 32px)',
+].join(', ')
 
 type CategoryVisualCardProps = {
   category: HomeCategoryCard
@@ -25,6 +36,16 @@ export function CategoryVisualCard({
     backgroundImage: category.imageStyle,
   } satisfies CSSProperties
   const imageUrl = getCloudflareCardImageUrl(category.imageUrl)
+  const imageSrcSet = getCloudflareCardImageSrcSet(category.imageUrl)
+
+  const reportImageSettledOnce = useCallback(() => {
+    if (hasReportedSettlementRef.current) {
+      return
+    }
+
+    hasReportedSettlementRef.current = true
+    onImageSettled?.()
+  }, [onImageSettled])
 
   useEffect(() => {
     setIsImageLoaded(false)
@@ -36,16 +57,7 @@ export function CategoryVisualCard({
     if (!imageUrl) {
       reportImageSettledOnce()
     }
-  }, [imageUrl])
-
-  function reportImageSettledOnce() {
-    if (hasReportedSettlementRef.current) {
-      return
-    }
-
-    hasReportedSettlementRef.current = true
-    onImageSettled?.()
-  }
+  }, [imageUrl, reportImageSettledOnce])
 
   return (
     <Link
@@ -58,6 +70,8 @@ export function CategoryVisualCard({
       {imageUrl && !hasImageError ? (
         <img
           src={imageUrl}
+          srcSet={imageSrcSet ?? undefined}
+          sizes={imageSrcSet ? CATEGORY_CARD_IMAGE_SIZES : undefined}
           alt={category.name}
           loading={imageLoading}
           fetchPriority={imageFetchPriority}

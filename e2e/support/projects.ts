@@ -159,8 +159,7 @@ export async function cleanupDraftProjectsByTitles(page: Page, titles: string[])
 
 export async function collectSearchDetailPaths(page: Page, count: number) {
   const searchRoutes = [
-    '/busqueda?q=montevideo',
-    '/busqueda?q=carrasco',
+    '/busqueda?department=montevideo',
     '/busqueda',
   ]
 

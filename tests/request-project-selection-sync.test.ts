@@ -17,7 +17,7 @@ const imageSelectionStoragePath = 'src/utils/image-selection-storage.ts'
 const selectionSyncQueuePath = 'src/utils/selection-sync-queue.ts'
 const selectionDebugLogPath = 'src/utils/selection-debug-log.ts'
 const selectionDebugPanelPath = 'src/components/selection/SelectionDebugPanel.tsx'
-const appPath = 'src/app/App.tsx'
+const privateFeatureProvidersPath = 'src/providers/PrivateFeatureProviders.tsx'
 const selectionDrawerTriggerPath = 'src/components/selection/SelectionDrawerTrigger.tsx'
 const locationDetailPagePath = 'src/pages/LocationDetailPage.tsx'
 
@@ -36,7 +36,7 @@ const imageSelectionStorageSource = readFileSync(imageSelectionStoragePath, 'utf
 const selectionSyncQueueSource = readFileSync(selectionSyncQueuePath, 'utf8')
 const selectionDebugLogSource = readFileSync(selectionDebugLogPath, 'utf8')
 const selectionDebugPanelSource = readFileSync(selectionDebugPanelPath, 'utf8')
-const appSource = readFileSync(appPath, 'utf8')
+const privateFeatureProvidersSource = readFileSync(privateFeatureProvidersPath, 'utf8')
 const selectionDrawerTriggerSource = readFileSync(selectionDrawerTriggerPath, 'utf8')
 const locationDetailPageSource = readFileSync(locationDetailPagePath, 'utf8')
 
@@ -1121,7 +1121,7 @@ test('drawer debug instrumentation records lifecycle and provider records sync q
 })
 
 test('selection debug panel exposes lifecycle logging and copy clear controls only in app debug mode', () => {
-  assert.match(appSource, /<SelectionDebugPanel \/>/)
+  assert.match(privateFeatureProvidersSource, /<SelectionDebugPanel \/>/)
   assert.match(selectionDebugPanelSource, /isSelectionDebugEnabled\(\)/)
   assert.match(selectionDebugPanelSource, /visibilitychange/)
   assert.match(selectionDebugPanelSource, /pagehide/)

@@ -1,15 +1,26 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { Footer } from '@/components/layout/Footer.tsx'
 import { Header } from '@/components/layout/Header.tsx'
 import { MobileBottomNavigation } from '@/components/navigation/MobileBottomNavigation.tsx'
 import { ScrollManager } from '@/components/routing/ScrollManager.tsx'
-import { SelectionDrawer } from '@/components/selection/SelectionDrawer.tsx'
-import { SelectionDrawerTrigger } from '@/components/selection/SelectionDrawerTrigger.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { hasPasswordRecoveryPending } from '@/utils/password-recovery-session.ts'
+import { recoverableImport } from '@/version-recovery/browser.ts'
 import logoUrl from '../../logo.webp'
+
+const SelectionDrawer = lazy(() =>
+  recoverableImport(() => import('@/components/selection/SelectionDrawer.tsx')).then((module) => ({
+    default: module.SelectionDrawer,
+  })),
+)
+
+const SelectionDrawerTrigger = lazy(() =>
+  recoverableImport(() => import('@/components/selection/SelectionDrawerTrigger.tsx')).then((module) => ({
+    default: module.SelectionDrawerTrigger,
+  })),
+)
 
 export function PublicLayout() {
   const location = useLocation()
@@ -54,8 +65,12 @@ export function PublicLayout() {
         <Footer />
       </div>
       <MobileBottomNavigation />
-      {canUsePrivateFeatures ? <SelectionDrawerTrigger /> : null}
-      {canUsePrivateFeatures ? <SelectionDrawer /> : null}
+      {canUsePrivateFeatures ? (
+        <Suspense fallback={null}>
+          <SelectionDrawerTrigger />
+          <SelectionDrawer />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

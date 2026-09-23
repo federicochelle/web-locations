@@ -1,16 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { SearchResultsPagination } from '@/components/navigation/SearchResultsPagination.tsx'
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { LocationsGrid } from '@/features/locations/components/LocationsGrid.tsx'
-import { useLocationSearchInterpretation } from '@/features/search/interpretation/useLocationSearchInterpretation.ts'
-import {
-  useSupabaseLocationSearchV4,
-} from '@/features/search/supabase/useSupabaseLocationSearchV4.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { reportOperationalError } from '@/sentry-observability.ts'
-import { getPublicDepartmentNameBySlug } from '@/services/departments.service.ts'
 import { getLocations } from '@/services/locations.service.ts'
 import type { PublicLocationCard } from '@/types/location.ts'
 
@@ -35,151 +30,38 @@ export function SearchLocationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryQuery = searchParams.get('category')
   const departmentQuery = searchParams.get('department')
-  const searchQuery = searchParams.get('q')
-  const featuresQuery = searchParams.get('features')
   const initialPage = parsePageParam(searchParams.get('page'))
   const currentSearchParams = searchParams.toString()
   const previousSearchSignatureRef = useRef<string | null>(null)
 
-  const [legacyLocations, setLegacyLocations] = useState<PublicLocationCard[]>([])
-  const [isLegacyLoading, setIsLegacyLoading] = useState(false)
-  const [legacyError, setLegacyError] = useState<string | null>(null)
-  const [legacyTotalCount, setLegacyTotalCount] = useState(0)
-  const [legacyTotalPages, setLegacyTotalPages] = useState(0)
+  const [locations, setLocations] = useState<PublicLocationCard[]>([])
+  const [isDataLoading, setIsDataLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   const [resolvedCriticalImagesCount, setResolvedCriticalImagesCount] = useState(0)
   const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
-  const [isDepartmentResolutionLoading, setIsDepartmentResolutionLoading] = useState(false)
-  const [departmentResolutionError, setDepartmentResolutionError] = useState<string | null>(null)
 
   const normalizedCategorySlug = categoryQuery?.trim() ?? ''
   const normalizedDepartmentSlug = departmentQuery?.trim() ?? ''
-  const trimmedSearchQuery = searchQuery?.trim() ?? ''
-  const normalizedFeatureSlugs = useMemo(
-    () =>
-      (featuresQuery ?? '')
-        .split(',')
-        .map((featureSlug) => featureSlug.trim())
-        .filter((featureSlug) => featureSlug.length > 0),
-    [featuresQuery],
-  )
-  const hasSearchQuery = trimmedSearchQuery.length > 0
-  const shouldUseLegacyResults = !hasSearchQuery
   const currentSearchSignature = JSON.stringify({
-    backend: hasSearchQuery ? 'supabase-v4' : 'legacy',
     category: normalizedCategorySlug,
     department: normalizedDepartmentSlug,
-    features: normalizedFeatureSlugs,
-    q: trimmedSearchQuery,
   })
-  const {
-    coreQuery,
-    categorySlugs,
-    featureSlugs,
-    freeTextTerms,
-    optionalTerms,
-    tagSlugs,
-    loading: isSearchInterpretationLoading,
-    fallback: didSearchInterpretationFallback,
-    fallbackReason: searchInterpretationFallbackReason,
-    rawQuery,
-    shouldUseAi,
-    usedAi,
-    durationMs: searchInterpretationDurationMs,
-  } = useLocationSearchInterpretation({
-    enabled: hasSearchQuery,
-    query: trimmedSearchQuery,
-  })
-  const effectiveSearchQuery = coreQuery.trim() || trimmedSearchQuery
-  const isAwaitingDepartmentResolution =
-    hasSearchQuery &&
-    normalizedDepartmentSlug.length > 0 &&
-    isDepartmentResolutionLoading
-  const isAwaitingSearchInterpretation = hasSearchQuery && shouldUseAi && isSearchInterpretationLoading
 
   useEffect(() => {
-    if (!hasSearchQuery || normalizedDepartmentSlug.length === 0) {
-      setIsDepartmentResolutionLoading(false)
-      setDepartmentResolutionError(null)
+    if (!searchParams.has('q') && !searchParams.has('features')) {
       return
     }
 
-    let isCancelled = false
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('q')
+    nextSearchParams.delete('features')
+    setSearchParams(nextSearchParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
-    async function resolveDepartmentName() {
-      try {
-        setIsDepartmentResolutionLoading(true)
-        setDepartmentResolutionError(null)
-        const nextDepartmentName = await getPublicDepartmentNameBySlug(normalizedDepartmentSlug)
-
-        if (isCancelled) {
-          return
-        }
-
-        if (!nextDepartmentName) {
-          setDepartmentResolutionError('No pudimos resolver el departamento seleccionado.')
-        }
-      } catch (resolveError) {
-        if (isCancelled) {
-          return
-        }
-
-        reportOperationalError(resolveError, {
-          action: 'search.department.resolve',
-          table: 'departments',
-          extra: {
-            departmentSlug: normalizedDepartmentSlug,
-          },
-        })
-        setDepartmentResolutionError(
-          resolveError instanceof Error
-            ? resolveError.message
-            : 'No pudimos resolver el departamento seleccionado.',
-        )
-      } finally {
-        if (!isCancelled) {
-          setIsDepartmentResolutionLoading(false)
-        }
-      }
-    }
-
-    void resolveDepartmentName()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [hasSearchQuery, normalizedDepartmentSlug])
-
-  const {
-    currentRequestKey: currentSupabaseRequestKey,
-    error: supabaseSearchError,
-    fallbackToV3,
-    hits: supabaseHits,
-    loading: isSupabaseSearchLoading,
-    searchMode,
-    settledRequestKey: settledSupabaseRequestKey,
-    totalHits: supabaseTotalHits,
-    usedRelated,
-  } = useSupabaseLocationSearchV4({
-    categorySlugs,
-    coreQuery: effectiveSearchQuery,
-    departmentSlug: normalizedDepartmentSlug,
-    enabled:
-      hasSearchQuery &&
-      !isAwaitingDepartmentResolution &&
-      !isAwaitingSearchInterpretation,
-    featureSlugs,
-    freeTextTerms,
-    limit: 100,
-    optionalTerms,
-    tagSlugs,
-  })
-
-  const locations = useMemo(() => {
-    if (hasSearchQuery) {
-      return supabaseHits
-    }
-
-    return [...legacyLocations].sort((left, right) => {
+  const sortedLocations = useMemo(
+    () => [...locations].sort((left, right) => {
       const leftCode = left.locationCode?.trim() || '\uffff'
       const rightCode = right.locationCode?.trim() || '\uffff'
 
@@ -187,43 +69,21 @@ export function SearchLocationsPage() {
         numeric: true,
         sensitivity: 'base',
       })
-    })
-  }, [hasSearchQuery, legacyLocations, supabaseHits])
-  const isLoading = hasSearchQuery
-    ? isAwaitingDepartmentResolution ||
-      isSearchInterpretationLoading ||
-      isSupabaseSearchLoading
-    : isLegacyLoading
-  const error = hasSearchQuery
-    ? departmentResolutionError ?? supabaseSearchError
-    : legacyError
-  const currentPage = hasSearchQuery ? 1 : initialPage
-  const currentTotalCount = hasSearchQuery
-    ? supabaseTotalHits
-    : legacyTotalCount
-  const currentTotalPages = hasSearchQuery ? 0 : legacyTotalPages
-  const criticalImageCount = getCriticalImageCount(locations.length)
-  const currentSearchRequestKey = hasSearchQuery ? currentSupabaseRequestKey : null
-  const settledSearchRequestKey = hasSearchQuery ? settledSupabaseRequestKey : null
-  const hasSettledCurrentSearch = hasSearchQuery
-    ? Boolean(currentSearchRequestKey) &&
-      currentSearchRequestKey === settledSearchRequestKey
-    : !isLoading
-  const isPendingCurrentSearch = hasSearchQuery && !hasSettledCurrentSearch
-  const shouldShowGlobalLoading = isLoading || isPendingCurrentSearch
+    }),
+    [locations],
+  )
+  const currentPage = initialPage
+  const criticalImageCount = getCriticalImageCount(sortedLocations.length)
+  const hasSettledCurrentSearch = !isDataLoading
+  const shouldShowGlobalLoading = isDataLoading
   const shouldShowEmptyState =
     !shouldShowGlobalLoading &&
     !error &&
     hasSettledCurrentSearch &&
-    locations.length === 0
+    sortedLocations.length === 0
 
-  function buildSearchParams(nextPage: number, nextQuery: string) {
+  const buildSearchParams = useCallback((nextPage: number) => {
     const nextSearchParams = new URLSearchParams()
-    const trimmedNextQuery = nextQuery.trim()
-
-    if (trimmedNextQuery) {
-      nextSearchParams.set('q', trimmedNextQuery)
-    }
 
     if (normalizedDepartmentSlug) {
       nextSearchParams.set('department', normalizedDepartmentSlug)
@@ -233,65 +93,18 @@ export function SearchLocationsPage() {
       nextSearchParams.set('category', normalizedCategorySlug)
     }
 
-    if (normalizedFeatureSlugs.length > 0) {
-      nextSearchParams.set('features', normalizedFeatureSlugs.join(','))
-    }
-
-    if (nextPage > 1 && !hasSearchQuery) {
+    if (nextPage > 1) {
       nextSearchParams.set('page', String(nextPage))
     }
 
     return nextSearchParams
-  }
+  }, [normalizedCategorySlug, normalizedDepartmentSlug])
 
   usePageSeo({
-    title: trimmedSearchQuery
-      ? `Búsqueda: ${trimmedSearchQuery}`
-      : 'Búsqueda de locaciones',
-    description: trimmedSearchQuery
-      ? `Explorá resultados para "${trimmedSearchQuery}" en Sitio Locaciones.`
-      : 'Explorá locaciones publicadas en Sitio Locaciones.',
+    title: 'Búsqueda de locaciones',
+    description: 'Explorá locaciones publicadas en Sitio Locaciones.',
     canonicalPath: '/busqueda',
   })
-
-  useEffect(() => {
-    if (!import.meta.env.DEV || !hasSearchQuery) {
-      return
-    }
-
-    console.info('[search-query-analysis]', {
-      rawQuery,
-      coreQuery: effectiveSearchQuery,
-      optionalTerms,
-      categorySlugs,
-      featureSlugs,
-      tagSlugs,
-      freeTextTerms,
-      usedAi,
-      fallback: didSearchInterpretationFallback,
-      fallbackReason: searchInterpretationFallbackReason,
-      durationMs: searchInterpretationDurationMs,
-      searchMode,
-      usedRelated,
-      fallbackToV3,
-    })
-  }, [
-    categorySlugs,
-    didSearchInterpretationFallback,
-    effectiveSearchQuery,
-    fallbackToV3,
-    featureSlugs,
-    freeTextTerms,
-    hasSearchQuery,
-    optionalTerms,
-    rawQuery,
-    searchInterpretationFallbackReason,
-    searchInterpretationDurationMs,
-    searchMode,
-    tagSlugs,
-    usedRelated,
-    usedAi,
-  ])
 
   useEffect(() => {
     const previousSearchSignature = previousSearchSignatureRef.current
@@ -305,45 +118,45 @@ export function SearchLocationsPage() {
       return
     }
 
-    const nextSearchParams = buildSearchParams(1, trimmedSearchQuery)
+    const nextSearchParams = buildSearchParams(1)
     const nextSearchParamsString = nextSearchParams.toString()
 
     if (currentSearchParams !== nextSearchParamsString) {
       setSearchParams(nextSearchParams, { replace: true })
     }
-  }, [currentSearchParams, currentSearchSignature, initialPage, setSearchParams, trimmedSearchQuery])
+  }, [
+    buildSearchParams,
+    currentSearchParams,
+    currentSearchSignature,
+    initialPage,
+    setSearchParams,
+  ])
 
   useEffect(() => {
-    if (!shouldUseLegacyResults) {
-      return
-    }
-
     let isMounted = true
 
-    async function loadLegacyLocations() {
+    async function loadLocations() {
       try {
-        setIsLegacyLoading(true)
-        setLegacyError(null)
+        setIsDataLoading(true)
+        setError(null)
         setResolvedCriticalImagesCount(0)
         setIsWaitingForCriticalImages(false)
 
-        // Legacy compatibility path for old URLs without a free-text query.
         const result = await getLocations({
           categorySlug: normalizedCategorySlug || null,
           departmentSlug: normalizedDepartmentSlug || null,
           page: initialPage,
           pageSize: SEARCH_RESULTS_PAGE_SIZE,
           search: null,
-          featureSlugs: normalizedFeatureSlugs,
         })
 
         if (!isMounted) {
           return
         }
 
-        setLegacyLocations(result.locations)
-        setLegacyTotalCount(result.totalCount)
-        setLegacyTotalPages(result.totalPages)
+        setLocations(result.locations)
+        setTotalCount(result.totalCount)
+        setTotalPages(result.totalPages)
       } catch (loadError) {
         if (!isMounted) {
           return
@@ -355,50 +168,38 @@ export function SearchLocationsPage() {
           extra: {
             categorySlug: normalizedCategorySlug,
             departmentSlug: normalizedDepartmentSlug,
-            hasSearch: Boolean(trimmedSearchQuery),
-            featureCount: normalizedFeatureSlugs.length,
+            hasSearch: false,
             page: initialPage,
           },
         })
-        setLegacyLocations([])
-        setLegacyTotalCount(0)
-        setLegacyTotalPages(0)
-        setLegacyError(
+        setLocations([])
+        setTotalCount(0)
+        setTotalPages(0)
+        setError(
           loadError instanceof Error
             ? loadError.message
             : 'No se pudieron cargar los resultados de la búsqueda.',
         )
       } finally {
         if (isMounted) {
-          setIsLegacyLoading(false)
+          setIsDataLoading(false)
         }
       }
     }
 
-    void loadLegacyLocations()
+    void loadLocations()
 
     return () => {
       isMounted = false
     }
   }, [
-    shouldUseLegacyResults,
     initialPage,
     normalizedCategorySlug,
     normalizedDepartmentSlug,
-    normalizedFeatureSlugs,
   ])
 
   useEffect(() => {
-    if (!hasSearchQuery) {
-      return
-    }
-
-    setResolvedCriticalImagesCount(0)
-    setIsWaitingForCriticalImages(false)
-  }, [currentSearchRequestKey, hasSearchQuery])
-
-  useEffect(() => {
-    if (isLoading || error || locations.length === 0 || criticalImageCount === 0) {
+    if (isDataLoading || error || sortedLocations.length === 0 || criticalImageCount === 0) {
       setIsWaitingForCriticalImages(false)
       return
     }
@@ -417,10 +218,10 @@ export function SearchLocationsPage() {
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [criticalImageCount, error, isLoading, locations.length, resolvedCriticalImagesCount])
+  }, [criticalImageCount, error, isDataLoading, sortedLocations.length, resolvedCriticalImagesCount])
 
   useEffect(() => {
-    if (isLoading) {
+    if (isDataLoading) {
       return
     }
 
@@ -428,8 +229,8 @@ export function SearchLocationsPage() {
       return
     }
 
-    if (currentTotalPages === 0) {
-      const nextSearchParams = buildSearchParams(1, trimmedSearchQuery)
+    if (totalPages === 0) {
+      const nextSearchParams = buildSearchParams(1)
       const nextSearchParamsString = nextSearchParams.toString()
 
       if (currentSearchParams !== nextSearchParamsString) {
@@ -439,11 +240,8 @@ export function SearchLocationsPage() {
       return
     }
 
-    if (currentPage > currentTotalPages) {
-      const nextSearchParams = buildSearchParams(
-        currentTotalPages,
-        trimmedSearchQuery,
-      )
+    if (currentPage > totalPages) {
+      const nextSearchParams = buildSearchParams(totalPages)
       const nextSearchParamsString = nextSearchParams.toString()
 
       if (currentSearchParams !== nextSearchParamsString) {
@@ -453,21 +251,21 @@ export function SearchLocationsPage() {
   }, [
     currentPage,
     currentSearchParams,
-    currentTotalPages,
-    isLoading,
+    buildSearchParams,
+    totalPages,
+    isDataLoading,
     setSearchParams,
-    trimmedSearchQuery,
   ])
 
   function goToPreviousPage() {
-    const nextSearchParams = buildSearchParams(Math.max(1, currentPage - 1), trimmedSearchQuery)
+    const nextSearchParams = buildSearchParams(Math.max(1, currentPage - 1))
     setSearchParams(nextSearchParams)
   }
 
   function goToNextPage() {
     const boundedNextPage =
-      currentTotalPages > 0 ? Math.min(currentTotalPages, currentPage + 1) : currentPage + 1
-    const nextSearchParams = buildSearchParams(boundedNextPage, trimmedSearchQuery)
+      totalPages > 0 ? Math.min(totalPages, currentPage + 1) : currentPage + 1
+    const nextSearchParams = buildSearchParams(boundedNextPage)
     setSearchParams(nextSearchParams)
   }
 
@@ -478,15 +276,10 @@ export function SearchLocationsPage() {
           <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.04em] text-brand-100 sm:text-5xl">
             Resultados de búsqueda
           </h1>
-          {hasSearchQuery && !shouldShowEmptyState ? (
-            <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-              Busqueda: "{trimmedSearchQuery}"
-            </p>
-          ) : null}
           {!shouldShowGlobalLoading && !error && !shouldShowEmptyState ? (
             <p className="max-w-2xl text-sm leading-6 text-brand-100/68 sm:text-base">
-              {locations.length > 0
-                ? `${currentTotalCount} ${currentTotalCount === 1 ? 'resultado' : 'resultados'}`
+              {sortedLocations.length > 0
+                ? `${totalCount} ${totalCount === 1 ? 'resultado' : 'resultados'}`
                 : ''}
             </p>
           ) : null}
@@ -494,13 +287,7 @@ export function SearchLocationsPage() {
 
         {shouldShowGlobalLoading ? (
           <section className="w-full">
-            <AppLoading
-              label={
-                hasSearchQuery && isSearchInterpretationLoading
-                  ? 'Interpretando búsqueda...'
-                  : 'Cargando resultados...'
-              }
-            />
+            <AppLoading label="Cargando resultados..." />
           </section>
         ) : null}
 
@@ -515,13 +302,13 @@ export function SearchLocationsPage() {
           <section className="space-y-6 sm:space-y-8">
             <div className="max-w-5xl">
               <h2 className="text-sm font-medium leading-6 tracking-[-0.01em] text-brand-100/68 sm:text-[0.95rem] lg:text-[1rem]">
-                No encontramos resultados para "{rawQuery}".
+                No encontramos resultados.
               </h2>
             </div>
           </section>
         ) : null}
 
-        {!shouldShowGlobalLoading && !error && hasSettledCurrentSearch && locations.length > 0 ? (
+        {!shouldShowGlobalLoading && !error && hasSettledCurrentSearch && sortedLocations.length > 0 ? (
           <div
             className={
               isWaitingForCriticalImages
@@ -531,7 +318,7 @@ export function SearchLocationsPage() {
             aria-hidden={isWaitingForCriticalImages}
           >
             <LocationsGrid
-              locations={locations}
+              locations={sortedLocations}
               onCriticalImageSettled={() => {
                 setResolvedCriticalImagesCount((currentCount) => currentCount + 1)
               }}
@@ -539,12 +326,12 @@ export function SearchLocationsPage() {
           </div>
         ) : null}
 
-        {!shouldShowGlobalLoading && !error && hasSettledCurrentSearch && locations.length > 0 ? (
+        {!shouldShowGlobalLoading && !error && hasSettledCurrentSearch && sortedLocations.length > 0 ? (
           <>
-            {currentTotalPages > 1 ? (
+            {totalPages > 1 ? (
               <SearchResultsPagination
                 currentPage={currentPage}
-                totalPages={currentTotalPages}
+                totalPages={totalPages}
                 onNextPage={goToNextPage}
                 onPreviousPage={goToPreviousPage}
               />

@@ -4,11 +4,13 @@ import type { PublicLocationCard } from '@/types/location.ts'
 type CategoryLocationsGridProps = {
   locations: PublicLocationCard[]
   onCriticalImageSettled?: () => void
+  onBeforeLocationDetailNavigate?: () => void
 }
 
 export function CategoryLocationsGrid({
   locations,
   onCriticalImageSettled,
+  onBeforeLocationDetailNavigate,
 }: CategoryLocationsGridProps) {
   const criticalImageCount = Math.min(
     locations.length,
@@ -27,6 +29,7 @@ export function CategoryLocationsGrid({
             imageLoading={index < 4 ? 'eager' : 'lazy'}
             imageFetchPriority={index < 2 ? 'high' : 'auto'}
             onImageSettled={index < criticalImageCount ? onCriticalImageSettled : undefined}
+            onBeforeNavigateToDetail={onBeforeLocationDetailNavigate}
           />
         ))}
       </div>

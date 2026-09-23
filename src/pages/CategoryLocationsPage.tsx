@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useLocation,
+  useNavigationType,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom'
 
 import { SearchResultsPagination } from '@/components/navigation/SearchResultsPagination.tsx'
 import { CategoryLocationsGrid } from '@/features/locations/components/CategoryLocationsGrid.tsx'
@@ -14,6 +19,15 @@ import { reportOperationalError } from '@/sentry-observability.ts'
 import type { Department, PublicLocationCard } from '@/types/location.ts'
 
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
+const CATEGORY_SCROLL_PENDING_KEY = 'category-location-scroll:pending:v1'
+const CATEGORY_SCROLL_STORAGE_PREFIX = 'category-location-scroll:v1:'
+const CATEGORY_SCROLL_MAX_AGE_MS = 30 * 60 * 1000
+const CATEGORY_SCROLL_MAX_ATTEMPTS = 120
+
+type CategoryScrollSnapshot = {
+  scrollY: number
+  createdAt: number
+}
 
 function getCriticalImageCount(totalImages: number) {
   const maxCriticalImages =
@@ -29,16 +43,73 @@ function parsePageParam(value: string | null) {
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 1
 }
 
+function getCategoryScrollStorageKey(pathname: string, search: string) {
+  return `${CATEGORY_SCROLL_STORAGE_PREFIX}${pathname}${search}`
+}
+
+function readCategoryScrollSnapshot(storageKey: string) {
+  try {
+    const rawSnapshot = window.sessionStorage.getItem(storageKey)
+
+    if (!rawSnapshot) {
+      return null
+    }
+
+    const snapshot = JSON.parse(rawSnapshot) as Partial<CategoryScrollSnapshot>
+
+    if (
+      typeof snapshot.scrollY !== 'number' ||
+      typeof snapshot.createdAt !== 'number' ||
+      Date.now() - snapshot.createdAt > CATEGORY_SCROLL_MAX_AGE_MS
+    ) {
+      window.sessionStorage.removeItem(storageKey)
+      return null
+    }
+
+    return snapshot as CategoryScrollSnapshot
+  } catch {
+    window.sessionStorage.removeItem(storageKey)
+    return null
+  }
+}
+
+function writeCategoryScrollSnapshot(storageKey: string) {
+  try {
+    const snapshot: CategoryScrollSnapshot = {
+      scrollY: window.scrollY,
+      createdAt: Date.now(),
+    }
+
+    window.sessionStorage.setItem(storageKey, JSON.stringify(snapshot))
+    window.sessionStorage.setItem(CATEGORY_SCROLL_PENDING_KEY, storageKey)
+  } catch {
+    // Session storage can be unavailable in hardened browser modes.
+  }
+}
+
+function clearCategoryScrollSnapshot(storageKey: string) {
+  try {
+    window.sessionStorage.removeItem(storageKey)
+
+    if (window.sessionStorage.getItem(CATEGORY_SCROLL_PENDING_KEY) === storageKey) {
+      window.sessionStorage.removeItem(CATEGORY_SCROLL_PENDING_KEY)
+    }
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
 export function CategoryLocationsPage() {
   const { slug } = useParams()
+  const location = useLocation()
+  const navigationType = useNavigationType()
   const [searchParams, setSearchParams] = useSearchParams()
-  const searchQuery = searchParams.get('q')
   const departmentQuery = searchParams.get('department')
-  const featuresQuery = searchParams.get('features')
   const initialPage = parsePageParam(searchParams.get('page'))
   const currentSearchParams = searchParams.toString()
   const filterPopoverRef = useRef<HTMLDivElement | null>(null)
   const previousSearchSignatureRef = useRef<string | null>(null)
+  const hasAttemptedScrollRestoreRef = useRef(false)
 
   const [locations, setLocations] = useState<PublicLocationCard[]>([])
   const [availableDepartments, setAvailableDepartments] = useState<Department[]>([])
@@ -51,16 +122,7 @@ export function CategoryLocationsPage() {
   const [isWaitingForCriticalImages, setIsWaitingForCriticalImages] = useState(false)
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const trimmedSearchQuery = searchQuery?.trim() ?? ''
   const normalizedDepartmentSlug = departmentQuery?.trim() ?? ''
-  const normalizedFeatureSlugs = useMemo(
-    () =>
-      (featuresQuery ?? '')
-        .split(',')
-        .map((featureSlug) => featureSlug.trim())
-        .filter((featureSlug) => featureSlug.length > 0),
-    [featuresQuery],
-  )
   const fallbackCategoryName = useMemo(() => {
     const normalizedSlug = slug?.trim() ?? ''
 
@@ -74,19 +136,19 @@ export function CategoryLocationsPage() {
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
       .join(' ')
   }, [slug])
-  const hasActiveSearch = trimmedSearchQuery.length > 0
   const headingTitle = activeCategoryName ?? fallbackCategoryName
   const categorySubtitleName = headingTitle.trim().toLocaleLowerCase('es-UY')
   const criticalImageCount = getCriticalImageCount(locations.length)
   const currentSearchSignature = JSON.stringify({
     department: normalizedDepartmentSlug,
-    features: normalizedFeatureSlugs,
-    q: trimmedSearchQuery,
   })
+  const categoryScrollStorageKey = useMemo(
+    () => getCategoryScrollStorageKey(location.pathname, location.search),
+    [location.pathname, location.search],
+  )
 
   const activeHeadingParts = [
     `Categoria: ${headingTitle}`,
-    hasActiveSearch ? `Busqueda: "${trimmedSearchQuery}"` : null,
     normalizedDepartmentSlug ? `Departamento: ${normalizedDepartmentSlug}` : null,
   ].filter((part): part is string => Boolean(part))
 
@@ -102,19 +164,11 @@ export function CategoryLocationsPage() {
     canonicalPath: slug ? `/categorias/${slug}` : '/busqueda',
   })
 
-  function buildSearchParams(nextPage: number, nextDepartmentSlug: string) {
+  const buildSearchParams = useCallback((nextPage: number, nextDepartmentSlug: string) => {
     const nextSearchParams = new URLSearchParams()
-
-    if (trimmedSearchQuery) {
-      nextSearchParams.set('q', trimmedSearchQuery)
-    }
 
     if (nextDepartmentSlug) {
       nextSearchParams.set('department', nextDepartmentSlug)
-    }
-
-    if (normalizedFeatureSlugs.length > 0) {
-      nextSearchParams.set('features', normalizedFeatureSlugs.join(','))
     }
 
     if (nextPage > 1) {
@@ -122,7 +176,32 @@ export function CategoryLocationsPage() {
     }
 
     return nextSearchParams
-  }
+  }, [])
+
+  const saveScrollForDetailNavigation = useCallback(() => {
+    writeCategoryScrollSnapshot(categoryScrollStorageKey)
+  }, [categoryScrollStorageKey])
+
+  useEffect(() => {
+    hasAttemptedScrollRestoreRef.current = false
+
+    if (navigationType === 'POP') {
+      return
+    }
+
+    clearCategoryScrollSnapshot(categoryScrollStorageKey)
+  }, [categoryScrollStorageKey, navigationType])
+
+  useEffect(() => {
+    if (!searchParams.has('q') && !searchParams.has('features')) {
+      return
+    }
+
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('q')
+    nextSearchParams.delete('features')
+    setSearchParams(nextSearchParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     if (!isFilterPopoverOpen) {
@@ -224,8 +303,7 @@ export function CategoryLocationsPage() {
           departmentSlug: normalizedDepartmentSlug || null,
           page: initialPage,
           pageSize: CATEGORY_LOCATIONS_PAGE_SIZE,
-          search: trimmedSearchQuery,
-          featureSlugs: normalizedFeatureSlugs,
+          search: null,
         })
 
         if (!isMounted) {
@@ -253,8 +331,7 @@ export function CategoryLocationsPage() {
           extra: {
             categorySlug: slug,
             departmentSlug: normalizedDepartmentSlug,
-            hasSearch: trimmedSearchQuery.length > 0,
-            featureCount: normalizedFeatureSlugs.length,
+            hasSearch: false,
           },
         })
         setError(
@@ -274,7 +351,7 @@ export function CategoryLocationsPage() {
     return () => {
       isMounted = false
     }
-  }, [initialPage, normalizedDepartmentSlug, normalizedFeatureSlugs, slug, trimmedSearchQuery])
+  }, [initialPage, normalizedDepartmentSlug, slug])
 
   useEffect(() => {
     const previousSearchSignature = previousSearchSignatureRef.current
@@ -295,6 +372,7 @@ export function CategoryLocationsPage() {
       setSearchParams(nextSearchParams, { replace: true })
     }
   }, [
+    buildSearchParams,
     currentSearchParams,
     currentSearchSignature,
     initialPage,
@@ -344,6 +422,62 @@ export function CategoryLocationsPage() {
   }
 
   useEffect(() => {
+    if (hasAttemptedScrollRestoreRef.current || navigationType !== 'POP' || isLoading) {
+      return
+    }
+
+    let pendingStorageKey: string | null = null
+
+    try {
+      pendingStorageKey = window.sessionStorage.getItem(CATEGORY_SCROLL_PENDING_KEY)
+    } catch {
+      return
+    }
+
+    if (pendingStorageKey !== categoryScrollStorageKey) {
+      return
+    }
+
+    const snapshot = readCategoryScrollSnapshot(categoryScrollStorageKey)
+
+    if (!snapshot) {
+      clearCategoryScrollSnapshot(categoryScrollStorageKey)
+      return
+    }
+
+    const scrollSnapshot = snapshot
+    hasAttemptedScrollRestoreRef.current = true
+
+    let animationFrameId = 0
+    let attemptCount = 0
+
+    function restoreWhenPageIsTallEnough() {
+      const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+      const targetScrollY = Math.min(scrollSnapshot.scrollY, maxScrollY)
+
+      if (maxScrollY >= scrollSnapshot.scrollY || attemptCount >= CATEGORY_SCROLL_MAX_ATTEMPTS) {
+        window.scrollTo({
+          top: targetScrollY,
+          behavior: 'instant',
+        })
+        clearCategoryScrollSnapshot(categoryScrollStorageKey)
+        return
+      }
+
+      attemptCount += 1
+      animationFrameId = window.requestAnimationFrame(restoreWhenPageIsTallEnough)
+    }
+
+    animationFrameId = window.requestAnimationFrame(restoreWhenPageIsTallEnough)
+
+    return () => {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
+    }
+  }, [categoryScrollStorageKey, isLoading, navigationType])
+
+  useEffect(() => {
     if (isLoading) {
       return
     }
@@ -372,6 +506,7 @@ export function CategoryLocationsPage() {
       }
     }
   }, [
+    buildSearchParams,
     currentSearchParams,
     initialPage,
     isLoading,
@@ -512,9 +647,7 @@ export function CategoryLocationsPage() {
         <section className="rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
           <h2 className="text-lg font-semibold text-brand-950">No encontramos resultados</h2>
           <p className="mt-2 text-sm text-sand-700">
-            {hasActiveSearch
-              ? `No encontramos locaciones publicadas para esta categoria y la busqueda "${trimmedSearchQuery}".`
-              : 'No encontramos locaciones publicadas para esta categoria.'}
+            No encontramos locaciones publicadas para esta categoria.
           </p>
         </section>
       ) : null}
@@ -530,6 +663,7 @@ export function CategoryLocationsPage() {
         >
           <CategoryLocationsGrid
             locations={locations}
+            onBeforeLocationDetailNavigate={saveScrollForDetailNavigation}
             onCriticalImageSettled={() => {
               setResolvedCriticalImagesCount((currentCount) => currentCount + 1)
             }}

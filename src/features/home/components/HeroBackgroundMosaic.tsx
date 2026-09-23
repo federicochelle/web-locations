@@ -1,17 +1,11 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 
-import image0 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM.webp'
-import image1 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (1).webp'
-import image2 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.38 PM (2).webp'
-import image3 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM.webp'
-import image4 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (1).webp'
-import image5 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (2).webp'
-import image6 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (3).webp'
-import image7 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.39 PM (4).webp'
-import image8 from '@/assets/home-mosaic/WhatsApp Image 2026-07-27 at 9.08.40 PM.webp'
+import { homeMosaicImages } from '@/features/home/components/homeMosaicImages.ts'
 
 type MosaicTile = {
   src: string
+  srcSet: string
+  sizes: string
   alt: string
   widthClassName: string
   visibilityClassName?: string
@@ -26,50 +20,59 @@ type MosaicRow = {
 
 const tiles: MosaicTile[] = [
   {
-    src: image0,
+    ...homeMosaicImages[0],
     alt: 'Locacion destacada 1',
+    sizes: '(max-width: 639px) 0px, (min-width: 1024px) 40vw, 38vw',
     widthClassName: 'w-[64vw] sm:w-[38vw] lg:w-[40vw]',
     visibilityClassName: 'hidden sm:block',
   },
   {
-    src: image1,
+    ...homeMosaicImages[1],
     alt: 'Locacion destacada 2',
+    sizes: '(min-width: 1024px) 31vw, (min-width: 640px) 30vw, 64vw',
     widthClassName: 'w-[64vw] sm:w-[30vw] lg:w-[31vw]',
   },
   {
-    src: image2,
+    ...homeMosaicImages[2],
     alt: 'Locacion destacada 3',
+    sizes: '(min-width: 1024px) 37vw, (min-width: 640px) 36vw, 64vw',
     widthClassName: 'w-[64vw] sm:w-[36vw] lg:w-[37vw]',
   },
   {
-    src: image3,
+    ...homeMosaicImages[3],
     alt: 'Locacion destacada 4',
+    sizes: '(min-width: 1024px) 36vw, (min-width: 640px) 35vw, 64vw',
     widthClassName: 'w-[64vw] sm:w-[35vw] lg:w-[36vw]',
   },
   {
-    src: image4,
+    ...homeMosaicImages[4],
     alt: 'Locacion destacada 5',
+    sizes: '(min-width: 1024px) 41vw, (min-width: 640px) 39vw, 64vw',
     widthClassName: 'w-[64vw] sm:w-[39vw] lg:w-[41vw]',
   },
   {
-    src: image5,
+    ...homeMosaicImages[5],
     alt: 'Locacion destacada 6',
+    sizes: '(max-width: 639px) 0px, (min-width: 1024px) 32vw, 31vw',
     widthClassName: 'w-[64vw] sm:w-[31vw] lg:w-[32vw]',
     visibilityClassName: 'hidden sm:block',
   },
   {
-    src: image6,
+    ...homeMosaicImages[6],
     alt: 'Locacion destacada 7',
+    sizes: '(min-width: 1024px) 39vw, (min-width: 640px) 37vw, 64vw',
     widthClassName: 'w-[64vw] sm:w-[37vw] lg:w-[39vw]',
   },
   {
-    src: image7,
+    ...homeMosaicImages[7],
     alt: 'Locacion destacada 8',
+    sizes: '(min-width: 1024px) 29vw, (min-width: 640px) 28vw, 64vw',
     widthClassName: 'w-[64vw] sm:w-[28vw] lg:w-[29vw]',
   },
   {
-    src: image8,
+    ...homeMosaicImages[8],
     alt: 'Locacion destacada 9',
+    sizes: '(max-width: 639px) 0px, (min-width: 1024px) 37vw, 35vw',
     widthClassName: 'w-[64vw] sm:w-[35vw] lg:w-[37vw]',
     visibilityClassName: 'hidden sm:block',
   },
@@ -173,6 +176,8 @@ function MosaicTrack({ row }: { row: MosaicRow }) {
                   {shouldLoadImage ? (
                     <img
                       src={tile.src}
+                      srcSet={tile.srcSet}
+                      sizes={tile.sizes}
                       alt={tile.alt}
                       width={1600}
                       height={900}

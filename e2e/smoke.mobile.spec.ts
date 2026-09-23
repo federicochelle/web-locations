@@ -29,18 +29,18 @@ test('mobile navegación principal permite ir de inicio a login y volver', async
   await expectNoUnexpectedRuntimeIssues(page, diagnostics)
 })
 
-test('mobile búsqueda resuelve y conserva query params con reload', async ({
+test('mobile búsqueda limpia q antiguo y resuelve con reload', async ({
   page,
   diagnostics,
 }) => {
   await page.goto('/busqueda?q=montevideo')
 
   await waitForSearchPageToSettle(page)
-  await expect(page).toHaveURL(/\/busqueda\?q=montevideo$/)
+  await expect(page).toHaveURL(/\/busqueda$/)
 
   await page.reload()
   await waitForSearchPageToSettle(page)
-  await expect(page).toHaveURL(/\/busqueda\?q=montevideo$/)
+  await expect(page).toHaveURL(/\/busqueda$/)
 
   await expectNoVisibleLoaders(page)
   await expectNoUnexpectedRuntimeIssues(page, diagnostics)

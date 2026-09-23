@@ -110,7 +110,7 @@ export function HomePage() {
 
   return (
     <div className="relative left-1/2 w-screen -translate-x-1/2 bg-black">
-      <HomeSearchSection />
+      <HomeSearchSection categories={categories} />
 
       <div className="mx-auto max-w-[1720px] space-y-12 px-4 pt-12 sm:space-y-14 sm:px-6 sm:pt-14 lg:space-y-18 lg:px-10 lg:pt-16 2xl:px-14">
         {isLoading ? (

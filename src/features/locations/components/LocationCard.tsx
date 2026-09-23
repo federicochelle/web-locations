@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
@@ -13,6 +13,7 @@ type LocationCardProps = {
   isFavorite?: boolean
   isFavoriteLoading?: boolean
   onToggleFavorite?: () => void
+  onBeforeNavigateToDetail?: () => void
   imageLoading?: 'eager' | 'lazy'
   imageFetchPriority?: 'high' | 'auto'
   onImageSettled?: () => void
@@ -37,6 +38,7 @@ export function LocationCard({
   isFavorite = false,
   isFavoriteLoading = false,
   onToggleFavorite,
+  onBeforeNavigateToDetail,
   imageLoading = 'lazy',
   imageFetchPriority = 'auto',
   onImageSettled,
@@ -63,6 +65,15 @@ export function LocationCard({
     },
   }
 
+  const reportImageSettledOnce = useCallback(() => {
+    if (hasReportedSettlementRef.current) {
+      return
+    }
+
+    hasReportedSettlementRef.current = true
+    onImageSettled?.()
+  }, [onImageSettled])
+
   useEffect(() => {
     setLoadedImageUrl(null)
     setHasImageError(false)
@@ -74,22 +85,13 @@ export function LocationCard({
       setLoadedImageUrl(coverImageUrl)
       reportImageSettledOnce()
     }
-  }, [coverImageUrl])
+  }, [coverImageUrl, reportImageSettledOnce])
 
   useEffect(() => {
     if (!coverImageUrl) {
       reportImageSettledOnce()
     }
-  }, [coverImageUrl])
-
-  function reportImageSettledOnce() {
-    if (hasReportedSettlementRef.current) {
-      return
-    }
-
-    hasReportedSettlementRef.current = true
-    onImageSettled?.()
-  }
+  }, [coverImageUrl, reportImageSettledOnce])
 
   return (
     <>
@@ -117,6 +119,17 @@ export function LocationCard({
           }
 
           if (isAuthenticated) {
+            if (
+              event.button === 0 &&
+              !event.defaultPrevented &&
+              !event.metaKey &&
+              !event.altKey &&
+              !event.ctrlKey &&
+              !event.shiftKey
+            ) {
+              onBeforeNavigateToDetail?.()
+            }
+
             return
           }
 
