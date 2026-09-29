@@ -74,7 +74,7 @@ const mobileNavigationItems: MobileNavigationItem[] = [
       pathname === '/' ||
       pathname === '/busqueda' ||
       matchPath('/categorias/:slug', pathname) !== null ||
-      matchPath('/categorias/:categorySlug/:locationCode', pathname) !== null ||
+      matchPath('/categorias/:categorySlug/:locationId', pathname) !== null ||
       matchPath('/locations/:slug', pathname) !== null,
   },
   {

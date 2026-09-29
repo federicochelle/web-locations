@@ -24,6 +24,7 @@ export function SelectedLocationGroup({
 }: SelectedLocationGroupProps) {
   const locationPath = buildPublicLocationPath({
     categorySlug,
+    locationId,
     locationCode,
   })
   const coverImage = images[0]

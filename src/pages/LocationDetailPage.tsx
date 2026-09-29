@@ -10,12 +10,12 @@ import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
-import { getLocationByLocationCode } from '@/services/locations.service.ts'
+import { getPublicLocationByIdentifier } from '@/services/locations.service.ts'
 import { reportOperationalError } from '@/sentry-observability.ts'
 import type { PublicLocationDetail } from '@/types/location.ts'
 import { getCloudflareCardImageUrl } from '@/utils/cloudflare-images.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
-import { buildPublicLocationPath, normalizePublicValue } from '@/utils/location-public.ts'
+import { buildPublicLocationPath } from '@/utils/location-public.ts'
 
 const CRITICAL_IMAGE_TIMEOUT_MS = 2000
 
@@ -146,7 +146,7 @@ export function LocationDetailPage() {
   const {
     slug: legacySlug,
     categorySlug: routeCategorySlug,
-    locationCode: routeLocationCode,
+    locationId: routeLocationId,
   } = useParams()
   const [location, setLocation] = useState<PublicLocationDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -185,11 +185,12 @@ export function LocationDetailPage() {
   const canonicalPath = location
     ? buildPublicLocationPath({
         categorySlug: location.categorySlug,
+        locationId: location.id,
         locationCode: location.locationCode,
         fallbackSlug: location.slug,
       })
-    : routeCategorySlug && routeLocationCode
-    ? `/categorias/${routeCategorySlug}/${routeLocationCode}`
+    : routeCategorySlug && routeLocationId
+    ? `/categorias/${routeCategorySlug}/${routeLocationId}`
     : null
 
   usePageSeo({
@@ -202,7 +203,7 @@ export function LocationDetailPage() {
     let isMounted = true
 
     async function loadLocation() {
-      const locationIdentifier = routeLocationCode ?? legacySlug ?? null
+      const locationIdentifier = routeLocationId ?? legacySlug ?? null
 
       if (!locationIdentifier) {
         setNotFound(true)
@@ -215,20 +216,22 @@ export function LocationDetailPage() {
         setError(null)
         setNotFound(false)
 
-        const nextLocation = await getLocationByLocationCode(locationIdentifier)
+        const lookupResult = await getPublicLocationByIdentifier(locationIdentifier)
 
         if (!isMounted) {
           return
         }
 
-        if (!nextLocation) {
+        if (!lookupResult) {
           setNotFound(true)
           setLocation(null)
           return
         }
 
+        const nextLocation = lookupResult.location
         const resolvedCanonicalPath = buildPublicLocationPath({
           categorySlug: nextLocation.categorySlug,
+          locationId: nextLocation.id,
           locationCode: nextLocation.locationCode,
           fallbackSlug: nextLocation.slug,
         })
@@ -236,16 +239,12 @@ export function LocationDetailPage() {
         const hasInvalidCategorySlug = Boolean(
           routeCategorySlug && routeCategorySlug !== nextLocation.categorySlug,
         )
-        const hasNonCanonicalLocationCode = Boolean(
-          routeLocationCode &&
-          normalizePublicValue(routeLocationCode) !==
-            normalizePublicValue(nextLocation.locationCode),
-        )
+        const hasLegacyIdentifier = lookupResult.lookupMode !== 'id'
 
         if (
           hasLegacyRoute ||
           hasInvalidCategorySlug ||
-          hasNonCanonicalLocationCode ||
+          hasLegacyIdentifier ||
           locationState.pathname !== resolvedCanonicalPath
         ) {
           navigate(resolvedCanonicalPath, { replace: true })
@@ -282,7 +281,7 @@ export function LocationDetailPage() {
     return () => {
       isMounted = false
     }
-  }, [legacySlug, locationState.pathname, navigate, routeCategorySlug, routeLocationCode])
+  }, [legacySlug, locationState.pathname, navigate, routeCategorySlug, routeLocationId])
 
   useEffect(() => {
     if (images.length < MAX_SELECTED_IMAGES && selectionLimitMessage) {

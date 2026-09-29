@@ -304,6 +304,7 @@ export function CategoryLocationsPage() {
           page: initialPage,
           pageSize: CATEGORY_LOCATIONS_PAGE_SIZE,
           search: null,
+          useCategoryOrdering: true,
         })
 
         if (!isMounted) {

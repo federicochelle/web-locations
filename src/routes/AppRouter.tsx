@@ -185,7 +185,7 @@ const router = createBrowserRouter([
             element: <ProtectedRoute allowedRoles={['visitor', 'admin']} />,
             children: [
               {
-                path: 'categorias/:categorySlug/:locationCode',
+                path: 'categorias/:categorySlug/:locationId',
                 element: withRouteSuspense(<LocationDetailPage />),
               },
               {
