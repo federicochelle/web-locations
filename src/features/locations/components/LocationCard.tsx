@@ -52,6 +52,7 @@ export function LocationCard({
   const formattedLocationCode = formatLocationCode(location.locationCode)
   const detailPath = buildPublicLocationPath({
     categorySlug: location.categorySlug,
+    locationId: location.id,
     locationCode: location.locationCode,
     fallbackSlug: location.slug,
   })

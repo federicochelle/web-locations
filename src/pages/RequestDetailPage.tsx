@@ -1080,6 +1080,7 @@ export function RequestDetailPage() {
     void navigate(
       buildPublicLocationPath({
         categorySlug: item.location.categorySlug,
+        locationId: item.location.id,
         locationCode: item.location.locationCode,
         fallbackSlug: item.location.slug,
       }),

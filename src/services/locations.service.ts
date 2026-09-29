@@ -103,6 +103,7 @@ type GetLocationsFilters = {
   pageSize?: number
   search?: string | null
   featureSlugs?: string[]
+  useCategoryOrdering?: boolean
 }
 
 type GetLocationsFromRpcResult = {
@@ -112,6 +113,40 @@ type GetLocationsFromRpcResult = {
 
 export const CATEGORY_LOCATIONS_PAGE_SIZE = 32
 const DEFAULT_LOCATIONS_PAGE_SIZE = 20
+const PUBLIC_LOCATION_DETAIL_SELECT = `
+  id,
+  slug,
+  title,
+  description,
+  location_code,
+  approx_lat,
+  approx_lng,
+  approx_radius,
+  published,
+  departments (
+    name
+  ),
+  zones (
+    name
+  ),
+  categories (
+    slug
+  ),
+  location_images (
+    id,
+    url,
+    sort_order
+  )
+`
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+type PublicLocationDetailLookupMode = 'id' | 'location_code' | 'slug'
+
+export type PublicLocationDetailLookupResult = {
+  location: PublicLocationDetail
+  lookupMode: PublicLocationDetailLookupMode
+}
 
 function sortImages(images: LocationImageRow[] | null | undefined) {
   return [...(images ?? [])].sort(
@@ -131,6 +166,10 @@ function buildLocationCodeFromSlug(publicSlug: string) {
   return normalizedPublicSlug.toUpperCase()
 }
 
+function isUuid(value: string) {
+  return UUID_PATTERN.test(value.trim())
+}
+
 function parseApproxCoordinate(value: number | null | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null
@@ -145,6 +184,41 @@ function parseApproxRadius(value: number | null | undefined) {
   }
 
   return value
+}
+
+function mapLocationDetailRow(
+  row: LocationRow,
+  fallbackSlug: string | null,
+): PublicLocationDetail {
+  const images = sortImages(row.location_images)
+    .filter((image) => Boolean(image.url))
+    .map((image) => ({
+      id: image.id ?? (image.url as string),
+      url: image.url as string,
+      sortOrder: image.sort_order ?? null,
+    }))
+  const category = getSingleRelation(row.categories)
+  const normalizedSlug = buildPublicSlug(row.location_code) ?? fallbackSlug ?? row.id
+  const publicLocationCode = row.location_code?.trim() || normalizedSlug
+
+  if (!category?.slug?.trim()) {
+    throw new Error('La locacion no tiene una categoria publica asociada.')
+  }
+
+  return {
+    id: row.id,
+    slug: normalizedSlug,
+    title: publicLocationCode,
+    description: row.description?.trim() || null,
+    locationCode: publicLocationCode,
+    categorySlug: category.slug.trim(),
+    departmentName: row.departments?.name?.trim() || 'Sin departamento',
+    zoneName: row.zones?.name?.trim() || 'Sin zona',
+    approxLat: parseApproxCoordinate(row.approx_lat),
+    approxLng: parseApproxCoordinate(row.approx_lng),
+    approxRadius: parseApproxRadius(row.approx_radius),
+    images,
+  }
 }
 
 export function mapSearchPublicLocationsRow(
@@ -376,6 +450,7 @@ export async function getLocations(
   const pageSize = Math.max(1, Math.trunc(filters.pageSize ?? DEFAULT_LOCATIONS_PAGE_SIZE))
   const normalizedSearch = filters.search?.trim() ?? ''
   const normalizedFeatureSlugs = normalizeFeatureSlugs(filters.featureSlugs)
+  const shouldUseCategoryOrdering = filters.useCategoryOrdering === true
   const offset = (page - 1) * pageSize
   let activeCategory: ActiveCategory | null = null
 
@@ -419,7 +494,7 @@ export async function getLocations(
 
   let rpcResult: GetLocationsFromRpcResult
 
-  if (categorySlug && !normalizedSearch) {
+  if (categorySlug && shouldUseCategoryOrdering && !normalizedSearch) {
     try {
       rpcResult = await getLocationsByCategoryFromRpc({
         categorySlug,
@@ -464,172 +539,101 @@ export async function getLocations(
   }
 }
 
-export async function getLocationByLocationCode(publicSlug: string) {
-  const locationCode = buildLocationCodeFromSlug(publicSlug)
+export async function getPublicLocationByIdentifier(
+  publicIdentifier: string,
+): Promise<PublicLocationDetailLookupResult | null> {
+  const normalizedIdentifier = publicIdentifier.trim()
 
-  if (!locationCode) {
+  if (!normalizedIdentifier) {
     return null
   }
 
-  const { data, error } = await supabase
-    .from('locations')
-    .select(
-      `
-      id,
-      slug,
-      title,
-      description,
-      location_code,
-      approx_lat,
-      approx_lng,
-        approx_radius,
-        published,
-        departments (
-          name
-        ),
-        zones (
-          name
-        ),
-        categories (
-          slug
-        ),
-        location_images (
-          id,
-          url,
-          sort_order
-        )
-      `,
-    )
-    .eq('published', true)
-    .eq('location_code', locationCode)
-    .single()
+  if (isUuid(normalizedIdentifier)) {
+    const { data, error } = await supabase
+      .from('locations')
+      .select(PUBLIC_LOCATION_DETAIL_SELECT)
+      .eq('published', true)
+      .eq('id', normalizedIdentifier)
+      .maybeSingle()
 
-  if (error) {
-    if (error.code !== 'PGRST116') {
+    if (error) {
+      reportOperationalError(error, {
+        action: 'locations.detail_by_id',
+        table: 'locations',
+        errorCode: error.code,
+        extra: {
+          publicIdentifier: normalizedIdentifier,
+          lookup: 'id',
+        },
+      })
+      throw new Error(error.message)
+    }
+
+    return data
+      ? {
+          location: mapLocationDetailRow(data as LocationRow, null),
+          lookupMode: 'id',
+        }
+      : null
+  }
+
+  const locationCode = buildLocationCodeFromSlug(normalizedIdentifier)
+
+  if (locationCode) {
+    const { data, error } = await supabase
+      .from('locations')
+      .select(PUBLIC_LOCATION_DETAIL_SELECT)
+      .eq('published', true)
+      .eq('location_code', locationCode)
+      .maybeSingle()
+
+    if (error) {
       reportOperationalError(error, {
         action: 'locations.detail_by_code',
         table: 'locations',
         errorCode: error.code,
         extra: {
-          publicSlug,
+          publicIdentifier: normalizedIdentifier,
           lookup: 'location_code',
         },
       })
       throw new Error(error.message)
     }
 
-    const fallback = await supabase
-      .from('locations')
-      .select(
-        `
-          id,
-          slug,
-          title,
-          description,
-          location_code,
-          approx_lat,
-          approx_lng,
-          approx_radius,
-          published,
-          departments (
-            name
-          ),
-          zones (
-            name
-          ),
-          categories (
-            slug
-          ),
-          location_images (
-            id,
-            url,
-            sort_order
-          )
-        `,
-      )
-      .eq('published', true)
-      .eq('slug', publicSlug)
-      .single()
-
-    if (fallback.error) {
-      if (fallback.error.code === 'PGRST116') {
-        return null
+    if (data) {
+      return {
+        location: mapLocationDetailRow(data as LocationRow, normalizedIdentifier),
+        lookupMode: 'location_code',
       }
-
-      reportOperationalError(fallback.error, {
-        action: 'locations.detail_by_slug',
-        table: 'locations',
-        errorCode: fallback.error.code,
-        extra: {
-          publicSlug,
-          lookup: 'slug',
-        },
-      })
-      throw new Error(fallback.error.message)
     }
-
-    const fallbackRow = fallback.data as LocationRow
-    const fallbackImages = sortImages(fallbackRow.location_images)
-      .filter((image) => Boolean(image.url))
-      .map((image) => ({
-        id: image.id ?? (image.url as string),
-        url: image.url as string,
-        sortOrder: image.sort_order ?? null,
-      }))
-    const fallbackCategory = getSingleRelation(fallbackRow.categories)
-    const fallbackSlug = buildPublicSlug(fallbackRow.location_code) ?? publicSlug
-    const fallbackLocationCode = fallbackRow.location_code?.trim() || fallbackSlug
-
-    if (!fallbackCategory?.slug?.trim()) {
-      throw new Error('La locacion no tiene una categoria publica asociada.')
-    }
-
-    return {
-      id: fallbackRow.id,
-      slug: fallbackSlug,
-      title: fallbackLocationCode,
-      description: fallbackRow.description?.trim() || null,
-      locationCode: fallbackLocationCode,
-      categorySlug: fallbackCategory.slug.trim(),
-      departmentName: fallbackRow.departments?.name?.trim() || 'Sin departamento',
-      zoneName: fallbackRow.zones?.name?.trim() || 'Sin zona',
-      approxLat: parseApproxCoordinate(fallbackRow.approx_lat),
-      approxLng: parseApproxCoordinate(fallbackRow.approx_lng),
-      approxRadius: parseApproxRadius(fallbackRow.approx_radius),
-      images: fallbackImages,
-    } satisfies PublicLocationDetail
   }
 
-  const row = data as LocationRow
-  const images = sortImages(row.location_images)
-    .filter((image) => Boolean(image.url))
-    .map((image) => ({
-      id: image.id ?? (image.url as string),
-      url: image.url as string,
-      sortOrder: image.sort_order ?? null,
-    }))
-  const category = getSingleRelation(row.categories)
-  const normalizedSlug = buildPublicSlug(row.location_code) ?? publicSlug
-  const publicLocationCode = row.location_code?.trim() || normalizedSlug
+  const fallback = await supabase
+    .from('locations')
+    .select(PUBLIC_LOCATION_DETAIL_SELECT)
+    .eq('published', true)
+    .eq('slug', normalizedIdentifier)
+    .maybeSingle()
 
-  if (!category?.slug?.trim()) {
-    throw new Error('La locacion no tiene una categoria publica asociada.')
+  if (fallback.error) {
+    reportOperationalError(fallback.error, {
+      action: 'locations.detail_by_slug',
+      table: 'locations',
+      errorCode: fallback.error.code,
+      extra: {
+        publicIdentifier: normalizedIdentifier,
+        lookup: 'slug',
+      },
+    })
+    throw new Error(fallback.error.message)
   }
 
-  return {
-    id: row.id,
-    slug: normalizedSlug,
-    title: publicLocationCode,
-    description: row.description?.trim() || null,
-    locationCode: publicLocationCode,
-    categorySlug: category.slug.trim(),
-    departmentName: row.departments?.name?.trim() || 'Sin departamento',
-    zoneName: row.zones?.name?.trim() || 'Sin zona',
-    approxLat: parseApproxCoordinate(row.approx_lat),
-    approxLng: parseApproxCoordinate(row.approx_lng),
-    approxRadius: parseApproxRadius(row.approx_radius),
-    images,
-  } satisfies PublicLocationDetail
+  return fallback.data
+    ? {
+        location: mapLocationDetailRow(fallback.data as LocationRow, normalizedIdentifier),
+        lookupMode: 'slug',
+      }
+    : null
 }
 
 export async function getFeaturedLocations() {

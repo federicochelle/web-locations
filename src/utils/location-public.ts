@@ -32,18 +32,20 @@ export function buildPublicSlug(locationCode?: string | null) {
 
 export function buildPublicLocationPath({
   categorySlug,
+  locationId,
   locationCode,
   fallbackSlug,
 }: {
   categorySlug?: string | null
+  locationId?: string | null
   locationCode?: string | null
   fallbackSlug?: string | null
 }) {
   const normalizedCategorySlug = categorySlug?.trim() ?? ''
-  const normalizedLocationCode = locationCode?.trim() ?? ''
+  const normalizedLocationId = locationId?.trim() ?? ''
 
-  if (normalizedCategorySlug && normalizedLocationCode) {
-    return `/categorias/${normalizedCategorySlug}/${normalizedLocationCode}`
+  if (normalizedCategorySlug && normalizedLocationId) {
+    return `/categorias/${normalizedCategorySlug}/${normalizedLocationId}`
   }
 
   return `/locations/${fallbackSlug ?? buildPublicSlug(locationCode) ?? ''}`
