@@ -207,6 +207,12 @@ type SyncRequestProjectSelectionPayload = {
   }[]
 }
 
+export type CurrentRequestProjectLocationPresentation = {
+  locationId: string
+  locationCode: string
+  locationTitle: string
+}
+
 const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
 
 const REQUEST_PROJECT_SELECT = `
@@ -777,6 +783,87 @@ async function getLocationCatalogRows(locationIds: string[]) {
   }
 
   return (data ?? []) as RequestProjectLocationLocationRow[]
+}
+
+export async function getCurrentRequestProjectLocationPresentations(
+  locationIds: string[],
+): Promise<CurrentRequestProjectLocationPresentation[]> {
+  const normalizedLocationIds = [...new Set(
+    locationIds
+      .map((locationId) => locationId.trim())
+      .filter((locationId) => locationId.length > 0),
+  )]
+
+  if (normalizedLocationIds.length === 0) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('locations')
+    .select('id, location_code, title')
+    .in('id', normalizedLocationIds)
+
+  if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.current_location_codes.load',
+      table: 'locations',
+      errorCode: error.code,
+      extra: {
+        locationCount: normalizedLocationIds.length,
+      },
+    })
+    throw new Error(error.message)
+  }
+
+  return ((data ?? []) as Array<{
+    id: string
+    location_code?: string | null
+    title?: string | null
+  }>).map((location) => {
+    const locationCode = location.location_code?.trim() || location.id
+
+    return {
+      locationId: location.id,
+      locationCode,
+      locationTitle: location.title?.trim() || locationCode,
+    }
+  })
+}
+
+export function applyCurrentRequestProjectLocationPresentations(
+  locations: RequestProjectLocation[],
+  currentPresentations: CurrentRequestProjectLocationPresentation[],
+) {
+  const currentPresentationById = new Map(
+    currentPresentations.map((location) => [location.locationId, location] as const),
+  )
+
+  return locations.map((location) => {
+    const currentPresentation = currentPresentationById.get(location.location.id)
+
+    if (!currentPresentation) {
+      return location
+    }
+
+    return {
+      ...location,
+      location: {
+        ...location.location,
+        title: currentPresentation.locationTitle,
+        locationCode: currentPresentation.locationCode,
+      },
+    } satisfies RequestProjectLocation
+  })
+}
+
+export async function getCurrentRequestProjectLocationsForVersion(
+  locations: RequestProjectLocation[],
+) {
+  const currentPresentations = await getCurrentRequestProjectLocationPresentations(
+    locations.map((location) => location.location.id),
+  )
+
+  return applyCurrentRequestProjectLocationPresentations(locations, currentPresentations)
 }
 
 async function getRequestProjectStatus(projectId: string) {
@@ -1393,10 +1480,20 @@ export async function syncRequestProjectSelection(
     return
   }
 
+  const currentPresentations = await getCurrentRequestProjectLocationPresentations(
+    groupedLocations.map((location) => location.locationId),
+  )
+  const currentPresentationById = new Map(
+    currentPresentations.map((location) => [location.locationId, location] as const),
+  )
   const selectionPayload = groupedLocations.map((location) => ({
     locationId: location.locationId,
-    locationCode: location.locationCode,
-    locationTitle: location.locationTitle,
+    locationCode:
+      currentPresentationById.get(location.locationId)?.locationCode ??
+      location.locationCode,
+    locationTitle:
+      currentPresentationById.get(location.locationId)?.locationTitle ??
+      location.locationTitle,
     categorySlug: location.categorySlug || null,
     coverImageUrl: location.images[0]?.imageUrl ?? null,
     images: location.images.map((image) => ({
@@ -1413,7 +1510,8 @@ export async function syncRequestProjectLocations(
   locations: RequestProjectLocation[],
   { allowEmptySelection = false }: SyncRequestProjectSelectionOptions = {},
 ) {
-  const selectionPayload = [...locations]
+  const currentLocations = await getCurrentRequestProjectLocationsForVersion(locations)
+  const selectionPayload = [...currentLocations]
     .sort((left, right) => {
       const leftSortOrder = left.sortOrder ?? Number.MAX_SAFE_INTEGER
       const rightSortOrder = right.sortOrder ?? Number.MAX_SAFE_INTEGER

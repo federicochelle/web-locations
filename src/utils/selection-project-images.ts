@@ -1,4 +1,7 @@
-import { getRequestProjectLocations } from '@/services/request-projects.service.ts'
+import {
+  getCurrentRequestProjectLocationsForVersion,
+  getRequestProjectLocations,
+} from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type { RequestProjectLocation } from '@/types/request-project.ts'
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
@@ -50,5 +53,9 @@ export function buildProjectSelectionImages(location: RequestProjectLocation): S
 
 export async function fetchProjectSelectionImages(projectId: string) {
   const projectLocations = await getRequestProjectLocations(projectId)
-  return projectLocations.flatMap((location) => buildProjectSelectionImages(location))
+  const currentProjectLocations = await getCurrentRequestProjectLocationsForVersion(
+    projectLocations,
+  )
+
+  return currentProjectLocations.flatMap((location) => buildProjectSelectionImages(location))
 }
