@@ -22,7 +22,10 @@ import {
   uploadRequestProjectProductionCompanyLogo,
 } from '@/services/request-project-production-company-logos.service.ts'
 import {
+  applyCurrentRequestProjectLocationPresentations,
   downloadOfficialRequestProjectPdf,
+  getCurrentRequestProjectLocationPresentations,
+  getCurrentRequestProjectLocationsForVersion,
   submitRequestProjectWithOfficialPdf,
 } from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
@@ -359,6 +362,9 @@ export function RequestDetailPage() {
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
   const [activeLightboxLocationId, setActiveLightboxLocationId] = useState<string | null>(null)
   const [activeLightboxIndex, setActiveLightboxIndex] = useState(0)
+  const [currentLocationPresentationById, setCurrentLocationPresentationById] = useState<
+    Record<string, { locationCode: string; locationTitle: string }>
+  >({})
   const [persistedDraftSnapshot, setPersistedDraftSnapshot] = useState<string | null>(null)
   const [, setDraftAutosaveStatus] = useState<DraftAutosaveStatus>('idle')
   const [draftAutosaveIndicator, setDraftAutosaveIndicator] = useState<DraftAutosaveIndicatorState>('hidden')
@@ -524,14 +530,28 @@ export function RequestDetailPage() {
       finishProjectEditing(project.id)
     }
   }, [activeEditingProjectId, finishProjectEditing, project])
+  const currentVersionLocations = useMemo(
+    () =>
+      applyCurrentRequestProjectLocationPresentations(
+        locations,
+        Object.entries(currentLocationPresentationById).map(
+          ([locationId, presentation]) => ({
+            locationId,
+            locationCode: presentation.locationCode,
+            locationTitle: presentation.locationTitle,
+          }),
+        ),
+      ),
+    [currentLocationPresentationById, locations],
+  )
   const currentPdfPayload = useMemo(
     () =>
       buildSelectionPdfPayloadFromProject(
         values,
-        locations,
+        currentVersionLocations,
         new Date().toISOString(),
       ),
-    [locations, values],
+    [currentVersionLocations, values],
   )
   const isMobileCompletionFlow =
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
@@ -558,6 +578,69 @@ export function RequestDetailPage() {
     activeLightboxLocationId
       ? locations.find((location) => location.location.id === activeLightboxLocationId) ?? null
       : null
+  const activeLightboxLocationCode = activeLightboxLocation
+    ? currentLocationPresentationById[activeLightboxLocation.location.id]?.locationCode ??
+      activeLightboxLocation.location.locationCode
+    : null
+
+  function getCurrentLocationCode(item: RequestProjectLocation) {
+    return currentLocationPresentationById[item.location.id]?.locationCode ??
+      item.location.locationCode
+  }
+
+  useEffect(() => {
+    let isMounted = true
+    const locationIds = [...new Set(locations.map((location) => location.location.id))]
+
+    if (locationIds.length === 0) {
+      setCurrentLocationPresentationById({})
+      return () => {
+        isMounted = false
+      }
+    }
+
+    async function loadCurrentLocationPresentations() {
+      try {
+        const currentLocationPresentations =
+          await getCurrentRequestProjectLocationPresentations(locationIds)
+
+        if (!isMounted) {
+          return
+        }
+
+        setCurrentLocationPresentationById(
+          Object.fromEntries(
+            currentLocationPresentations.map((location) => [
+              location.locationId,
+              {
+                locationCode: location.locationCode,
+                locationTitle: location.locationTitle,
+              },
+            ]),
+          ),
+        )
+      } catch (loadError) {
+        if (!isMounted) {
+          return
+        }
+
+        reportOperationalError(loadError, {
+          action: 'request_detail.current_location_codes.load',
+          table: 'locations',
+          extra: {
+            locationCount: locationIds.length,
+          },
+        })
+        setCurrentLocationPresentationById({})
+      }
+    }
+
+    void loadCurrentLocationPresentations()
+
+    return () => {
+      isMounted = false
+    }
+  }, [locations])
 
   useEffect(() => {
     if (
@@ -872,9 +955,15 @@ export function RequestDetailPage() {
     })
 
     try {
+      const nextVersionLocations = await getCurrentRequestProjectLocationsForVersion(locations)
+      const nextVersionPayload = buildSelectionPdfPayloadFromProject(
+        values,
+        nextVersionLocations,
+        new Date().toISOString(),
+      )
       const submissionResult = await submitRequestProjectWithOfficialPdf({
         projectId: project.id,
-        payload: currentPdfPayload,
+        payload: nextVersionPayload,
         onProgress: (nextProgress) => {
           setSubmissionProgress(nextProgress)
         },
@@ -1058,22 +1147,25 @@ export function RequestDetailPage() {
     )
   }
 
-  function handleOpenDraftLocation(item: RequestProjectLocation) {
+  async function handleOpenDraftLocation(item: RequestProjectLocation) {
     if (!project || (!isDraft && !isEditingProject)) {
       return
     }
 
     const existingProjectSelection = getProjectSelection(project.id)
     const projectSelectionExistsInMemory = hasProjectSelection(project.id)
+    const shouldRefreshProjectSelection = isEditingProject
 
     if (!projectSelectionExistsInMemory || !existingProjectSelection) {
-      replaceSelection(buildProjectSelectionImages(locations), {
+      const currentProjectLocations = await getCurrentRequestProjectLocationsForVersion(locations)
+
+      replaceSelection(buildProjectSelectionImages(currentProjectLocations), {
         projectId: project.id,
       })
     }
 
     setActiveProjectContext(project.id, {
-      hydrate: !projectSelectionExistsInMemory,
+      hydrate: !projectSelectionExistsInMemory || shouldRefreshProjectSelection,
       persist: true,
     })
 
@@ -1262,6 +1354,7 @@ export function RequestDetailPage() {
     const visibleImages = selectedImages.slice(0, 4)
     const hiddenImagesCount = Math.max(0, selectedImages.length - 4)
     const isLocationInteractive = isDraft || (isSentProject && isEditingProject)
+    const displayLocationCode = getCurrentLocationCode(item)
 
     return (
       <article
@@ -1274,16 +1367,16 @@ export function RequestDetailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  handleOpenDraftLocation(item)
+                  void handleOpenDraftLocation(item)
                 }}
                 className="inline-flex items-center gap-2 cursor-pointer font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100 transition hover:text-brand-300 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                {item.location.title}
+                {displayLocationCode}
                 <OpenLocationIcon />
               </button>
             ) : (
               <p className="font-display text-[1.78rem] font-semibold leading-none tracking-[-0.03em] text-brand-100">
-                {item.location.title}
+                {displayLocationCode}
               </p>
             )}
           </div>
@@ -1308,7 +1401,7 @@ export function RequestDetailPage() {
                     >
                       <img
                         src={image.imageUrl}
-                        alt={`Imagen seleccionada de ${item.location.locationCode}`}
+                        alt={`Imagen seleccionada de ${displayLocationCode}`}
                         className="h-full w-full object-cover"
                       />
                     </button>
@@ -1351,7 +1444,7 @@ export function RequestDetailPage() {
                       >
                         <img
                           src={image.imageUrl}
-                          alt={`Imagen seleccionada de ${item.location.locationCode}`}
+                          alt={`Imagen seleccionada de ${displayLocationCode}`}
                           className="h-full w-full object-cover"
                         />
                       </button>
@@ -1649,7 +1742,7 @@ export function RequestDetailPage() {
           activeLightboxLocation?.selectedImages.map((image, index) => ({
             id: image.id,
             url: image.imageUrl,
-            alt: `${activeLightboxLocation.location.title} · imagen ${index + 1}`,
+            alt: `${activeLightboxLocationCode ?? activeLightboxLocation.location.locationCode} · imagen ${index + 1}`,
           })) ?? []
         }
         initialIndex={activeLightboxIndex}

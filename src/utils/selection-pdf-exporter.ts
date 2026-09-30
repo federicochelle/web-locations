@@ -332,9 +332,6 @@ function addLocationPage(
   const imageAreaHeight = 116
   const slotGap = 10
   const topImageY = 44
-  const showTitle =
-    location.locationTitle.trim().length > 0 &&
-    location.locationTitle !== location.locationCode
 
   paintPageBackground(doc)
 
@@ -345,14 +342,6 @@ function addLocationPage(
     doc.text(formatLocationCode(location.locationCode), pageWidth / 2, 24, {
       align: 'center',
     })
-
-    if (showTitle) {
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(12)
-      doc.text(location.locationTitle, pageWidth / 2, 34, {
-        align: 'center',
-      })
-    }
   }
 
   const imageStartY = isFirstPage ? 48 : topImageY

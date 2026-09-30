@@ -1016,9 +1016,9 @@ test('drawer stage 2 delegates project hydration to the provider', () => {
   assert.doesNotMatch(selectionDrawerSource, /const beginDrawerHydration = useCallback/)
   assert.match(openProjectSource, /openDrawer\(\)/)
   assert.match(openProjectSource, /selectProject\(projectId/)
-  assert.match(openProjectSource, /await loadProjectSelection\(projectId\)/)
+  assert.match(openProjectSource, /await loadProjectSelection\(projectId/)
   assert.match(activeProjectHydrationSource, /selectProject\(projectId/)
-  assert.match(activeProjectHydrationSource, /await loadProjectSelection\(projectId\)/)
+  assert.match(activeProjectHydrationSource, /await loadProjectSelection\(projectId/)
 })
 
 test('one remote hydration source remains and same-project in-flight loads are guarded by provider', () => {

@@ -675,7 +675,9 @@ export function SelectionDrawer() {
           hydrate: true,
           persist: true,
         })
-        const loadedSelection = await loadProjectSelection(projectId)
+        const loadedSelection = await loadProjectSelection(projectId, {
+          force: projectId === activeEditingProjectId,
+        })
 
         if (loadedSelection) {
           hasHydratedActiveProjectSelectionRef.current = true
@@ -700,6 +702,7 @@ export function SelectionDrawer() {
     openDrawer,
     resetSelectionFlow,
     selectProject,
+    activeEditingProjectId,
   ])
 
   useEffect(() => {
@@ -978,7 +981,9 @@ export function SelectionDrawer() {
         hydrate: true,
         persist: true,
       })
-      const loadedSelection = await loadProjectSelection(projectId)
+      const loadedSelection = await loadProjectSelection(projectId, {
+        force: projectId === activeEditingProjectId,
+      })
 
       if (!loadedSelection) {
         return

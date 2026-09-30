@@ -126,10 +126,6 @@ export function SelectionPdfPreview({
 
       <div className="space-y-6">
         {locationPages.map(({ location, images, isFirstPage }, locationPageIndex) => {
-          const showTitle =
-            location.locationTitle.trim().length > 0 &&
-            location.locationTitle !== location.locationCode
-
           return (
             <section
               key={`${location.locationId}-${locationPageIndex}`}
@@ -141,9 +137,6 @@ export function SelectionPdfPreview({
                     <h4 className="font-display text-[2.8rem] font-semibold leading-none tracking-[-0.03em] text-[#d7c0a2] sm:text-[3.4rem]">
                       {formatLocationCode(location.locationCode)}
                     </h4>
-                    {showTitle ? (
-                      <p className="mt-3 text-[1rem] text-[#d7c0a2]">{location.locationTitle}</p>
-                    ) : null}
                   </div>
                 ) : null}
 
