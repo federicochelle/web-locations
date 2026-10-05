@@ -289,7 +289,7 @@ export function ImageLightbox({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-0 top-0 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-black/32 text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="absolute right-0 top-0 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-brand-300 text-brand-950 transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           aria-label="Cerrar galeria"
         >
           <span className="text-[1.9rem] leading-none">×</span>
