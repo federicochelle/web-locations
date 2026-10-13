@@ -214,6 +214,7 @@ export type CurrentRequestProjectLocationPresentation = {
 }
 
 const REQUEST_PROJECT_OFFICIAL_PDF_BUCKET = 'request-project-pdfs'
+const REQUEST_PROJECT_OFFICIAL_PDF_SIGNED_DOWNLOAD_EXPIRES_IN_SECONDS = 2_592_000
 
 const REQUEST_PROJECT_SELECT = `
   id,
@@ -1245,6 +1246,39 @@ export async function downloadOfficialRequestProjectPdf(project: RequestProject)
     blob: data,
     fileName: officialPdf.fileName,
   }
+}
+
+export async function createOfficialRequestProjectPdfSignedDownloadUrl(
+  project: RequestProject,
+  expiresIn = REQUEST_PROJECT_OFFICIAL_PDF_SIGNED_DOWNLOAD_EXPIRES_IN_SECONDS,
+) {
+  const officialPdf = project.officialPdf
+
+  if (!officialPdf) {
+    throw new Error('La solicitud no tiene un PDF oficial disponible.')
+  }
+
+  const { data, error } = await supabase.storage
+    .from(officialPdf.bucket)
+    .createSignedUrl(officialPdf.path, expiresIn, {
+      download: officialPdf.fileName,
+    })
+
+  if (error) {
+    reportOperationalError(error, {
+      action: 'request_projects.official_pdf.signed_download_url',
+      projectId: project.id,
+      requestProjectId: project.id,
+      table: officialPdf.bucket,
+      errorCode: error.name,
+      extra: {
+        expiresIn,
+      },
+    })
+    throw new Error(error.message)
+  }
+
+  return data.signedUrl
 }
 
 async function markRequestProjectAsChanged(projectId: string) {

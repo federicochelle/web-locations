@@ -23,6 +23,7 @@ import {
 } from '@/services/request-project-production-company-logos.service.ts'
 import {
   applyCurrentRequestProjectLocationPresentations,
+  createOfficialRequestProjectPdfSignedDownloadUrl,
   downloadOfficialRequestProjectPdf,
   getCurrentRequestProjectLocationPresentations,
   getCurrentRequestProjectLocationsForVersion,
@@ -38,6 +39,7 @@ import type {
 import { getImageSelectionKey } from '@/utils/image-selection-key.ts'
 import {
   downloadSelectionPdf,
+  shouldUseSeparatePdfTabOnMobileSafari,
 } from '@/utils/selection-pdf-exporter.ts'
 import {
   createRequestProjectFormSnapshot,
@@ -106,6 +108,27 @@ function DownloadPdfIcon() {
       <path d="M5 18.5h14" />
     </svg>
   )
+}
+
+function DownloadPdfSpinnerIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-[1.7rem] w-[1.7rem] shrink-0 animate-spin sm:h-3.5 sm:w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+    </svg>
+  )
+}
+
+function isShareCancelledError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
 }
 
 function AddLocationsIcon() {
@@ -357,6 +380,7 @@ export function RequestDetailPage() {
   const [isEditNoticeModalOpen, setIsEditNoticeModalOpen] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
   const [isSubmittingOfficial, setIsSubmittingOfficial] = useState(false)
+  const [isDownloadingOfficialPdf, setIsDownloadingOfficialPdf] = useState(false)
   const [submissionProgress, setSubmissionProgress] = useState<SelectionPdfProgress | null>(null)
   const [lastSubmissionKind, setLastSubmissionKind] = useState<SubmissionKind | null>(null)
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
@@ -379,6 +403,7 @@ export function RequestDetailPage() {
   const latestDraftValuesRef = useRef<NormalizedRequestProjectFormValues | null>(null)
   const hydratedProjectIdRef = useRef<string | null>(null)
   const autosaveEnabledRef = useRef(false)
+  const officialPdfDownloadInFlightRef = useRef(false)
 
   usePageSeo({
     title: project?.title ?? 'Detalle de proyecto',
@@ -1079,13 +1104,49 @@ export function RequestDetailPage() {
   }
 
   async function handleDownloadOfficialPdf() {
-    if (!project?.officialPdf) {
+    if (!project?.officialPdf || officialPdfDownloadInFlightRef.current) {
       return
     }
 
+    officialPdfDownloadInFlightRef.current = true
+    setIsDownloadingOfficialPdf(true)
+    setValidationError(null)
+
     try {
+      if (shouldUseSeparatePdfTabOnMobileSafari()) {
+        const downloadResult = await downloadOfficialRequestProjectPdf(project)
+        const pdfFile = new File([downloadResult.blob], downloadResult.fileName, {
+          type: 'application/pdf',
+        })
+        const shareData: ShareData = {
+          files: [pdfFile],
+        }
+        const canSharePdfFile =
+          typeof navigator !== 'undefined' &&
+          typeof navigator.share === 'function' &&
+          (typeof navigator.canShare !== 'function' || navigator.canShare(shareData))
+
+        if (!canSharePdfFile) {
+          const signedDownloadUrl = await createOfficialRequestProjectPdfSignedDownloadUrl(project)
+          window.location.assign(signedDownloadUrl)
+          return
+        }
+
+        try {
+          await navigator.share(shareData)
+        } catch (shareError) {
+          if (isShareCancelledError(shareError)) {
+            return
+          }
+
+          throw shareError
+        }
+
+        return
+      }
+
       const downloadResult = await downloadOfficialRequestProjectPdf(project)
-      downloadSelectionPdf(downloadResult.blob, downloadResult.fileName)
+      await downloadSelectionPdf(downloadResult.blob, downloadResult.fileName)
     } catch (downloadError) {
       reportOperationalError(downloadError, {
         action: 'request_detail.official_pdf.download',
@@ -1098,6 +1159,9 @@ export function RequestDetailPage() {
           ? downloadError.message
           : 'No pudimos descargar el PDF oficial.',
       )
+    } finally {
+      officialPdfDownloadInFlightRef.current = false
+      setIsDownloadingOfficialPdf(false)
     }
   }
 
@@ -1237,11 +1301,12 @@ export function RequestDetailPage() {
                     onClick={() => {
                       void handleDownloadOfficialPdf()
                     }}
-                    className={`${drawerSecondaryButtonClassName} h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-3.5 sm:gap-2`}
+                    disabled={isDownloadingOfficialPdf}
+                    className={`${drawerSecondaryButtonClassName} h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-3.5 sm:gap-2 disabled:cursor-not-allowed disabled:opacity-50`}
                     aria-label="Descargar PDF"
                     title="Descargar PDF"
                   >
-                    <DownloadPdfIcon />
+                    {isDownloadingOfficialPdf ? <DownloadPdfSpinnerIcon /> : <DownloadPdfIcon />}
                     <span className="hidden sm:inline">Descargar PDF</span>
                   </button>
                 ) : null}
