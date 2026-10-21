@@ -68,9 +68,9 @@ test('/register valida campos locales sin crear una cuenta', async ({ page, diag
   await page.goto('/register')
 
   await expect(page.getByRole('heading', { name: /Crear cuenta/i })).toBeVisible()
+  await expect(page.getByPlaceholder('Nombre de tu productora')).toHaveCount(0)
   await page.getByRole('button', { name: /Crear cuenta/i }).click()
   await expect(page.getByText('Ingresá tu nombre completo.')).toBeVisible()
-  await expect(page.getByText('Ingresá el nombre de tu productora.')).toBeVisible()
   await expect(page.getByText('Ingresá tu correo electrónico.')).toBeVisible()
   await expect(page.getByText('Ingresá una contraseña.')).toBeVisible()
   await expect(page.getByText('Confirmá tu contraseña.')).toBeVisible()
@@ -80,7 +80,6 @@ test('/register valida campos locales sin crear una cuenta', async ({ page, diag
     form.setAttribute('novalidate', 'true')
   })
   await page.getByPlaceholder('Tu nombre completo').fill('Cuenta E2E')
-  await page.getByPlaceholder('Nombre de tu productora').fill('Productora E2E')
   await page.getByPlaceholder('tu@email.com').fill('correo-invalido')
   await page.getByPlaceholder(/Mínimo 8 caracteres/i).fill('1234567')
   await page.getByPlaceholder('Repetí tu contraseña').fill('otra-clave')

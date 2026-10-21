@@ -8,7 +8,7 @@ const userId = '11111111-1111-4111-8111-111111111111'
 const user = { id: userId, aud: 'authenticated', role: 'authenticated', email: 'mock@example.invalid',
   app_metadata: { provider: 'email' }, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }
 const profile = { id: '22222222-2222-4222-8222-222222222222', user_id: userId,
-  full_name: 'Cuenta de prueba', company_name: null, production_company_id: null,
+  full_name: 'Cuenta de prueba', company_name: 'Empresa histórica', production_company_id: null,
   phone: null, role: 'visitor', status: 'active' }
 
 type Scenario = {
@@ -21,9 +21,11 @@ type Scenario = {
 }
 
 async function mockAccount(page: Page, scenario: Scenario = {}) {
+  let currentProfile = { ...profile }
   let profileRequests = 0
   let logoutRequests = 0
   let privateRequests = 0
+  const profileUpdatePayloads: Record<string, unknown>[] = []
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(({ storageKey, user, guest }) => {
@@ -52,7 +54,16 @@ async function mockAccount(page: Page, scenario: Scenario = {}) {
       await scenario.hold
       if (scenario.state === 'network') return route.abort('failed')
       if (scenario.state === 'error') return route.fulfill({ status: 503, json: { code: 'MOCK_UNAVAILABLE', message: 'Mock service unavailable' } })
-      const rows = scenario.state === 'missing' ? [] : [{ ...profile,
+      if (route.request().method() === 'PATCH') {
+        const body = route.request().postDataJSON() as Record<string, unknown>
+        profileUpdatePayloads.push(body)
+        currentProfile = { ...currentProfile,
+          full_name: body.full_name ?? profile.full_name,
+          phone: body.phone ?? profile.phone,
+        }
+        return route.fulfill({ json: currentProfile })
+      }
+      const rows = scenario.state === 'missing' ? [] : [{ ...currentProfile,
         status: scenario.state === 'blocked' || scenario.state === 'inactive' ? scenario.state : 'active',
         production_company_id: scenario.companyError ? '33333333-3333-4333-8333-333333333333' : null }]
       return route.fulfill({ json: scenario.state === 'duplicate' ? [profile, profile] : rows })
@@ -70,7 +81,9 @@ async function mockAccount(page: Page, scenario: Scenario = {}) {
     return route.fulfill({ json: [] })
   })
   return { scenario, errors, profileRequests: () => profileRequests,
-    logoutRequests: () => logoutRequests, privateRequests: () => privateRequests }
+    logoutRequests: () => logoutRequests, privateRequests: () => privateRequests,
+    profileUpdatePayloads: () => profileUpdatePayloads,
+    profileSnapshot: () => currentProfile }
 }
 
 export function profileScenarios() {
@@ -87,6 +100,25 @@ export function profileScenarios() {
     await expect(page.locator('input[value="Cuenta de prueba"]')).toBeVisible()
     await page.reload()
     await expect(page.locator('input[value="Cuenta de prueba"]')).toBeVisible()
+    expect(mock.errors).toEqual([])
+  })
+
+  test('editar nombre y teléfono no modifica company_name', async ({ page }) => {
+    const mock = await mockAccount(page)
+    await page.goto('/profile')
+
+    await page.locator('input[value="Cuenta de prueba"]').fill('Cuenta actualizada')
+    await page.locator('input[type="tel"]').fill('099123456')
+    await page.getByRole('button', { name: 'Guardar cambios', exact: true }).click()
+
+    await expect.poll(() => mock.profileUpdatePayloads().length).toBe(1)
+    expect(mock.profileUpdatePayloads()).toEqual([
+      {
+        full_name: 'Cuenta actualizada',
+        phone: '+59899123456',
+      },
+    ])
+    expect(mock.profileSnapshot().company_name).toBe('Empresa histórica')
     expect(mock.errors).toEqual([])
   })
 
