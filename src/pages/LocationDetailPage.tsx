@@ -5,6 +5,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
+import { LocationImageWatermark } from '@/components/ui/LocationImageWatermark.tsx'
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
 import { useAuth } from '@/hooks/useAuth.ts'
 import { useFavorites } from '@/hooks/useFavorites.ts'
@@ -108,7 +109,7 @@ function InlineGalleryImage({
 
   return (
     <div
-      className={`aspect-[16/13] bg-brand-950 transition-opacity duration-200 ease-out lg:aspect-[16/12] ${
+      className={`relative aspect-[16/13] bg-brand-950 transition-opacity duration-200 ease-out lg:aspect-[16/12] ${
         canReveal ? 'opacity-100' : 'opacity-0'
       }`}
     >
@@ -135,6 +136,9 @@ function InlineGalleryImage({
             isImageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
         />
+      ) : null}
+      {optimizedImageUrl && isImageLoaded && !hasImageError ? (
+        <LocationImageWatermark className="w-[22%] min-w-14 max-w-[7.5rem]" />
       ) : null}
     </div>
   )
@@ -600,6 +604,7 @@ export function LocationDetailPage() {
         }
         initialIndex={lightboxIndex}
         isOpen={isLightboxOpen}
+        showWatermark
         imageClassName="rounded-[0.3rem]"
         onToggleSelect={(lightboxImage) => {
           const sourceImage = location?.images.find((image) => image.id === lightboxImage.id)
