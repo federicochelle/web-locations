@@ -97,6 +97,11 @@ const RequestDetailPage = lazy(() =>
     default: module.RequestDetailPage,
   })),
 )
+// Development-only visual preview of the upcoming PDF design; never part of production builds.
+const PdfPreviewPage = import.meta.env.DEV
+  ? lazy(() => import('@/dev/PdfPreviewPage.tsx').then((module) => ({ default: module.PdfPreviewPage })))
+  : null
+
 function HealthyRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => { recovery.acknowledgeHealthyRoute() }, [])
   return children
@@ -235,6 +240,9 @@ const router = createBrowserRouter([
             path: 'admin/*',
             element: <Navigate replace to="/" />,
           },
+          ...(PdfPreviewPage
+            ? [{ path: '__pdf-preview', element: withRouteSuspense(<PdfPreviewPage />) }]
+            : []),
           {
             path: '404',
             element: <NotFoundPage />,
