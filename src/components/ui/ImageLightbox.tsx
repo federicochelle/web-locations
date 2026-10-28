@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
+import { LocationImageWatermark } from '@/components/ui/LocationImageWatermark.tsx'
 import { getCloudflareLightboxImageUrl } from '@/utils/cloudflare-images.ts'
 
 type ImageLightboxImage = {
@@ -16,12 +17,14 @@ type ImageLightboxProps = {
   initialIndex: number
   isOpen: boolean
   imageClassName?: string
+  showWatermark?: boolean
   onToggleSelect?: (image: ImageLightboxImage) => void
   onClose: () => void
 }
 
 const SWIPE_THRESHOLD_PX = 48
 const MAX_IMAGE_SCALE = 3
+const WATERMARK_INSET_PX = 10
 
 function getTouchDistance(touches: React.TouchList) {
   const firstTouch = touches[0]
@@ -42,6 +45,7 @@ export function ImageLightbox({
   initialIndex,
   imageClassName = 'rounded-[1.25rem]',
   isOpen,
+  showWatermark = false,
   onToggleSelect,
   onClose,
 }: ImageLightboxProps) {
@@ -52,6 +56,10 @@ export function ImageLightbox({
   const [selectionControlPosition, setSelectionControlPosition] = useState<{
     top: number
     right: number
+  } | null>(null)
+  const [watermarkPosition, setWatermarkPosition] = useState<{
+    right: number
+    bottom: number
   } | null>(null)
   const previousBodyOverflowRef = useRef<string>('')
   const previousBodyPositionRef = useRef<string>('')
@@ -114,6 +122,74 @@ export function ImageLightbox({
     setIsImageLoading(true)
     setHasImageError(false)
   }, [activeIndex, isOpen])
+
+  useEffect(() => {
+    if (!isOpen || !showWatermark || isImageLoading || hasImageError) {
+      setWatermarkPosition(null)
+      return
+    }
+
+    const image = imageRef.current
+    const container = image?.offsetParent
+
+    if (!image || !(container instanceof HTMLElement)) {
+      return
+    }
+
+    // Layout metrics (offset*) ignore the pinch-zoom transform. object-contain can leave
+    // empty space inside the <img> box, so the drawn picture rect is derived from its ratio.
+    function updateWatermarkPosition() {
+      if (
+        !image ||
+        !(container instanceof HTMLElement) ||
+        !image.complete ||
+        image.naturalWidth === 0 ||
+        image.naturalHeight === 0 ||
+        image.offsetWidth === 0 ||
+        image.offsetHeight === 0
+      ) {
+        return
+      }
+
+      const fitScale = Math.min(
+        image.offsetWidth / image.naturalWidth,
+        image.offsetHeight / image.naturalHeight,
+      )
+      const drawnWidth = image.naturalWidth * fitScale
+      const drawnHeight = image.naturalHeight * fitScale
+      const right = Math.round(
+        container.clientWidth -
+          (image.offsetLeft + (image.offsetWidth + drawnWidth) / 2) +
+          WATERMARK_INSET_PX,
+      )
+      const bottom = Math.round(
+        container.clientHeight -
+          (image.offsetTop + (image.offsetHeight + drawnHeight) / 2) +
+          WATERMARK_INSET_PX,
+      )
+
+      setWatermarkPosition((current) =>
+        current?.right === right && current.bottom === bottom ? current : { right, bottom },
+      )
+    }
+
+    updateWatermarkPosition()
+    const frameId = window.requestAnimationFrame(updateWatermarkPosition)
+    window.addEventListener('resize', updateWatermarkPosition)
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(updateWatermarkPosition)
+    resizeObserver?.observe(image)
+    resizeObserver?.observe(container)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.removeEventListener('resize', updateWatermarkPosition)
+      resizeObserver?.disconnect()
+    }
+  }, [activeIndex, hasImageError, isImageLoading, isOpen, showWatermark])
 
   useEffect(() => {
     if (!isOpen) {
@@ -401,6 +477,15 @@ export function ImageLightbox({
                 setIsImageLoading(false)
               }}
             />
+            {showWatermark && watermarkPosition ? (
+              <LocationImageWatermark
+                className="w-20 sm:w-28 lg:w-36"
+                style={{
+                  right: watermarkPosition.right,
+                  bottom: watermarkPosition.bottom,
+                }}
+              />
+            ) : null}
           </div>
         </div>
       </div>
