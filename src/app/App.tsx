@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { AppLoading } from '@/components/ui/AppLoading.tsx'
@@ -19,7 +19,25 @@ const PrivateFeatureProviders = lazy(() =>
 )
 
 function PrivateFeatureGate({ children }: { children: ReactNode }) {
-  const { canUsePrivateFeatures, loading } = useAuth()
+  const { canUsePrivateFeatures, loading, user } = useAuth()
+  const userId = user?.id ?? null
+  // Once a user's private features are ready, keep the providers mounted for that user so a
+  // transient profile reload (e.g. Supabase re-emitting SIGNED_IN on tab focus) does not
+  // unmount the router and lose UI state. Sign-out or a different user resets it.
+  const [privateUserId, setPrivateUserId] = useState<string | null>(null)
+  let activePrivateUserId = privateUserId
+
+  if (activePrivateUserId !== null && activePrivateUserId !== userId) {
+    activePrivateUserId = null
+  }
+
+  if (activePrivateUserId === null && canUsePrivateFeatures && userId) {
+    activePrivateUserId = userId
+  }
+
+  if (activePrivateUserId !== privateUserId) {
+    setPrivateUserId(activePrivateUserId)
+  }
 
   useEffect(() => {
     if (loading || canUsePrivateFeatures) {
@@ -31,7 +49,7 @@ function PrivateFeatureGate({ children }: { children: ReactNode }) {
     }
   }, [canUsePrivateFeatures, loading])
 
-  if (!canUsePrivateFeatures) {
+  if (activePrivateUserId === null) {
     return children
   }
 
@@ -43,7 +61,7 @@ function PrivateFeatureGate({ children }: { children: ReactNode }) {
         </div>
       }
     >
-      <PrivateFeatureProviders>{children}</PrivateFeatureProviders>
+      <PrivateFeatureProviders key={activePrivateUserId}>{children}</PrivateFeatureProviders>
     </Suspense>
   )
 }
