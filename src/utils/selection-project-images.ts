@@ -25,6 +25,7 @@ function buildProjectFallbackImage(location: RequestProjectLocation): SelectedLo
     locationCode: location.location.locationCode,
     locationTitle: location.location.title,
     categorySlug: location.location.categorySlug ?? '',
+    categoryName: location.location.categoryName ?? null,
     selectedAt: location.createdAt,
   }
 }
@@ -47,6 +48,7 @@ export function buildProjectSelectionImages(location: RequestProjectLocation): S
     locationCode: location.location.locationCode,
     locationTitle: location.location.title,
     categorySlug: location.location.categorySlug ?? '',
+    categoryName: location.location.categoryName ?? null,
     selectedAt: image.createdAt,
   }))
 }

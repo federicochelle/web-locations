@@ -1206,6 +1206,7 @@ export function RequestDetailPage() {
         locationCode: projectLocation.location.locationCode,
         locationTitle: projectLocation.location.title,
         categorySlug: projectLocation.location.categorySlug ?? '',
+        categoryName: projectLocation.location.categoryName ?? null,
         selectedAt: image.createdAt,
       })),
     )

@@ -64,6 +64,7 @@ function buildSelectionImagesFromLocations(
       locationCode: location.location.locationCode,
       locationTitle: location.location.title,
       categorySlug: location.location.categorySlug ?? '',
+      categoryName: location.location.categoryName ?? null,
       selectedAt: image.createdAt,
     })),
   )

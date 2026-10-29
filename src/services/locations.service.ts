@@ -130,7 +130,8 @@ const PUBLIC_LOCATION_DETAIL_SELECT = `
     name
   ),
   categories (
-    slug
+    slug,
+    name
   ),
   location_images (
     id,
@@ -212,6 +213,7 @@ function mapLocationDetailRow(
     description: row.description?.trim() || null,
     locationCode: publicLocationCode,
     categorySlug: category.slug.trim(),
+    categoryName: category.name?.trim() || null,
     departmentName: row.departments?.name?.trim() || 'Sin departamento',
     zoneName: row.zones?.name?.trim() || 'Sin zona',
     approxLat: parseApproxCoordinate(row.approx_lat),

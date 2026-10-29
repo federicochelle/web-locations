@@ -121,6 +121,7 @@ export function buildSelectionPdfPayloadFromImages(
       locationCode: image.locationCode,
       locationTitle: image.locationTitle,
       categorySlug: image.categorySlug,
+      categoryName: image.categoryName ?? null,
       images: [
         {
           key: image.key,
@@ -164,6 +165,7 @@ export function mapSelectionPdfPayloadToSelectedImages(
       locationCode: location.locationCode,
       locationTitle: location.locationTitle,
       categorySlug: location.categorySlug,
+      categoryName: location.categoryName ?? null,
       selectedAt: payload.generatedAt,
     })),
   )
@@ -211,6 +213,7 @@ export function buildSelectionPdfPayloadFromProject(
       locationCode: location.location.locationCode,
       locationTitle: location.location.title,
       categorySlug: location.location.categorySlug ?? '',
+      categoryName: location.location.categoryName || null,
       images:
         location.selectedImages.length > 0
           ? location.selectedImages.map((image) => ({

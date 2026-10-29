@@ -145,3 +145,74 @@ export async function prepareImageForPdf(
     }
   }
 }
+
+export type PdfAssetImage = PreparedPdfImage & {
+  format: 'JPEG' | 'PNG'
+}
+
+const pdfAssetCache = new Map<string, Promise<PdfAssetImage>>()
+
+function readBlobAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      resolve(String(reader.result))
+    }
+    reader.onerror = () => {
+      reject(new Error('No se pudo leer el recurso del PDF.'))
+    }
+    reader.readAsDataURL(blob)
+  })
+}
+
+// Reads a bundled, same-origin image asset (e.g. a PDF background) as a data URL without
+// re-encoding it, so the original JPEG bytes are what end up inside the PDF. The result is
+// memoised per URL; a failed load is not cached so a later export can retry.
+export function loadPdfAssetImage(assetUrl: string): Promise<PdfAssetImage> {
+  const cached = pdfAssetCache.get(assetUrl)
+
+  if (cached) {
+    return cached
+  }
+
+  const request = (async () => {
+    const response = await fetch(assetUrl)
+
+    if (!response.ok) {
+      throw new Error('No pudimos cargar un recurso del PDF.')
+    }
+
+    const blob = await response.blob()
+
+    if (blob.type !== 'image/jpeg' && blob.type !== 'image/png') {
+      throw new Error('El recurso del PDF no tiene un formato de imagen valido.')
+    }
+
+    const decodedImage = await blobToDecodedImage(blob)
+
+    try {
+      const { width, height } = readImageDimensions(decodedImage)
+
+      if (width <= 0 || height <= 0) {
+        throw new Error('No pudimos leer el tamano del recurso del PDF.')
+      }
+
+      return {
+        dataUrl: await readBlobAsDataUrl(blob),
+        width,
+        height,
+        format: blob.type === 'image/png' ? ('PNG' as const) : ('JPEG' as const),
+      }
+    } finally {
+      cleanupDecodedImage(decodedImage)
+    }
+  })()
+
+  pdfAssetCache.set(assetUrl, request)
+  request.catch(() => {
+    pdfAssetCache.delete(assetUrl)
+  })
+
+  return request
+}

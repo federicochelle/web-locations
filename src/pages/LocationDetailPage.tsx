@@ -379,6 +379,7 @@ export function LocationDetailPage() {
       locationCode: location.locationCode,
       locationTitle: location.title,
       categorySlug: location.categorySlug,
+      categoryName: location.categoryName ?? null,
       selectedAt: new Date().toISOString(),
     })
     setSelectionLimitMessage(null)

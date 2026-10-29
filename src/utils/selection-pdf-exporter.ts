@@ -1,7 +1,18 @@
 import { jsPDF } from 'jspdf'
 
 import logoUrl from '../../logo.webp'
-import { prepareImageForPdf } from '@/utils/selection-pdf-images.ts'
+import coverBackgroundUrl from '@/assets/pdf/cover-background.jpg'
+import {
+  loadPdfAssetImage,
+  prepareImageForPdf,
+  type PdfAssetImage,
+} from '@/utils/selection-pdf-images.ts'
+import {
+  PDF_CATEGORY_COVER_OVERLAY_OPACITY,
+  formatPdfLocationCode,
+  isHorizontalPhoto,
+  planSelectionPdfPages,
+} from '@/utils/selection-pdf-layout.ts'
 import type {
   SelectionPdfExportResult,
   SelectionPdfFailedImage,
@@ -17,6 +28,8 @@ type CreateSelectionPdfOptions = {
 const PDF_IMAGE_PREPARATION_CONCURRENCY = 4
 const PDF_BACKGROUND = [8, 8, 8] as const
 const PDF_TEXT_GOLD = [215, 192, 162] as const
+const PDF_ACCENT = [229, 190, 107] as const
+const PDF_CELL_BACKGROUND = [16, 16, 16] as const
 const PDF_BLOB_URL_REVOKE_DELAY_MS = 60_000
 const PDF_SHARE_TEXT = 'PDF de seleccion generado por Sitio Locaciones.'
 function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
@@ -28,18 +41,6 @@ function paintPageBackground(doc: jsPDF) {
   const pageHeight = doc.internal.pageSize.getHeight()
   doc.setFillColor(PDF_BACKGROUND[0], PDF_BACKGROUND[1], PDF_BACKGROUND[2])
   doc.rect(0, 0, pageWidth, pageHeight, 'F')
-}
-
-function addPageNumber(doc: jsPDF, pageNumber: number) {
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  setTextColor(doc, PDF_TEXT_GOLD)
-  doc.text(String(pageNumber), pageWidth / 2, pageHeight - 10, {
-    align: 'center',
-  })
 }
 
 function formatDateForFileName(value: string) {
@@ -75,300 +76,365 @@ function buildPdfFileName(payload: SelectionPdfPayload) {
   return `seleccion-locaciones-${dateSegment}.pdf`
 }
 
-function formatLocationCode(value: string) {
-  return value.replace(/-/g, ' ')
-}
 
-type PreparedCoverLogo = {
+// A4 landscape layout, in millimetres. Mirrors the in-app preview (1123 x 794 px at 96 dpi).
+const PAGE_MARGIN_X = 5.3
+// Hero pages get a taller, stronger header band; grid pages keep the original, discreet one.
+// `photoTop` is where the photo area starts, right below the band, so nothing overlaps it.
+const PHOTO_PAGE_HEADERS = {
+  hero: { top: 0, height: 14, logoHeight: 12, codeFontSize: 28, photoTop: 14 },
+  grid: { top: 3.2, height: 6.9, logoHeight: 5.8, codeFontSize: 13, photoTop: 12.2 },
+} as const
+const GRID_BOTTOM_MARGIN = 5.3
+const GRID_GAP = 0.8
+const COVER_SIGNATURE_HEIGHT = 12
+const COVER_SIGNATURE_BOTTOM = 11
+const COVER_LOGOS_TOP = 46
+const SITIO_LOGO_ALIAS = 'sitio-logo'
+const COVER_BACKGROUND_ALIAS = 'cover-background'
+const PX_TO_MM = 25.4 / 96
+const PT_TO_MM = 25.4 / 72
+
+type PreparedPdfImage = {
   dataUrl: string
   width: number
   height: number
+}
+
+type PreparedCoverLogo = PreparedPdfImage & {
   format: 'JPEG' | 'PNG'
 }
 
-type RenderedCoverLogo = PreparedCoverLogo & {
-  renderWidth: number
-  renderHeight: number
+type PreparedPhoto = PreparedPdfImage
+
+type Rect = { x: number; y: number; width: number; height: number }
+
+function fillAccentRect(doc: jsPDF, rect: Rect, opacity = 1) {
+  doc.setGState(doc.GState({ opacity }))
+  doc.setFillColor(PDF_ACCENT[0], PDF_ACCENT[1], PDF_ACCENT[2])
+  doc.rect(rect.x, rect.y, rect.width, rect.height, 'F')
+  doc.setGState(doc.GState({ opacity: 1 }))
 }
 
-type CoverLogosLayout = {
-  logos: RenderedCoverLogo[]
-  totalWidth: number
-  maxRenderedHeight: number
-}
-
-function getCoverLogosLayout(logos: PreparedCoverLogo[]): CoverLogosLayout {
-  if (logos.length === 0) {
-    return {
-      logos: [],
-      totalWidth: 0,
-      maxRenderedHeight: 0,
-    }
-  }
-
-  if (logos.length === 1) {
-    const [logo] = logos
-
-    if (!logo) {
-      return {
-        logos: [],
-        totalWidth: 0,
-        maxRenderedHeight: 0,
-      }
-    }
-
-    const maxLogoWidth = 192
-    const maxLogoHeight = 118
-    const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
-    const renderWidth = logo.width * scale
-    const renderHeight = logo.height * scale
-
-    return {
-      logos: [
-        {
-          ...logo,
-          renderWidth,
-          renderHeight,
-        },
-      ],
-      totalWidth: renderWidth,
-      maxRenderedHeight: renderHeight,
-    }
-  }
-
-  const gap = 12
-  const maxLogoWidth = 92
-  const maxLogoHeight = 46
-  const renderedLogos = logos.map((logo) => {
-    const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
-
-    return {
-      ...logo,
-      renderWidth: logo.width * scale,
-      renderHeight: logo.height * scale,
-    }
-  })
-  const totalWidth =
-    renderedLogos.reduce((sum, logo) => sum + logo.renderWidth, 0) +
-    gap * Math.max(0, renderedLogos.length - 1)
-  const maxRenderedHeight = renderedLogos.reduce(
-    (maxHeight, logo) => Math.max(maxHeight, logo.renderHeight),
-    0,
-  )
-
-  return {
-    logos: renderedLogos,
-    totalWidth,
-    maxRenderedHeight,
-  }
-}
-
-function addCoverLogos(doc: jsPDF, logos: PreparedCoverLogo[], renderY = 18) {
+// Soft golden radial halo behind the main cover content. jsPDF has no radial gradients, so it
+// is built from concentric ellipses painted outside-in with opaque colours blended between the
+// background and a faint gold. Opaque fills render the same in every PDF viewer.
+function paintCoverHalo(doc: jsPDF) {
   const pageWidth = doc.internal.pageSize.getWidth()
-  const logosLayout = getCoverLogosLayout(logos)
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const layers = 40
+  const centerIntensity = 0.12
+  const maxRadiusX = pageWidth * 0.385
+  const maxRadiusY = pageHeight * 0.42
 
-  if (logosLayout.logos.length === 0) {
-    return 52
-  }
+  for (let layer = 0; layer < layers; layer += 1) {
+    const radiusRatio = 1 - layer / layers
+    const intensity = centerIntensity * (layer / layers)
+    const channel = (index: 0 | 1 | 2) =>
+      Math.round(PDF_BACKGROUND[index] + (PDF_ACCENT[index] - PDF_BACKGROUND[index]) * intensity)
 
-  const gap = 12
-  let currentX = (pageWidth - logosLayout.totalWidth) / 2
-
-  logosLayout.logos.forEach((logo, index) => {
-    const renderYWithOffset = renderY + (logosLayout.maxRenderedHeight - logo.renderHeight) / 2
-
-    doc.addImage(
-      logo.dataUrl,
-      logo.format,
-      currentX,
-      renderYWithOffset,
-      logo.renderWidth,
-      logo.renderHeight,
-      undefined,
-      'FAST',
+    doc.setFillColor(channel(0), channel(1), channel(2))
+    doc.ellipse(
+      pageWidth / 2,
+      pageHeight / 2,
+      maxRadiusX * radiusRatio,
+      maxRadiusY * radiusRatio,
+      'F',
     )
-
-    currentX += logo.renderWidth
-
-    if (index < logosLayout.logos.length - 1) {
-      currentX += gap
-    }
-  })
-
-  return renderY + logosLayout.maxRenderedHeight
-}
-
-function getProductLogoLayout(logo: PreparedCoverLogo | null) {
-  if (!logo) {
-    return null
-  }
-
-  const maxLogoWidth = 56
-  const maxLogoHeight = 16
-  const scale = Math.min(maxLogoWidth / logo.width, maxLogoHeight / logo.height)
-
-  return {
-    ...logo,
-    renderWidth: logo.width * scale,
-    renderHeight: logo.height * scale,
   }
 }
 
-function addProductLogo(
-  doc: jsPDF,
-  logo: ReturnType<typeof getProductLogoLayout>,
-  renderY: number,
-) {
-  if (!logo) {
-    return renderY
-  }
-
+// Paints the cover texture covering the whole page. The same alias is reused on every cover, so
+// jsPDF embeds the JPEG only once however many categories the PDF has.
+function paintCoverTexture(doc: jsPDF, background: PdfAssetImage) {
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const scale = Math.max(pageWidth / background.width, pageHeight / background.height)
+  const width = background.width * scale
+  const height = background.height * scale
+
+  paintPageBackground(doc)
   doc.addImage(
-    logo.dataUrl,
-    logo.format,
-    (pageWidth - logo.renderWidth) / 2,
-    renderY,
-    logo.renderWidth,
-    logo.renderHeight,
-    undefined,
+    background.dataUrl,
+    background.format,
+    (pageWidth - width) / 2,
+    (pageHeight - height) / 2,
+    width,
+    height,
+    COVER_BACKGROUND_ALIAS,
     'FAST',
   )
-
-  return renderY + logo.renderHeight
 }
 
-function addCoverPage(
+function paintBlackOverlay(doc: jsPDF, opacity: number) {
+  doc.saveGraphicsState()
+  doc.setGState(doc.GState({ opacity }))
+  doc.setFillColor(0, 0, 0)
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight(), 'F')
+  doc.restoreGraphicsState()
+}
+
+function fitInside(image: { width: number; height: number }, maxWidth: number, maxHeight: number) {
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height)
+
+  return { width: image.width * scale, height: image.height * scale }
+}
+
+function addSitioLogo(
+  doc: jsPDF,
+  logo: PreparedCoverLogo | null,
+  x: number,
+  y: number,
+  height: number,
+  align: 'left' | 'center' | 'right',
+) {
+  if (!logo) {
+    return
+  }
+
+  const width = (logo.width / logo.height) * height
+  const left = align === 'right' ? x - width : align === 'center' ? x - width / 2 : x
+
+  doc.addImage(logo.dataUrl, logo.format, left, y, width, height, SITIO_LOGO_ALIAS, 'FAST')
+}
+
+function addMainCoverPage(
   doc: jsPDF,
   payload: SelectionPdfPayload,
-  logos: PreparedCoverLogo[],
+  sitioLogo: PreparedCoverLogo | null,
   productLogo: PreparedCoverLogo | null,
+  companyLogo: PreparedCoverLogo | null,
+  background: PdfAssetImage | null,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  let topCardY = 66
+  const logos = [productLogo, companyLogo].filter((logo): logo is PreparedCoverLogo => logo !== null)
+  const productName = payload.project.product.trim() || 'Selección de locaciones'
+  const companyName = payload.project.productionCompany.trim()
 
-  paintPageBackground(doc)
-
-  const maxTextWidth = pageWidth - 48
-  const details = [
-    ['Producto', payload.project.product],
-    ['Productora', payload.project.productionCompany],
-  ] as const
-  const hasProductionCompany = payload.project.productionCompany.trim().length > 0
-  const productLogoLayout = getProductLogoLayout(productLogo)
-  const detailsBlockHeight = details.reduce((totalHeight, [, value], index) => {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(18)
-    const lines = doc.splitTextToSize(value || '—', maxTextWidth)
-
-    return (
-      totalHeight +
-      (index === 0 && productLogoLayout ? productLogoLayout.renderHeight + 5 : 0) +
-      8 +
-      lines.length * 8 +
-      8
-    )
-  }, 0)
-
-  if (hasProductionCompany) {
-    const logoBlockHeight = getCoverLogosLayout(logos).maxRenderedHeight
-    const logoTextGap = logoBlockHeight > 0 ? 14 : 0
-    const contentBlockHeight = logoBlockHeight + logoTextGap + detailsBlockHeight
-    const centeredBlockStartY = Math.max(
-      18,
-      (pageHeight - 20 - contentBlockHeight) / 2,
-    )
-
-    if (logos.length > 0) {
-      topCardY = addCoverLogos(doc, logos, centeredBlockStartY) + logoTextGap
-    } else {
-      topCardY = centeredBlockStartY
-    }
-  } else if (logos.length > 0) {
-    topCardY = addCoverLogos(doc, logos) + 14
+  if (background) {
+    paintCoverTexture(doc, background)
+  } else {
+    // Fallback when the texture cannot be loaded: plain dark page with the golden halo.
+    paintPageBackground(doc)
+    paintCoverHalo(doc)
   }
 
-  let currentY = topCardY
-  details.forEach(([label, value], index) => {
-    if (index === 0 && productLogoLayout) {
-      currentY = addProductLogo(doc, productLogoLayout, currentY) + 5
-    }
+  const hasLogos = logos.length > 0
+  const logoMaxHeight = (logos.length === 1 ? 104 : 88) * PX_TO_MM
+  const logoMaxWidth = (logos.length === 1 ? 340 : 260) * PX_TO_MM
+  const logoGap = 40 * PX_TO_MM
+  const separatorHeight = 64 * PX_TO_MM
+  const logosTop = COVER_LOGOS_TOP
+  const titleSize = hasLogos ? 42 : 63
+  const companySize = 9.75
+  const titleMaxWidth = 860 * PX_TO_MM
 
-    setTextColor(doc, PDF_TEXT_GOLD)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text(label.toUpperCase(), pageWidth / 2, currentY, {
-      align: 'center',
-    })
+  // Logos sit at the top of the page.
+  const renderedLogos = logos.map((logo) => ({
+    logo,
+    ...fitInside(logo, logoMaxWidth, logoMaxHeight),
+  }))
+  const logosRowHeight = hasLogos ? Math.max(...renderedLogos.map((item) => item.height)) : 0
 
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(18)
-    const lines = doc.splitTextToSize(value || '—', maxTextWidth)
-    doc.text(lines, pageWidth / 2, currentY + 8, {
-      align: 'center',
+  if (hasLogos) {
+    const separatorWidth = logos.length === 2 ? 1 * PX_TO_MM : 0
+    const totalWidth =
+      renderedLogos.reduce((sum, item) => sum + item.width, 0) +
+      (logos.length === 2 ? logoGap * 2 + separatorWidth : 0)
+    let cursorX = (pageWidth - totalWidth) / 2
+
+    renderedLogos.forEach((item, index) => {
+      doc.addImage(
+        item.logo.dataUrl,
+        item.logo.format,
+        cursorX,
+        logosTop + (logosRowHeight - item.height) / 2,
+        item.width,
+        item.height,
+        undefined,
+        'FAST',
+      )
+      cursorX += item.width
+
+      if (logos.length === 2 && index === 0) {
+        fillAccentRect(
+          doc,
+          {
+            x: cursorX + logoGap,
+            y: logosTop + (logosRowHeight - separatorHeight) / 2,
+            width: separatorWidth,
+            height: separatorHeight,
+          },
+          0.5,
+        )
+        cursorX += logoGap * 2 + separatorWidth
+      }
     })
-    currentY += 8 + lines.length * 8 + 8
+  }
+
+  // Title (and the producer below it) are centred on the page.
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(titleSize)
+  const titleLines = doc.splitTextToSize(productName, titleMaxWidth) as string[]
+  const titleLineHeight = titleSize * PT_TO_MM * 1.08
+  const titleHeight = titleLines.length * titleLineHeight
+  const lineBlockHeight = hasLogos ? 0 : 8 * PX_TO_MM + 2 * PX_TO_MM
+  const companyTopGap = companyName ? (hasLogos ? 20 : 28) * PX_TO_MM : 0
+  const companyHeight = companyName ? companySize * PT_TO_MM : 0
+  const blockHeight = titleHeight + lineBlockHeight + companyTopGap + companyHeight
+  let cursorY = (pageHeight - blockHeight) / 2
+
+  setTextColor(doc, PDF_TEXT_GOLD)
+  doc.text(titleLines, pageWidth / 2, cursorY + titleLineHeight * 0.78, {
+    align: 'center',
+    lineHeightFactor: 1.08,
   })
+  cursorY += titleHeight
 
-  addPageNumber(doc, 1)
+  if (!hasLogos) {
+    cursorY += 8 * PX_TO_MM
+    fillAccentRect(
+      doc,
+      { x: pageWidth / 2 - 48 * PX_TO_MM, y: cursorY, width: 96 * PX_TO_MM, height: 2 * PX_TO_MM },
+      0.85,
+    )
+    cursorY += 2 * PX_TO_MM
+  }
+
+  if (companyName) {
+    cursorY += companyTopGap
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(companySize)
+    doc.setTextColor(PDF_TEXT_GOLD[0], PDF_TEXT_GOLD[1], PDF_TEXT_GOLD[2])
+    // jsPDF does not account for letter spacing when centring, so the text is centred by hand.
+    const companyText = companyName.toUpperCase()
+    const companyCharSpace = companySize * 0.32 * PT_TO_MM
+    const companyWidth =
+      doc.getTextWidth(companyText) + companyCharSpace * Math.max(0, companyText.length - 1)
+
+    doc.text(companyText, (pageWidth - companyWidth) / 2, cursorY + companyHeight * 0.8, {
+      charSpace: companyCharSpace,
+    })
+  }
+
+  addSitioLogo(
+    doc,
+    sitioLogo,
+    pageWidth / 2,
+    pageHeight - COVER_SIGNATURE_BOTTOM - COVER_SIGNATURE_HEIGHT,
+    COVER_SIGNATURE_HEIGHT,
+    'center',
+  )
 }
 
-function addLocationPage(
-  doc: jsPDF,
-  location: SelectionPdfLocation,
-  pageImages: Array<{
-    dataUrl: string
-    width: number
-    height: number
-  }>,
-  isFirstPage: boolean,
-) {
-  doc.addPage()
-
+function addCategoryCoverPage(doc: jsPDF, categoryName: string, background: PdfAssetImage | null) {
   const pageWidth = doc.internal.pageSize.getWidth()
-  const margin = 16
-  const contentWidth = pageWidth - margin * 2
-  const imageAreaHeight = 116
-  const slotGap = 10
-  const topImageY = 44
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const marginX = 48 * PX_TO_MM
+  const titleSize = 54
+  const maxWidth = pageWidth - marginX * 2
+
+  if (background) {
+    paintCoverTexture(doc, background)
+    paintBlackOverlay(doc, PDF_CATEGORY_COVER_OVERLAY_OPACITY)
+  } else {
+    paintPageBackground(doc)
+  }
+
+  setTextColor(doc, PDF_TEXT_GOLD)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(titleSize)
+  const lines = doc.splitTextToSize(categoryName, maxWidth) as string[]
+  const lineHeight = titleSize * PT_TO_MM * 1.05
+  const top = (pageHeight - lines.length * lineHeight) / 2
+
+  doc.text(lines, pageWidth / 2, top + lineHeight * 0.78, {
+    align: 'center',
+    lineHeightFactor: 1.05,
+  })
+}
+
+// Horizontal photos fill the whole cell (slight side crop); vertical and square ones are
+// fully visible, centred, never stretched.
+function drawPhotoInCell(doc: jsPDF, photo: PreparedPhoto, cell: Rect) {
+  doc.setFillColor(PDF_CELL_BACKGROUND[0], PDF_CELL_BACKGROUND[1], PDF_CELL_BACKGROUND[2])
+  doc.rect(cell.x, cell.y, cell.width, cell.height, 'F')
+
+  const shouldCover = isHorizontalPhoto(photo.width, photo.height)
+  const scale = shouldCover
+    ? Math.max(cell.width / photo.width, cell.height / photo.height)
+    : Math.min(cell.width / photo.width, cell.height / photo.height)
+  const renderWidth = photo.width * scale
+  const renderHeight = photo.height * scale
+  const renderX = cell.x + (cell.width - renderWidth) / 2
+  const renderY = cell.y + (cell.height - renderHeight) / 2
+
+  doc.saveGraphicsState()
+  doc.rect(cell.x, cell.y, cell.width, cell.height, null)
+  doc.clip()
+  doc.discardPath()
+  doc.addImage(photo.dataUrl, 'JPEG', renderX, renderY, renderWidth, renderHeight, undefined, 'FAST')
+  doc.restoreGraphicsState()
+}
+
+function addPhotosPage(
+  doc: jsPDF,
+  page: { variant: 'hero' | 'grid'; locationCode: string; items: PreparedPhoto[] },
+  sitioLogo: PreparedCoverLogo | null,
+) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const gridWidth = pageWidth - PAGE_MARGIN_X * 2
+  const header = PHOTO_PAGE_HEADERS[page.variant]
+  const gridHeight = pageHeight - header.photoTop - GRID_BOTTOM_MARGIN
 
   paintPageBackground(doc)
 
-  if (isFirstPage) {
-    setTextColor(doc, PDF_TEXT_GOLD)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(30)
-    doc.text(formatLocationCode(location.locationCode), pageWidth / 2, 24, {
-      align: 'center',
-    })
+  setTextColor(doc, PDF_TEXT_GOLD)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(header.codeFontSize)
+  doc.text(
+    formatPdfLocationCode(page.locationCode),
+    PAGE_MARGIN_X,
+    header.top + header.height / 2,
+    { baseline: 'middle' },
+  )
+  addSitioLogo(
+    doc,
+    sitioLogo,
+    pageWidth - PAGE_MARGIN_X,
+    header.top + (header.height - header.logoHeight) / 2,
+    header.logoHeight,
+    'right',
+  )
+
+  if (page.variant === 'hero') {
+    const [photo] = page.items
+
+    if (photo) {
+      drawPhotoInCell(doc, photo, {
+        x: PAGE_MARGIN_X,
+        y: header.photoTop,
+        width: gridWidth,
+        height: gridHeight,
+      })
+    }
+
+    return
   }
 
-  const imageStartY = isFirstPage ? 48 : topImageY
+  const cellWidth = (gridWidth - GRID_GAP) / 2
+  const cellHeight = (gridHeight - GRID_GAP) / 2
 
-  pageImages.forEach((image, index) => {
-    const slotY = imageStartY + index * (imageAreaHeight + slotGap)
-    const widthScale = contentWidth / image.width
-    const heightScale = imageAreaHeight / image.height
-    const scale = Math.min(widthScale, heightScale)
-    const renderWidth = image.width * scale
-    const renderHeight = image.height * scale
-    const renderX = margin + (contentWidth - renderWidth) / 2
-    const renderY = slotY + (imageAreaHeight - renderHeight) / 2
-
-    doc.addImage(
-      image.dataUrl,
-      'JPEG',
-      renderX,
-      renderY,
-      renderWidth,
-      renderHeight,
-      undefined,
-      'FAST',
-    )
+  page.items.forEach((photo, index) => {
+    drawPhotoInCell(doc, photo, {
+      x: PAGE_MARGIN_X + (index % 2) * (cellWidth + GRID_GAP),
+      y: header.photoTop + Math.floor(index / 2) * (cellHeight + GRID_GAP),
+      width: cellWidth,
+      height: cellHeight,
+    })
   })
-
-  addPageNumber(doc, doc.getNumberOfPages())
 }
 
 type PreparedLocationImageResult =
@@ -478,7 +544,7 @@ export async function createSelectionPdf(
   options: CreateSelectionPdfOptions = {},
 ): Promise<SelectionPdfExportResult> {
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
     format: 'a4',
     compress: true,
@@ -487,69 +553,50 @@ export async function createSelectionPdf(
   const totalImages = payload.totalImages
   const failedImages: SelectionPdfFailedImage[] = []
   let includedImages = 0
-  let processedImages = 0
-  let pdfCompositionDurationMs = 0
 
-  const coverLogos: PreparedCoverLogo[] = []
-  let preparedProductLogo: PreparedCoverLogo | null = null
+  async function prepareLogo(imageUrl: string | null | undefined) {
+    if (!imageUrl) {
+      return null
+    }
 
-  try {
-    const preparedLogo = await prepareImageForPdf(logoUrl, {
-      mimeType: 'image/png',
-    })
-    coverLogos.push({
-      ...preparedLogo,
-      format: 'PNG',
-    })
-  } catch {
-    // Keep building the PDF without the Sitio Locaciones logo if it cannot be prepared.
-  }
-
-  if (payload.project.productionCompanyLogoUrl) {
     try {
-      const preparedProductionCompanyLogo = await prepareImageForPdf(
-        payload.project.productionCompanyLogoUrl,
-        {
-          mimeType: 'image/png',
-        },
-      )
-      coverLogos.push({
-        ...preparedProductionCompanyLogo,
-        format: 'PNG',
-      })
+      const preparedLogo = await prepareImageForPdf(imageUrl, { mimeType: 'image/png' })
+
+      return { ...preparedLogo, format: 'PNG' as const }
     } catch {
-      // Ignore production company logo failures and keep generating the PDF.
+      // A logo that cannot be prepared is simply left out; the cover falls back gracefully.
+      return null
     }
   }
 
-  if (payload.project.productLogoUrl) {
+  async function loadCoverBackground() {
     try {
-      const preparedLogo = await prepareImageForPdf(payload.project.productLogoUrl, {
-        mimeType: 'image/png',
-      })
-      preparedProductLogo = {
-        ...preparedLogo,
-        format: 'PNG',
-      }
+      return await loadPdfAssetImage(coverBackgroundUrl)
     } catch {
-      // Ignore product logo failures and keep generating the PDF.
+      // Covers fall back to the plain dark background when the texture cannot be loaded.
+      return null
     }
   }
 
-  const coverPageStartedAt = performance.now()
-  addCoverPage(doc, payload, coverLogos, preparedProductLogo)
-  pdfCompositionDurationMs += performance.now() - coverPageStartedAt
+  const [sitioLogo, companyLogo, productLogo, coverBackground] = await Promise.all([
+    prepareLogo(logoUrl),
+    prepareLogo(payload.project.productionCompanyLogoUrl),
+    prepareLogo(payload.project.productLogoUrl),
+    loadCoverBackground(),
+  ])
+
+  addMainCoverPage(doc, payload, sitioLogo, productLogo, companyLogo, coverBackground)
 
   let globalImageIndex = 0
   let completedImages = 0
+  const preparedLocations: Array<{
+    locationCode: string
+    categorySlug: string
+    categoryName?: string | null
+    items: PreparedPhoto[]
+  }> = []
 
   for (const location of payload.locations) {
-    let isFirstLocationPage = true
-    let pageImages: Array<{
-      dataUrl: string
-      width: number
-      height: number
-    }> = []
     const preparedLocationResults = await prepareLocationImagesForPdf(
       location,
       globalImageIndex,
@@ -564,38 +611,42 @@ export async function createSelectionPdf(
         })
       },
     )
+    const items: PreparedPhoto[] = []
 
     for (const preparedLocationResult of preparedLocationResults) {
-      processedImages += 1
       if (preparedLocationResult.result.kind === 'success') {
-        pageImages.push(preparedLocationResult.result.preparedImage)
+        items.push(preparedLocationResult.result.preparedImage)
         includedImages += 1
-
-        if (pageImages.length === 2) {
-          const pageStartedAt = performance.now()
-          addLocationPage(doc, location, pageImages, isFirstLocationPage)
-          pdfCompositionDurationMs += performance.now() - pageStartedAt
-          isFirstLocationPage = false
-          pageImages = []
-        }
       } else {
         failedImages.push(preparedLocationResult.result.failedImage)
       }
     }
 
     globalImageIndex += location.images.length
-
-    if (pageImages.length > 0) {
-      const pageStartedAt = performance.now()
-      addLocationPage(doc, location, pageImages, isFirstLocationPage)
-      pdfCompositionDurationMs += performance.now() - pageStartedAt
-    }
+    preparedLocations.push({
+      locationCode: location.locationCode,
+      categorySlug: location.categorySlug,
+      categoryName: location.categoryName,
+      items,
+    })
   }
 
   if (includedImages === 0) {
     throw new Error(
       'No pudimos generar el PDF porque ninguna imagen pudo procesarse.',
     )
+  }
+
+  // Pages are planned from the images that were actually prepared, so a category cover is only
+  // added when it has at least one photo and no page is ever empty.
+  for (const page of planSelectionPdfPages(preparedLocations)) {
+    doc.addPage()
+
+    if (page.kind === 'category') {
+      addCategoryCoverPage(doc, page.categoryName, coverBackground)
+    } else {
+      addPhotosPage(doc, page, sitioLogo)
+    }
   }
 
   options.onProgress?.({

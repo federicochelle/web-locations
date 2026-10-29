@@ -154,7 +154,8 @@ test('selection-image sync also refreshes codes and titles by UUID before persis
 test('PDF exporter remains deterministic and consumes only the provided payload', () => {
   const exporterSource = readFileSync('src/utils/selection-pdf-exporter.ts', 'utf8')
 
-  assert.match(exporterSource, /doc\.text\(formatLocationCode\(location\.locationCode\)/)
+  assert.match(exporterSource, /formatPdfLocationCode\(page\.locationCode\)/)
+  assert.doesNotMatch(exporterSource, /locationTitle/)
   assert.doesNotMatch(exporterSource, /doc\.text\(location\.locationTitle/)
   assert.doesNotMatch(exporterSource, /getCurrentRequestProjectLocation/)
   assert.doesNotMatch(exporterSource, /\.from\('locations'\)/)

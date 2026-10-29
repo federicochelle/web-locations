@@ -92,6 +92,7 @@ export type PublicLocationDetail = {
   description: string | null
   locationCode: string
   categorySlug: string
+  categoryName?: string | null
   departmentName: string
   zoneName: string
   approxLat: number | null

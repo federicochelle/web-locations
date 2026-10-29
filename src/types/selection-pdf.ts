@@ -20,6 +20,7 @@ export type SelectionPdfLocation = {
   locationCode: string
   locationTitle: string
   categorySlug: string
+  categoryName?: string | null
   images: SelectionPdfLocationImage[]
 }
 

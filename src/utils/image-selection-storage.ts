@@ -46,6 +46,7 @@ function isSelectedLocationImage(value: unknown): value is SelectedLocationImage
     isNonEmptyString(candidate.locationCode) &&
     isNonEmptyString(candidate.locationTitle) &&
     typeof candidate.categorySlug === 'string' &&
+    isOptionalNullableString(candidate.categoryName) &&
     isNonEmptyString(candidate.selectedAt)
   )
 }

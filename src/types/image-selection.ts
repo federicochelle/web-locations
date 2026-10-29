@@ -7,6 +7,7 @@ export type SelectedLocationImage = {
   locationCode: string
   locationTitle: string
   categorySlug: string
+  categoryName?: string | null
   selectedAt: string
 }
 
