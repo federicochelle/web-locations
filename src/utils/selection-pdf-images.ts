@@ -24,15 +24,30 @@ export class PdfImageError extends Error {
   }
 }
 
+const IMAGE_ERROR_NETWORK = 'No pudimos conectar con el servidor de la imagen.'
+const IMAGE_ERROR_UNREADABLE = 'No pudimos leer la imagen: el archivo parece estar dañado.'
+
+// Every failure leaves this module as a PdfImageError with a message in Spanish, so the browser's
+// own (English) messages never reach the user.
 function buildImageError(error: unknown) {
   if (error instanceof PdfImageError) {
     return error
   }
 
-  const message = error instanceof Error && error.message ? error.message : 'No se pudo procesar la imagen.'
-
   // fetch() rejects with a TypeError when the network request itself fails.
-  return new PdfImageError(message, error instanceof TypeError)
+  if (error instanceof TypeError) {
+    return new PdfImageError(IMAGE_ERROR_NETWORK, true)
+  }
+
+  return new PdfImageError(IMAGE_ERROR_UNREADABLE)
+}
+
+function buildHttpStatusMessage(status: number) {
+  if (status === 404 || status === 410) {
+    return `La imagen ya no está disponible (error ${status}).`
+  }
+
+  return `No pudimos descargar la imagen (error ${status}).`
 }
 
 async function blobToDecodedImage(
@@ -53,7 +68,7 @@ async function blobToDecodedImage(
       }
 
       nextImage.onerror = () => {
-        reject(new Error('No se pudo decodificar la imagen.'))
+        reject(new PdfImageError(IMAGE_ERROR_UNREADABLE))
       }
 
       nextImage.src = objectUrl
@@ -104,7 +119,7 @@ export async function prepareImageForPdf(
 
     if (!response.ok) {
       throw new PdfImageError(
-        'No pudimos descargar la imagen.',
+        buildHttpStatusMessage(response.status),
         response.status >= 500 || response.status === 408 || response.status === 429,
       )
     }
@@ -112,14 +127,14 @@ export async function prepareImageForPdf(
     const blob = await response.blob()
 
     if (!blob.type.startsWith('image/')) {
-      throw new PdfImageError('El archivo recibido no es una imagen valida.')
+      throw new PdfImageError('El archivo recibido no es una imagen válida.')
     }
 
     decodedImage = await blobToDecodedImage(blob)
     const { width: sourceWidth, height: sourceHeight } = readImageDimensions(decodedImage)
 
     if (sourceWidth <= 0 || sourceHeight <= 0) {
-      throw new Error('No pudimos leer el tamano de la imagen.')
+      throw new PdfImageError('No pudimos leer el tamaño de la imagen.')
     }
 
     const scale = Math.min(1, PDF_IMAGE_MAX_WIDTH / sourceWidth)
@@ -133,7 +148,7 @@ export async function prepareImageForPdf(
     const context = canvas.getContext('2d')
 
     if (!context) {
-      throw new Error('No pudimos preparar el canvas para la imagen.')
+      throw new PdfImageError('No pudimos preparar la imagen para el PDF.')
     }
 
     context.drawImage(decodedImage, 0, 0, targetWidth, targetHeight)
@@ -204,7 +219,7 @@ export function loadPdfAssetImage(assetUrl: string): Promise<PdfAssetImage> {
     const blob = await response.blob()
 
     if (blob.type !== 'image/jpeg' && blob.type !== 'image/png') {
-      throw new Error('El recurso del PDF no tiene un formato de imagen valido.')
+      throw new Error('El recurso del PDF no tiene un formato de imagen válido.')
     }
 
     const decodedImage = await blobToDecodedImage(blob)
@@ -213,7 +228,7 @@ export function loadPdfAssetImage(assetUrl: string): Promise<PdfAssetImage> {
       const { width, height } = readImageDimensions(decodedImage)
 
       if (width <= 0 || height <= 0) {
-        throw new Error('No pudimos leer el tamano del recurso del PDF.')
+        throw new Error('No pudimos leer el tamaño del recurso del PDF.')
       }
 
       return {
