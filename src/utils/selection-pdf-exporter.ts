@@ -713,16 +713,20 @@ export async function createSelectionPdf(
   const failedImages: SelectionPdfFailedImage[] = []
   let includedImages = 0
 
-  async function prepareLogo(imageUrl: string | null | undefined) {
+  async function prepareLogo(
+    imageUrl: string | null | undefined,
+    credentials?: 'omit' | 'same-origin',
+  ) {
     if (!imageUrl) {
       return null
     }
 
     try {
-      const preparedLogo = await prepareImageForPdf(imageUrl, { mimeType: 'image/png' })
+      const preparedLogo = await prepareImageForPdf(imageUrl, { mimeType: 'image/png', credentials })
 
       return { ...preparedLogo, format: 'PNG' as const }
-    } catch {
+    } catch (error) {
+      console.warn('No se pudo preparar un logo para el PDF.', imageUrl, error)
       // A logo that cannot be prepared is simply left out; the cover falls back gracefully.
       return null
     }
@@ -731,14 +735,15 @@ export async function createSelectionPdf(
   async function loadCoverBackground() {
     try {
       return await loadPdfAssetImage(coverBackgroundUrl)
-    } catch {
+    } catch (error) {
+      console.warn('No se pudo cargar el fondo de portada del PDF.', error)
       // Covers fall back to the plain dark background when the texture cannot be loaded.
       return null
     }
   }
 
   const [sitioLogo, companyLogo, productLogo, coverBackground] = await Promise.all([
-    prepareLogo(logoUrl),
+    prepareLogo(logoUrl, 'same-origin'),
     prepareLogo(payload.project.productionCompanyLogoUrl),
     prepareLogo(payload.project.productLogoUrl),
     loadCoverBackground(),

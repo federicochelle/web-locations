@@ -10,6 +10,9 @@ export type PreparedPdfImage = {
 type PrepareImageForPdfOptions = {
   mimeType?: 'image/jpeg' | 'image/png'
   quality?: number
+  // Same-origin bundled assets need 'same-origin' so hosts that gate every request behind a cookie
+  // (e.g. Vercel preview protection) still serve them. Remote images keep the default 'omit'.
+  credentials?: 'omit' | 'same-origin'
 }
 
 // `retryable` marks failures that may be temporary (network errors, 5xx), as opposed to a missing
@@ -114,7 +117,7 @@ export async function prepareImageForPdf(
   try {
     const response = await fetch(imageUrl, {
       mode: 'cors',
-      credentials: 'omit',
+      credentials: options.credentials ?? 'omit',
     })
 
     if (!response.ok) {
