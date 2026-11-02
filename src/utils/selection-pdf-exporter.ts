@@ -102,7 +102,7 @@ const PAGE_MARGIN_X = 5.3
 // Hero pages get a taller, stronger header band; grid pages keep the original, discreet one.
 // `photoTop` is where the photo area starts: a fixed gap below the bottom of the logo, so the
 // logo never touches the photos.
-const HEADER_LOGO_PHOTO_GAP = 3.5
+const HEADER_LOGO_PHOTO_GAP = 6
 
 function withPhotoTop<T extends { top: number; height: number; logoHeight: number }>(header: T) {
   const logoBottom = header.top + (header.height + header.logoHeight) / 2
