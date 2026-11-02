@@ -232,8 +232,8 @@ function PhotoCell({ src, alt }: { src: string; alt: string }) {
 
 // Photo area of the 1123 x 794 px page: matches inset-x-5 / bottom-5 and the header heights below.
 const PHOTO_AREA_MARGIN_PX = 20
-const PHOTO_AREA_TOP_HERO_PX = 53
-const PHOTO_AREA_TOP_GRID_PX = 46
+const PHOTO_AREA_TOP_HERO_PX = 62
+const PHOTO_AREA_TOP_GRID_PX = 49
 const PHOTO_GAP_PX = 3
 
 function PhotosPage({
@@ -279,7 +279,7 @@ function PhotosPage({
       </header>
 
       <div
-        className={`absolute inset-x-5 bottom-5 ${variant === 'hero' ? 'top-[53px]' : 'top-[46px]'}`}
+        className={`absolute inset-x-5 bottom-5 ${variant === 'hero' ? 'top-[62px]' : 'top-[49px]'}`}
       >
         {photos.map((photo, index) => {
           const cell = cells[index]!

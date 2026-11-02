@@ -100,11 +100,20 @@ function buildPdfFileName(payload: SelectionPdfPayload) {
 // A4 landscape layout, in millimetres. Mirrors the in-app preview (1123 x 794 px at 96 dpi).
 const PAGE_MARGIN_X = 5.3
 // Hero pages get a taller, stronger header band; grid pages keep the original, discreet one.
-// `photoTop` is where the photo area starts, right below the band, so nothing overlaps it.
+// `photoTop` is where the photo area starts: a fixed gap below the bottom of the logo, so the
+// logo never touches the photos.
+const HEADER_LOGO_PHOTO_GAP = 3.5
+
+function withPhotoTop<T extends { top: number; height: number; logoHeight: number }>(header: T) {
+  const logoBottom = header.top + (header.height + header.logoHeight) / 2
+
+  return { ...header, photoTop: logoBottom + HEADER_LOGO_PHOTO_GAP }
+}
+
 const PHOTO_PAGE_HEADERS = {
-  hero: { top: 0, height: 14, logoHeight: 12, codeFontSize: 28, photoTop: 14 },
-  grid: { top: 3.2, height: 6.9, logoHeight: 5.8, codeFontSize: 13, photoTop: 12.2 },
-} as const
+  hero: withPhotoTop({ top: 0, height: 14, logoHeight: 12, codeFontSize: 28 }),
+  grid: withPhotoTop({ top: 3.2, height: 6.9, logoHeight: 5.8, codeFontSize: 13 }),
+}
 const GRID_BOTTOM_MARGIN = 5.3
 const GRID_GAP = 0.8
 const COVER_SIGNATURE_HEIGHT = 12
