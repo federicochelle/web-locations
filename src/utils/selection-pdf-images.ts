@@ -12,12 +12,27 @@ type PrepareImageForPdfOptions = {
   quality?: number
 }
 
-function buildImageErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message
+// `retryable` marks failures that may be temporary (network errors, 5xx), as opposed to a missing
+// or unreadable file, which would fail again.
+export class PdfImageError extends Error {
+  retryable: boolean
+
+  constructor(message: string, retryable = false) {
+    super(message)
+    this.name = 'PdfImageError'
+    this.retryable = retryable
+  }
+}
+
+function buildImageError(error: unknown) {
+  if (error instanceof PdfImageError) {
+    return error
   }
 
-  return 'No se pudo procesar la imagen.'
+  const message = error instanceof Error && error.message ? error.message : 'No se pudo procesar la imagen.'
+
+  // fetch() rejects with a TypeError when the network request itself fails.
+  return new PdfImageError(message, error instanceof TypeError)
 }
 
 async function blobToDecodedImage(
@@ -88,13 +103,16 @@ export async function prepareImageForPdf(
     })
 
     if (!response.ok) {
-      throw new Error('No pudimos descargar la imagen.')
+      throw new PdfImageError(
+        'No pudimos descargar la imagen.',
+        response.status >= 500 || response.status === 408 || response.status === 429,
+      )
     }
 
     const blob = await response.blob()
 
     if (!blob.type.startsWith('image/')) {
-      throw new Error('El archivo recibido no es una imagen valida.')
+      throw new PdfImageError('El archivo recibido no es una imagen valida.')
     }
 
     decodedImage = await blobToDecodedImage(blob)
@@ -133,7 +151,7 @@ export async function prepareImageForPdf(
       height: targetHeight,
     }
   } catch (error) {
-    throw new Error(buildImageErrorMessage(error))
+    throw buildImageError(error)
   } finally {
     if (decodedImage) {
       cleanupDecodedImage(decodedImage)

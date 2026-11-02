@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf'
 import logoUrl from '../../logo.webp'
 import coverBackgroundUrl from '@/assets/pdf/cover-background.jpg'
 import {
+  PdfImageError,
   loadPdfAssetImage,
   prepareImageForPdf,
   type PdfAssetImage,
@@ -27,6 +28,9 @@ type CreateSelectionPdfOptions = {
 }
 
 const PDF_IMAGE_PREPARATION_CONCURRENCY = 4
+// A photo that fails with a temporary error is retried after each of these waits, so it is given
+// up on after the first attempt plus two retries.
+const PDF_IMAGE_RETRY_DELAYS_MS = [500, 1500]
 const PDF_BACKGROUND = [8, 8, 8] as const
 const PDF_TEXT_GOLD = [215, 192, 162] as const
 const PDF_ACCENT = [229, 190, 107] as const
@@ -606,6 +610,24 @@ async function runLimitedConcurrencyPool<T>(
   return results
 }
 
+async function prepareImageForPdfWithRetries(imageUrl: string) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prepareImageForPdf(imageUrl)
+    } catch (error) {
+      const delay = PDF_IMAGE_RETRY_DELAYS_MS[attempt]
+
+      if (delay === undefined || !(error instanceof PdfImageError) || !error.retryable) {
+        throw error
+      }
+
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, delay)
+      })
+    }
+  }
+}
+
 async function prepareLocationImagesForPdf(
   location: SelectionPdfLocation,
   globalStartIndex: number,
@@ -621,7 +643,7 @@ async function prepareLocationImagesForPdf(
       let result: PreparedLocationImageResult
 
       try {
-        const preparedImage = await prepareImageForPdf(image.imageUrl)
+        const preparedImage = await prepareImageForPdfWithRetries(image.imageUrl)
 
         result = {
           kind: 'success' as const,
