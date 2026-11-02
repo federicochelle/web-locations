@@ -11,6 +11,7 @@ import {
   PDF_CATEGORY_COVER_OVERLAY_OPACITY,
   formatPdfLocationCode,
   isHorizontalPhoto,
+  planGridCells,
   planSelectionPdfPages,
 } from '@/utils/selection-pdf-layout.ts'
 import type {
@@ -538,15 +539,20 @@ function addPhotosPage(
     return
   }
 
-  const cellWidth = (gridWidth - GRID_GAP) / 2
-  const cellHeight = (gridHeight - GRID_GAP) / 2
+  const cells = planGridCells(
+    page.items.length,
+    { width: gridWidth, height: gridHeight },
+    GRID_GAP,
+  )
 
   page.items.forEach((photo, index) => {
+    const cell = cells[index]!
+
     drawPhotoInCell(doc, photo, {
-      x: PAGE_MARGIN_X + (index % 2) * (cellWidth + GRID_GAP),
-      y: header.photoTop + Math.floor(index / 2) * (cellHeight + GRID_GAP),
-      width: cellWidth,
-      height: cellHeight,
+      x: PAGE_MARGIN_X + cell.x,
+      y: header.photoTop + cell.y,
+      width: cell.width,
+      height: cell.height,
     })
   })
 }

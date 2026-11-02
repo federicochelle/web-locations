@@ -6,6 +6,9 @@ export const PDF_HORIZONTAL_RATIO_THRESHOLD = 1.1
 // Black veil over the cover texture on category covers, so the title keeps strong contrast.
 export const PDF_CATEGORY_COVER_OVERLAY_OPACITY = 0.72
 
+// Aspect ratio of the cells used when a grid page has exactly two photos.
+const PDF_PAIR_CELL_RATIO = 16 / 9
+
 const FALLBACK_CATEGORY_NAME = 'Otras locaciones'
 const LEGACY_FALLBACK_CATEGORY_NAME = 'Sin categoria'
 
@@ -19,6 +22,56 @@ export type PdfPlanLocation<T> = {
 export type PlannedPdfPage<T> =
   | { kind: 'category'; categoryName: string }
   | { kind: 'photos'; variant: 'hero' | 'grid'; locationCode: string; items: T[] }
+
+export type GridCellRect = { x: number; y: number; width: number; height: number }
+
+// Splits the photo area of a grid page between its photos, so no space is left empty. The
+// result is relative to the top-left corner of the area and uses the same unit as the inputs.
+//   1 photo:  the whole area.
+//   2 photos: stacked 16:9 cells, centred horizontally.
+//   3 photos: one wide cell on top (2/3 of the height) and two cells below.
+//   4 photos: 2 x 2.
+export function planGridCells(
+  count: number,
+  area: { width: number; height: number },
+  gap: number,
+): GridCellRect[] {
+  const { width, height } = area
+  const halfWidth = (width - gap) / 2
+  const halfHeight = (height - gap) / 2
+
+  if (count <= 1) {
+    return count === 1 ? [{ x: 0, y: 0, width, height }] : []
+  }
+
+  if (count === 2) {
+    const cellWidth = Math.min(width, halfHeight * PDF_PAIR_CELL_RATIO)
+    const x = (width - cellWidth) / 2
+
+    return [
+      { x, y: 0, width: cellWidth, height: halfHeight },
+      { x, y: halfHeight + gap, width: cellWidth, height: halfHeight },
+    ]
+  }
+
+  if (count === 3) {
+    const bottomHeight = (height - gap) / 3
+    const topHeight = bottomHeight * 2
+
+    return [
+      { x: 0, y: 0, width, height: topHeight },
+      { x: 0, y: topHeight + gap, width: halfWidth, height: bottomHeight },
+      { x: halfWidth + gap, y: topHeight + gap, width: halfWidth, height: bottomHeight },
+    ]
+  }
+
+  return Array.from({ length: count }, (_, index) => ({
+    x: (index % 2) * (halfWidth + gap),
+    y: Math.floor(index / 2) * (halfHeight + gap),
+    width: halfWidth,
+    height: halfHeight,
+  }))
+}
 
 export function isHorizontalPhoto(width: number, height: number) {
   return height > 0 && width / height > PDF_HORIZONTAL_RATIO_THRESHOLD

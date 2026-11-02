@@ -7,6 +7,7 @@ import {
   PDF_CATEGORY_COVER_OVERLAY_OPACITY,
   formatPdfLocationCode,
   isHorizontalPhoto,
+  planGridCells,
   planSelectionPdfPages,
 } from '@/utils/selection-pdf-layout.ts'
 
@@ -213,7 +214,7 @@ function PhotoCell({ src, alt }: { src: string; alt: string }) {
   const [isHorizontal, setIsHorizontal] = useState(false)
 
   return (
-    <div className="relative min-h-0 overflow-hidden bg-[#101010]">
+    <div className="relative h-full min-h-0 overflow-hidden bg-[#101010]">
       <img
         src={src}
         alt={alt}
@@ -229,6 +230,12 @@ function PhotoCell({ src, alt }: { src: string; alt: string }) {
   )
 }
 
+// Photo area of the 1123 x 794 px page: matches inset-x-5 / bottom-5 and the header heights below.
+const PHOTO_AREA_MARGIN_PX = 20
+const PHOTO_AREA_TOP_HERO_PX = 53
+const PHOTO_AREA_TOP_GRID_PX = 46
+const PHOTO_GAP_PX = 3
+
 function PhotosPage({
   locationCode,
   variant,
@@ -238,6 +245,16 @@ function PhotosPage({
   variant: 'hero' | 'grid'
   photos: Array<{ key: string; imageUrl: string }>
 }) {
+  const cells = planGridCells(
+    variant === 'hero' ? 1 : photos.length,
+    {
+      width: PAGE_WIDTH_PX - PHOTO_AREA_MARGIN_PX * 2,
+      height:
+        PAGE_HEIGHT_PX - (variant === 'hero' ? PHOTO_AREA_TOP_HERO_PX : PHOTO_AREA_TOP_GRID_PX) - PHOTO_AREA_MARGIN_PX,
+    },
+    PHOTO_GAP_PX,
+  )
+
   return (
     <ScaledPage>
       <header
@@ -262,19 +279,24 @@ function PhotosPage({
       </header>
 
       <div
-        className={`absolute inset-x-5 bottom-5 grid gap-[3px] ${
-          variant === 'hero'
-            ? 'top-[53px] grid-cols-1 grid-rows-1'
-            : 'top-[46px] grid-cols-2 grid-rows-2'
-        }`}
+        className={`absolute inset-x-5 bottom-5 ${variant === 'hero' ? 'top-[53px]' : 'top-[46px]'}`}
       >
-        {photos.map((photo) => (
-          <PhotoCell
-            key={photo.key}
-            src={photo.imageUrl}
-            alt={`Imagen seleccionada de ${locationCode}`}
-          />
-        ))}
+        {photos.map((photo, index) => {
+          const cell = cells[index]!
+
+          return (
+            <div
+              key={photo.key}
+              className="absolute"
+              style={{ left: cell.x, top: cell.y, width: cell.width, height: cell.height }}
+            >
+              <PhotoCell
+                src={photo.imageUrl}
+                alt={`Imagen seleccionada de ${locationCode}`}
+              />
+            </div>
+          )
+        })}
       </div>
     </ScaledPage>
   )
