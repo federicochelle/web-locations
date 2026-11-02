@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom'
 
 import { ActiveProjectSelect } from '@/components/selection/ActiveProjectSelect.tsx'
 import { ProposalWorkspace } from '@/components/selection/ProposalWorkspace.tsx'
+import { PdfFailedImagesModal } from '@/components/submissions/PdfFailedImagesModal.tsx'
 import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadingModal.tsx'
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
+import { usePdfFailedImagesPrompt } from '@/hooks/usePdfFailedImagesPrompt.ts'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { reportOperationalError } from '@/sentry-observability.ts'
@@ -16,6 +18,7 @@ import {
   uploadRequestProjectProductionCompanyLogo,
 } from '@/services/request-project-production-company-logos.service.ts'
 import {
+  RequestProjectSubmissionCancelledError,
   submitRequestProjectWithOfficialPdf,
 } from '@/services/request-projects.service.ts'
 import type { RequestProject } from '@/types/request-project.ts'
@@ -230,6 +233,7 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
   const [projectSavedBeforeError, setProjectSavedBeforeError] = useState(false)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
   const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
+  const { askFailedImages, modalProps: failedImagesModalProps } = usePdfFailedImagesPrompt()
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [productionCompanyLogoUploadStatus, setProductionCompanyLogoUploadStatus] =
@@ -922,6 +926,16 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         onPdfReady: (nextExportResult) => {
           setExportResult(nextExportResult)
         },
+        onFailedImages: async (summary) => {
+          setIsLoadingModalOpen(false)
+          const decision = await askFailedImages(summary)
+
+          if (decision !== 'cancel') {
+            setIsLoadingModalOpen(true)
+          }
+
+          return decision
+        },
       })
 
       await onProjectsRefresh()
@@ -945,17 +959,19 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         )
       }
     } catch (error) {
-      reportOperationalError(error, {
-        action: 'selection_pdf_flow.submit_proposal',
-        projectId: activeProjectId,
-        requestProjectId: activeProjectId,
-        rpc: 'finalize_request_project_submission_versioned',
-        extra: {
-          imageCount: images.length,
-          totalImages: finalImageCount,
-          projectSavedBeforeError,
-        },
-      })
+      if (!(error instanceof RequestProjectSubmissionCancelledError)) {
+        reportOperationalError(error, {
+          action: 'selection_pdf_flow.submit_proposal',
+          projectId: activeProjectId,
+          requestProjectId: activeProjectId,
+          rpc: 'finalize_request_project_submission_versioned',
+          extra: {
+            imageCount: images.length,
+            totalImages: finalImageCount,
+            projectSavedBeforeError,
+          },
+        })
+      }
       setIsLoadingModalOpen(false)
       setExportError(
         error instanceof Error ? error.message : 'No pudimos completar la propuesta.',
@@ -1259,6 +1275,8 @@ export function SelectionPdfFlow(props: SelectionPdfFlowProps) {
         statusMessage={getProgressStatusMessage(progress, createdProjectId)}
         progressPercent={progress?.percent ?? 0}
       />
+
+      <PdfFailedImagesModal {...failedImagesModalProps} />
 
       <SubmissionResultModal
         isOpen={isSuccessModalOpen}

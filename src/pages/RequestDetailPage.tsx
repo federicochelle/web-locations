@@ -7,6 +7,7 @@ import drawerHeaderBackgroundUrl from '@/assets/home-mosaic/WhatsApp Image 2026-
 import { RequestProjectStatusBadge } from '@/components/requests/RequestProjectStatusBadge.tsx'
 import { SelectionPdfForm } from '@/components/selection/SelectionPdfForm.tsx'
 import { SelectionPdfPreview } from '@/components/selection/SelectionPdfPreview.tsx'
+import { PdfFailedImagesModal } from '@/components/submissions/PdfFailedImagesModal.tsx'
 import { SubmissionLoadingModal } from '@/components/submissions/SubmissionLoadingModal.tsx'
 import { SubmissionResultModal } from '@/components/submissions/SubmissionResultModal.tsx'
 import { ImageLightbox } from '@/components/ui/ImageLightbox.tsx'
@@ -15,6 +16,7 @@ import { AppModal } from '@/components/ui/AppModal.tsx'
 import { useImageSelection } from '@/hooks/useImageSelection.ts'
 import { usePageSeo } from '@/hooks/usePageSeo.ts'
 import { useRequestProjectDetail } from '@/hooks/useRequestProjectDetail.ts'
+import { usePdfFailedImagesPrompt } from '@/hooks/usePdfFailedImagesPrompt.ts'
 import { useRequestProjects } from '@/hooks/useRequestProjects.ts'
 import { reportOperationalError } from '@/sentry-observability.ts'
 import {
@@ -27,6 +29,7 @@ import {
   downloadOfficialRequestProjectPdf,
   getCurrentRequestProjectLocationPresentations,
   getCurrentRequestProjectLocationsForVersion,
+  RequestProjectSubmissionCancelledError,
   submitRequestProjectWithOfficialPdf,
 } from '@/services/request-projects.service.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
@@ -376,6 +379,7 @@ export function RequestDetailPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
   const [isLoadingModalOpen, setIsLoadingModalOpen] = useState(false)
+  const { askFailedImages, modalProps: failedImagesModalProps } = usePdfFailedImagesPrompt()
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false)
   const [isEditNoticeModalOpen, setIsEditNoticeModalOpen] = useState(false)
   const [isExitEditModalOpen, setIsExitEditModalOpen] = useState(false)
@@ -992,6 +996,16 @@ export function RequestDetailPage() {
         onProgress: (nextProgress) => {
           setSubmissionProgress(nextProgress)
         },
+        onFailedImages: async (summary) => {
+          setIsLoadingModalOpen(false)
+          const decision = await askFailedImages(summary)
+
+          if (decision !== 'cancel') {
+            setIsLoadingModalOpen(true)
+          }
+
+          return decision
+        },
       })
 
       await refreshProject()
@@ -1020,16 +1034,18 @@ export function RequestDetailPage() {
         )
       }
     } catch (submitError) {
-      reportOperationalError(submitError, {
-        action: 'request_detail.submit_project',
-        projectId: project.id,
-        requestProjectId: project.id,
-        rpc: 'finalize_request_project_submission_versioned',
-        extra: {
-          totalImages: currentPdfPayload.totalImages,
-          isDraft,
-        },
-      })
+      if (!(submitError instanceof RequestProjectSubmissionCancelledError)) {
+        reportOperationalError(submitError, {
+          action: 'request_detail.submit_project',
+          projectId: project.id,
+          requestProjectId: project.id,
+          rpc: 'finalize_request_project_submission_versioned',
+          extra: {
+            totalImages: currentPdfPayload.totalImages,
+            isDraft,
+          },
+        })
+      }
       setIsLoadingModalOpen(false)
       setValidationError(
         submitError instanceof Error
@@ -1826,6 +1842,7 @@ export function RequestDetailPage() {
         statusMessage={getProgressStatusMessage(submissionProgress)}
         progressPercent={submissionProgress?.percent ?? 0}
       />
+      <PdfFailedImagesModal {...failedImagesModalProps} />
       <SubmissionResultModal
         isOpen={isSuccessModalOpen}
         variant="success"
