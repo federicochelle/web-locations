@@ -32,6 +32,8 @@ const PDF_ACCENT = [229, 190, 107] as const
 const PDF_CELL_BACKGROUND = [16, 16, 16] as const
 const PDF_BLOB_URL_REVOKE_DELAY_MS = 60_000
 const PDF_SHARE_TEXT = 'PDF de seleccion generado por Sitio Locaciones.'
+const PDF_AUTHOR = 'Sitio Locaciones'
+const PDF_LANGUAGE = 'es-AR'
 function setTextColor(doc: jsPDF, color: readonly [number, number, number]) {
   doc.setTextColor(color[0], color[1], color[2])
 }
@@ -63,6 +65,19 @@ function normalizeFileNameSegment(value: string) {
     .replace(/^-+|-+$/g, '')
 
   return normalizedValue || 'locaciones'
+}
+
+function buildPdfTitle(payload: SelectionPdfPayload) {
+  const product = payload.project.product.trim()
+
+  return product ? `Selección de locaciones — ${product}` : 'Selección de locaciones'
+}
+
+function buildPdfSubject(payload: SelectionPdfPayload) {
+  const company = payload.project.productionCompany.trim()
+  const locationsLabel = `${payload.totalLocations} ${payload.totalLocations === 1 ? 'locación' : 'locaciones'}`
+
+  return company ? `${locationsLabel} para ${company}` : locationsLabel
 }
 
 function buildPdfFileName(payload: SelectionPdfPayload) {
@@ -648,6 +663,14 @@ export async function createSelectionPdf(
     format: 'a4',
     compress: true,
   })
+
+  doc.setProperties({
+    title: buildPdfTitle(payload),
+    author: PDF_AUTHOR,
+    subject: buildPdfSubject(payload),
+    creator: PDF_AUTHOR,
+  })
+  doc.setLanguage(PDF_LANGUAGE)
 
   const totalImages = payload.totalImages
   const failedImages: SelectionPdfFailedImage[] = []
