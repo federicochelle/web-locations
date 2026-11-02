@@ -2,6 +2,11 @@ import { recoverableImport } from '@/version-recovery/browser.ts'
 import { supabase } from '@/lib/supabase.ts'
 import { reportOperationalError } from '@/sentry-observability.ts'
 import { getSession, getSessionUser } from '@/services/auth.service.ts'
+import {
+  summarizeFailedImages,
+  type PdfFailedImagesDecision,
+  type PdfFailedImagesSummary,
+} from '@/utils/selection-pdf-failures.ts'
 import type { SelectedLocationImage } from '@/types/image-selection.ts'
 import type {
   RequestProject,
@@ -157,6 +162,9 @@ type SubmitRequestProjectWithOfficialPdfInput = {
   payload: SelectionPdfPayload
   onProgress?: (progress: SelectionPdfProgress) => void
   onPdfReady?: (exportResult: SelectionPdfExportResult) => void
+  // Called when some photos could not be included, before anything is uploaded. Without it the
+  // submission is aborted.
+  onFailedImages?: (summary: PdfFailedImagesSummary) => Promise<PdfFailedImagesDecision>
 }
 
 type FinalizeRequestProjectSubmissionInput = {
@@ -1128,18 +1136,26 @@ async function finalizeRequestProjectSubmission({
   return project
 }
 
+export class RequestProjectSubmissionCancelledError extends Error {
+  constructor() {
+    super('Cancelaste el envío porque algunas fotos no se pudieron cargar.')
+    this.name = 'RequestProjectSubmissionCancelledError'
+  }
+}
+
 export async function submitRequestProjectWithOfficialPdf({
   projectId,
   payload,
   onProgress,
   onPdfReady,
+  onFailedImages,
 }: SubmitRequestProjectWithOfficialPdfInput): Promise<SubmitRequestProjectWithOfficialPdfResult> {
   const { createSelectionPdf } = await recoverableImport(() => import('@/utils/selection-pdf-exporter.ts'))
-  const exportResult = await createSelectionPdf(payload, {
+  let exportResult = await createSelectionPdf(payload, {
     onProgress,
   })
 
-  if (exportResult.failedImages.length > 0) {
+  while (exportResult.failedImages.length > 0) {
     reportOperationalError('Request project PDF generation had failed images.', {
       action: 'request_projects.pdf.failed_images',
       projectId,
@@ -1150,9 +1166,26 @@ export async function submitRequestProjectWithOfficialPdf({
         totalImages: exportResult.totalImages,
       },
     })
-    throw new Error(
-      'No pudimos generar el PDF completo porque una o mas imagenes fallaron. Revisa la seleccion e intenta nuevamente.',
-    )
+
+    if (!onFailedImages) {
+      throw new Error(
+        'No pudimos generar el PDF completo porque una o más imágenes fallaron. Revisa la selección e inténtalo nuevamente.',
+      )
+    }
+
+    const decision = await onFailedImages(summarizeFailedImages(payload, exportResult.failedImages))
+
+    if (decision === 'cancel') {
+      throw new RequestProjectSubmissionCancelledError()
+    }
+
+    if (decision === 'continue') {
+      break
+    }
+
+    exportResult = await createSelectionPdf(payload, {
+      onProgress,
+    })
   }
 
   onPdfReady?.(exportResult)
