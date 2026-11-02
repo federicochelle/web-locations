@@ -43,14 +43,14 @@ function paintPageBackground(doc: jsPDF) {
   doc.rect(0, 0, pageWidth, pageHeight, 'F')
 }
 
+// Uses the local calendar date (not UTC), so a PDF generated in the evening is not dated tomorrow.
 function formatDateForFileName(value: string) {
-  const date = new Date(value)
+  const parsedDate = new Date(value)
+  const date = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
 
-  if (Number.isNaN(date.getTime())) {
-    return new Date().toISOString().slice(0, 10)
-  }
-
-  return date.toISOString().slice(0, 10)
+  return `${date.getFullYear()}-${month}-${day}`
 }
 
 function normalizeFileNameSegment(value: string) {
