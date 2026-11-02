@@ -174,6 +174,88 @@ function paintBlackOverlay(doc: jsPDF, opacity: number) {
   doc.restoreGraphicsState()
 }
 
+const COVER_TITLE_MAX_LINES = 3
+const COVER_TITLE_MIN_SIZE = 24
+const COVER_COMPANY_MAX_LINES = 2
+const COVER_COMPANY_LINE_HEIGHT = 1.7
+
+function truncateToWidth(text: string, maxWidth: number, measure: (value: string) => number) {
+  let result = text.trimEnd()
+
+  while (result.length > 0 && measure(`${result}…`) > maxWidth) {
+    result = result.slice(0, -1).trimEnd()
+  }
+
+  return `${result}…`
+}
+
+// Shrinks the font (down to a floor) until the title fits in a few lines. If it still does not
+// fit at the floor size, the last allowed line is cut with an ellipsis.
+function fitCoverTitle(doc: jsPDF, text: string, startSize: number, maxWidth: number) {
+  let size = startSize
+  let lines: string[] = []
+
+  while (true) {
+    doc.setFontSize(size)
+    lines = doc.splitTextToSize(text, maxWidth) as string[]
+
+    if (lines.length <= COVER_TITLE_MAX_LINES || size <= COVER_TITLE_MIN_SIZE) {
+      break
+    }
+
+    size = Math.max(COVER_TITLE_MIN_SIZE, size - 2)
+  }
+
+  if (lines.length > COVER_TITLE_MAX_LINES) {
+    const kept = lines.slice(0, COVER_TITLE_MAX_LINES)
+    const overflow = [kept[COVER_TITLE_MAX_LINES - 1], ...lines.slice(COVER_TITLE_MAX_LINES)].join(' ')
+
+    kept[COVER_TITLE_MAX_LINES - 1] = truncateToWidth(overflow, maxWidth, (value) =>
+      doc.getTextWidth(value),
+    )
+    lines = kept
+  }
+
+  return { lines, size }
+}
+
+// Wraps letter-spaced text by words, since jsPDF does not take letter spacing into account when
+// measuring. The last allowed line is cut with an ellipsis when the text still does not fit.
+function wrapSpacedText(
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+  measure: (value: string) => number,
+) {
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const candidate = current ? `${current} ${word}` : word
+
+    if (current && measure(candidate) > maxWidth) {
+      lines.push(current)
+      current = word
+    } else {
+      current = candidate
+    }
+  }
+
+  if (current) {
+    lines.push(current)
+  }
+
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines)
+
+    kept[maxLines - 1] = lines.slice(maxLines - 1).join(' ')
+    lines.length = 0
+    lines.push(...kept)
+  }
+
+  return lines.map((line) => (measure(line) > maxWidth ? truncateToWidth(line, maxWidth, measure) : line))
+}
+
 function fitInside(image: { width: number; height: number }, maxWidth: number, maxHeight: number) {
   const scale = Math.min(maxWidth / image.width, maxHeight / image.height)
 
@@ -275,16 +357,32 @@ function addMainCoverPage(
 
   // Title (and the producer below it) are centred on the page.
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(titleSize)
-  const titleLines = doc.splitTextToSize(productName, titleMaxWidth) as string[]
-  const titleLineHeight = titleSize * PT_TO_MM * 1.08
+  const { lines: titleLines, size: fittedTitleSize } = fitCoverTitle(
+    doc,
+    productName,
+    titleSize,
+    titleMaxWidth,
+  )
+  const titleLineHeight = fittedTitleSize * PT_TO_MM * 1.08
   const titleHeight = titleLines.length * titleLineHeight
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(companySize)
+  const companyCharSpace = companySize * 0.32 * PT_TO_MM
+  const measureCompany = (value: string) =>
+    doc.getTextWidth(value) + companyCharSpace * Math.max(0, value.length - 1)
+  const companyLines = companyName
+    ? wrapSpacedText(companyName.toUpperCase(), titleMaxWidth, COVER_COMPANY_MAX_LINES, measureCompany)
+    : []
+  const companyLineHeight = companySize * PT_TO_MM * COVER_COMPANY_LINE_HEIGHT
   const lineBlockHeight = hasLogos ? 0 : 8 * PX_TO_MM + 2 * PX_TO_MM
-  const companyTopGap = companyName ? (hasLogos ? 20 : 28) * PX_TO_MM : 0
-  const companyHeight = companyName ? companySize * PT_TO_MM : 0
+  const companyTopGap = companyLines.length > 0 ? (hasLogos ? 20 : 28) * PX_TO_MM : 0
+  const companyHeight = companyLines.length * companyLineHeight
   const blockHeight = titleHeight + lineBlockHeight + companyTopGap + companyHeight
   let cursorY = (pageHeight - blockHeight) / 2
 
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(fittedTitleSize)
   setTextColor(doc, PDF_TEXT_GOLD)
   doc.text(titleLines, pageWidth / 2, cursorY + titleLineHeight * 0.78, {
     align: 'center',
@@ -302,19 +400,20 @@ function addMainCoverPage(
     cursorY += 2 * PX_TO_MM
   }
 
-  if (companyName) {
+  if (companyLines.length > 0) {
     cursorY += companyTopGap
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(companySize)
     doc.setTextColor(PDF_TEXT_GOLD[0], PDF_TEXT_GOLD[1], PDF_TEXT_GOLD[2])
-    // jsPDF does not account for letter spacing when centring, so the text is centred by hand.
-    const companyText = companyName.toUpperCase()
-    const companyCharSpace = companySize * 0.32 * PT_TO_MM
-    const companyWidth =
-      doc.getTextWidth(companyText) + companyCharSpace * Math.max(0, companyText.length - 1)
 
-    doc.text(companyText, (pageWidth - companyWidth) / 2, cursorY + companyHeight * 0.8, {
-      charSpace: companyCharSpace,
+    // jsPDF does not account for letter spacing when centring, so each line is centred by hand.
+    companyLines.forEach((line, index) => {
+      doc.text(
+        line,
+        (pageWidth - measureCompany(line)) / 2,
+        cursorY + index * companyLineHeight + companySize * PT_TO_MM * 0.9,
+        { charSpace: companyCharSpace },
+      )
     })
   }
 
