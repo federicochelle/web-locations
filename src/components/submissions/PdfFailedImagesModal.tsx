@@ -54,7 +54,7 @@ export function PdfFailedImagesModal({ summary, onDecision }: PdfFailedImagesMod
               {summary.failedCount === 1
                 ? 'No pudimos incluir 1 foto en el PDF, aunque lo intentamos varias veces.'
                 : `No pudimos incluir ${summary.failedCount} fotos en el PDF, aunque lo intentamos varias veces.`}{' '}
-              Puedes reintentar o continuar sin ellas.
+              Podés reintentar o continuar sin ellas.
             </p>
           </div>
 
