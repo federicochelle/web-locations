@@ -29,6 +29,30 @@ test('mobile navegación principal permite ir de inicio a login y volver', async
   await expectNoUnexpectedRuntimeIssues(page, diagnostics)
 })
 
+test('mobile guest ve Locaciones sin Proyectos ni Favoritos y llega a la grilla', async ({
+  page,
+  diagnostics,
+}) => {
+  await page.goto('/')
+
+  const nav = page.getByRole('navigation', { name: /Navegación principal móvil/i })
+  await expect(nav.getByRole('link', { name: /^Locaciones$/i })).toBeVisible()
+  await expect(nav.getByRole('link', { name: /^Cuenta$/i })).toBeVisible()
+  await expect(nav.getByRole('link', { name: /^Proyectos$/i })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: /^Favoritos$/i })).toHaveCount(0)
+
+  await nav.getByRole('link', { name: /^Locaciones$/i }).click()
+  await expect(page.locator('#explorar')).toBeInViewport()
+  await expect(page).toHaveURL(/\/$/)
+
+  await page.goto('/nosotros')
+  await nav.getByRole('link', { name: /^Locaciones$/i }).click()
+  await expect(page).toHaveURL(/\/#explorar$/)
+  await expect(page.locator('#explorar')).toBeInViewport()
+
+  await expectNoUnexpectedRuntimeIssues(page, diagnostics)
+})
+
 test('mobile búsqueda limpia q antiguo y resuelve con reload', async ({
   page,
   diagnostics,
