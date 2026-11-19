@@ -137,7 +137,7 @@ export function HomePage() {
 
         {!isDataLoading && !error && categoryCards.length > 0 ? (
           <section
-            id="explorar"
+            id={isWaitingForCriticalImages ? undefined : 'explorar'}
             className={
               isWaitingForCriticalImages
                 ? 'pointer-events-none invisible max-h-0 overflow-hidden'

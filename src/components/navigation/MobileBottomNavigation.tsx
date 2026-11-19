@@ -9,7 +9,10 @@ type MobileNavigationItem = {
   Icon: (props: { className?: string }) => React.JSX.Element
   matches: (pathname: string) => boolean
   usesLogo?: boolean
+  scrollsToLocations?: boolean
 }
+
+const LOCATIONS_SECTION_ID = 'explorar'
 
 function ProjectsIcon({ className = '' }: { className?: string }) {
   return (
@@ -64,19 +67,62 @@ function AccountIcon({ className = '' }: { className?: string }) {
   )
 }
 
+function CompassIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9.25" />
+      <path d="m15.9 8.1-1.9 5.9-5.9 1.9 1.9-5.9Z" />
+    </svg>
+  )
+}
+
+const homeItem: MobileNavigationItem = {
+  label: 'Inicio',
+  to: '/',
+  Icon: ProjectsIcon,
+  usesLogo: true,
+  matches: (pathname) =>
+    pathname === '/' ||
+    pathname === '/busqueda' ||
+    matchPath('/categorias/:slug', pathname) !== null ||
+    matchPath('/categorias/:categorySlug/:locationId', pathname) !== null ||
+    matchPath('/locations/:slug', pathname) !== null,
+}
+
+const accountItem: MobileNavigationItem = {
+  label: 'Cuenta',
+  to: '/profile',
+  Icon: AccountIcon,
+  matches: (pathname) =>
+    pathname === '/profile' ||
+    pathname === '/dashboard' ||
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password',
+}
+
+const locationsItem: MobileNavigationItem = {
+  label: 'Locaciones',
+  to: `/#${LOCATIONS_SECTION_ID}`,
+  Icon: CompassIcon,
+  scrollsToLocations: true,
+  matches: () => false,
+}
+
+const guestNavigationItems: MobileNavigationItem[] = [homeItem, locationsItem, accountItem]
+
 const mobileNavigationItems: MobileNavigationItem[] = [
-  {
-    label: 'Inicio',
-    to: '/',
-    Icon: ProjectsIcon,
-    usesLogo: true,
-    matches: (pathname) =>
-      pathname === '/' ||
-      pathname === '/busqueda' ||
-      matchPath('/categorias/:slug', pathname) !== null ||
-      matchPath('/categorias/:categorySlug/:locationId', pathname) !== null ||
-      matchPath('/locations/:slug', pathname) !== null,
-  },
+  homeItem,
   {
     label: 'Proyectos',
     to: '/requests',
@@ -89,18 +135,7 @@ const mobileNavigationItems: MobileNavigationItem[] = [
     Icon: FavoritesIcon,
     matches: (pathname) => matchPath('/favorites', pathname) !== null,
   },
-  {
-    label: 'Cuenta',
-    to: '/profile',
-    Icon: AccountIcon,
-    matches: (pathname) =>
-      pathname === '/profile' ||
-      pathname === '/dashboard' ||
-      pathname === '/login' ||
-      pathname === '/register' ||
-      pathname === '/forgot-password' ||
-      pathname === '/reset-password',
-  },
+  accountItem,
 ]
 
 const hiddenNavigationPatterns = ['/admin/*']
@@ -121,30 +156,44 @@ export function MobileBottomNavigation() {
     return null
   }
 
+  // While the session resolves keep the member bar so signed-in users never see a guest flash.
+  const isGuest = !loading && !isAuthenticated
+  const navigationItems = isGuest ? guestNavigationItems : mobileNavigationItems
+
   return (
     <nav
       aria-label="Navegación principal móvil"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#14110f]/96 shadow-[0_-10px_30px_rgba(0,0,0,0.28)] backdrop-blur-sm md:hidden"
     >
       <div
-        className="grid grid-cols-4 items-stretch px-0.5 pt-0"
+        className={`grid items-stretch px-0.5 pt-0 ${isGuest ? 'grid-cols-3' : 'grid-cols-4'}`}
         style={{
           paddingBottom: 'calc(0.2rem + env(safe-area-inset-bottom))',
         }}
       >
-        {mobileNavigationItems.map(({ label, to, Icon, matches, usesLogo }) => {
+        {navigationItems.map(({ label, to, Icon, matches, usesLogo, scrollsToLocations }) => {
           const isActive = matches(location.pathname)
           const destination = label === 'Cuenta' ? accountDestination : to
 
           return (
             <Link
-              key={to}
+              key={label}
               to={destination}
               aria-label={label}
               aria-current={isActive ? 'page' : undefined}
               onClick={(event) => {
                 if (label === 'Cuenta' && loading) {
                   event.preventDefault()
+                  return
+                }
+
+                if (scrollsToLocations && location.pathname === '/') {
+                  const target = document.getElementById(LOCATIONS_SECTION_ID)
+
+                  if (target) {
+                    event.preventDefault()
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
                 }
               }}
               className={`group inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-1 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#14110f] ${
